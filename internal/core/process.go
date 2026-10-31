@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"strconv"
 	"errors"
 	"fmt"
 	"os"
@@ -73,6 +74,7 @@ func Ensure(ctx context.Context, opts Options) (*Core, error) {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = opts.Workdir
+	cmd.Env = append(os.Environ(), "LINGZHU_PARENT_PID="+strconv.Itoa(os.Getpid()))
 	hideChildWindow(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start core: %w", err)

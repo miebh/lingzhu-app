@@ -32,16 +32,16 @@ export interface PermissionRequest {
   message?: string;
 }
 
-export interface Status {
-  connected: boolean;
+export interface WorkspaceInfo {
+  path: string;
+  name: string;
   addr: string;
-  owned: boolean;
-  logPath: string;
-  workdir: string;
+  connected: boolean;
   error: string;
 }
 
 export interface CoreEvent {
+  workspace: string;
   sessionId: string;
   seq: number;
   type: string;
@@ -87,4 +87,9 @@ export function blankChat(id: string, title = "New session"): ChatState {
     window: 0,
     pending: [],
   };
+}
+
+/** chatKey scopes a session to its workspace; IDs are only unique per core. */
+export function chatKey(workspace: string, sessionID: string): string {
+  return `${workspace}\u0000${sessionID}`;
 }

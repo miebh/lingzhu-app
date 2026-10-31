@@ -1,40 +1,65 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./lib/api";
-import { blankChat, type ChatState, type CoreEvent, type SessionInfo, type Status } from "./lib/types";
+import { blankChat, chatKey, type ChatState, type CoreEvent, type SessionInfo, type WorkspaceInfo } from "./lib/types";
+import { workspaceName } from "./lib/history";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "./components/Sidebar";
 import { Messages } from "./components/Messages";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 
-const emptyStatus: Status = { connected: false, addr: "", owned: false, logPath: "", workdir: "", error: "" };
-
 export default function App() {
-  const [status, setStatus] = useState<Status>(emptyStatus);
+  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
+  const [activePath, setActivePath] = useState<string>();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [chats, setChats] = useState<Record<string, ChatState>>({});
-  const [activeId, setActiveId] = useState<string>();
+  const [activeByWorkspace, setActiveByWorkspace] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState<string>();
 
-  const loadSessions = useCallback(async () => {
+  const activePathRef = useRef(activePath);
+  activePathRef.current = activePath;
+
+  const activeId = activePath ? activeByWorkspace[activePath] : undefined;
+  const active = activePath && activeId ? chats[chatKey(activePath, activeId)] : undefined;
+  const activeWorkspace = workspaces.find((workspace) => workspace.path === activePath);
+
+  const loadWorkspaces = useCallback(async () => {
     try {
-      setSessions(await api.sessions());
+      const list = await api.workspaces();
+      setWorkspaces(list);
+      setActivePath((prev) => {
+        if (prev && list.some((workspace) => workspace.path === prev)) return prev;
+        const first = list.find((workspace) => workspace.connected) ?? list[0];
+        return first?.path;
+      });
     } catch (error) {
-      setStatus((prev) => ({ ...prev, error: messageOf(error) }));
+      setNotice(messageOf(error));
     }
   }, []);
 
-  const refreshChat = useCallback(async (id: string) => {
+  const loadSessions = useCallback(async (path: string) => {
+    try {
+      const list = await api.sessions(path);
+      if (activePathRef.current === path) setSessions(list);
+    } catch (error) {
+      if (activePathRef.current === path) setSessions([]);
+      setNotice(messageOf(error));
+    }
+  }, []);
+
+  const refreshChat = useCallback(async (workspace: string, sessionID: string, title = "") => {
+    const key = chatKey(workspace, sessionID);
     try {
       const [messages, context, pending] = await Promise.all([
-        api.messages(id),
-        api.context(id),
-        api.pending(id),
+        api.messages(workspace, sessionID),
+        api.context(workspace, sessionID),
+        api.pending(workspace, sessionID),
       ]);
       setChats((prev) => {
-        const chat = prev[id] ?? blankChat(id, "");
+        const chat = prev[key] ?? blankChat(sessionID, title);
         return {
           ...prev,
-          [id]: {
+          [key]: {
             ...chat,
             draft: false,
             messages,
@@ -49,178 +74,211 @@ export default function App() {
     } catch (error) {
       setChats((prev) => ({
         ...prev,
-        [id]: { ...(prev[id] ?? blankChat(id)), error: messageOf(error) },
+        [key]: { ...(prev[key] ?? blankChat(sessionID, title)), error: messageOf(error) },
       }));
     }
   }, []);
 
-  const refreshContext = useCallback(async (id: string) => {
+  useEffect(() => {
+    void loadWorkspaces();
+    const off = api.onEvent((event) => {
+      const key = chatKey(event.workspace, event.sessionId);
+      setChats((prev) => applyEvent(prev, key, event));
+      if (event.type === "run.end" || event.type === "client.done") {
+        void refreshChat(event.workspace, event.sessionId);
+        if (event.workspace === activePathRef.current) void loadSessions(event.workspace);
+      }
+    });
+    return off;
+  }, [loadSessions, loadWorkspaces, refreshChat]);
+
+  useEffect(() => {
+    if (!activePath) {
+      setSessions([]);
+      return;
+    }
+    void loadSessions(activePath);
+  }, [activePath, loadSessions]);
+
+  const selectWorkspace = (path: string) => {
+    if (path === activePathRef.current) return;
+    setActivePath(path);
+    setSessions([]);
+  };
+
+  const open = async (workspace: string, sessionID: string) => {
+    if (workspace !== activePathRef.current) {
+      setActivePath(workspace);
+      setSessions([]);
+    }
+    setActiveByWorkspace((prev) => ({ ...prev, [workspace]: sessionID }));
+    const key = chatKey(workspace, sessionID);
+    if (!chats[key]) {
+      const info = workspace === activePathRef.current ? sessions.find((session) => session.id === sessionID) : undefined;
+      setChats((prev) => (prev[key] ? prev : { ...prev, [key]: { ...blankChat(sessionID, info?.title ?? ""), draft: false } }));
+    }
+    await refreshChat(workspace, sessionID);
+  };
+
+  const newChat = async (workspace: string) => {
     try {
-      const context = await api.context(id);
+      const id = await api.newSessionID();
+      const key = chatKey(workspace, id);
+      setChats((prev) => ({ ...prev, [key]: blankChat(id) }));
+      if (workspace !== activePathRef.current) {
+        setActivePath(workspace);
+        setSessions([]);
+      }
+      setActiveByWorkspace((prev) => ({ ...prev, [workspace]: id }));
+    } catch (error) {
+      setNotice(messageOf(error));
+    }
+  };
+
+  const send = async (text: string) => {
+    if (!activePath || !activeId) return;
+    const key = chatKey(activePath, activeId);
+    const chat = chats[key] ?? blankChat(activeId);
+    const title = chat.title && chat.title !== "New session" ? chat.title : text.slice(0, 40);
+    setChats((prev) => ({
+      ...prev,
+      [key]: { ...chat, title, draft: false, running: true, error: undefined, notice: undefined },
+    }));
+    if (chat.draft) {
+      setSessions((prev) => [{ id: activeId, title, updated: new Date().toISOString() }, ...prev]);
+    }
+    try {
+      await api.send(activePath, activeId, text);
+      void refreshContext(activePath, activeId);
+    } catch (error) {
+      setChats((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], running: false, error: messageOf(error) },
+      }));
+    }
+  };
+
+  const refreshContext = useCallback(async (workspace: string, sessionID: string) => {
+    try {
+      const context = await api.context(workspace, sessionID);
+      const key = chatKey(workspace, sessionID);
       setChats((prev) => {
-        const chat = prev[id];
+        const chat = prev[key];
         if (!chat) return prev;
-        return { ...prev, [id]: { ...chat, tokens: context.tokens, window: context.window } };
+        return { ...prev, [key]: { ...chat, tokens: context.tokens, window: context.window } };
       });
     } catch {
       // The context endpoint is informational; keep the previous numbers.
     }
   }, []);
 
-  useEffect(() => {
-    void api.status().then(setStatus).catch((error) => setStatus({ ...emptyStatus, error: messageOf(error) }));
-    void loadSessions();
-    const offStatus = api.onStatus(setStatus);
-    return offStatus;
-  }, [loadSessions]);
-
-  useEffect(() => {
-    const off = api.onEvent((event) => {
-      setChats((prev) => applyEvent(prev, event));
-      if (event.type === "run.end" || event.type === "client.done") {
-        void refreshChat(event.sessionId);
-        void loadSessions();
-      }
-    });
-    return off;
-  }, [loadSessions, refreshChat]);
-
-  const open = async (id: string) => {
-    setActiveId(id);
-    const chat = chats[id];
-    if (!chat) {
-      const info = sessions.find((session) => session.id === id);
-      setChats((prev) =>
-        prev[id]
-          ? prev
-          : { ...prev, [id]: { ...blankChat(id, info?.title ?? ""), draft: false } },
-      );
-    }
-    if (!chat || !chat.draft) {
-      await refreshChat(id);
-    }
-  };
-
-  const newChat = async () => {
-    try {
-      const id = await api.newSessionID();
-      setChats((prev) => ({ ...prev, [id]: blankChat(id) }));
-      setActiveId(id);
-    } catch (error) {
-      setStatus((prev) => ({ ...prev, error: messageOf(error) }));
-    }
-  };
-
-  const send = async (text: string) => {
-    if (!activeId) return;
-    const chat = chats[activeId] ?? blankChat(activeId);
-    const title = chat.title && chat.title !== "New session" ? chat.title : text.slice(0, 40);
-    setChats((prev) => ({
-      ...prev,
-      [activeId]: {
-        ...chat,
-        title,
-        draft: false,
-        running: true,
-        error: undefined,
-        notice: undefined,
-      },
-    }));
-    if (chat.draft) {
-      setSessions((prev) => [{ id: activeId, title, updated: new Date().toISOString() }, ...prev]);
-    }
-    try {
-      await api.send(activeId, text);
-      void refreshContext(activeId);
-    } catch (error) {
-      setChats((prev) => ({
-        ...prev,
-        [activeId]: { ...prev[activeId], running: false, error: messageOf(error) },
-      }));
-    }
-  };
-
   const stop = async () => {
-    if (!activeId) return;
+    if (!activePath || !activeId) return;
     try {
-      await api.interrupt(activeId);
+      await api.interrupt(activePath, activeId);
     } catch (error) {
       setChats((prev) => ({
         ...prev,
-        [activeId]: { ...prev[activeId], error: messageOf(error) },
+        [chatKey(activePath, activeId)]: { ...prev[chatKey(activePath, activeId)], error: messageOf(error) },
       }));
     }
   };
 
   const reply = async (requestID: string, decision: string) => {
-    if (!activeId) return;
+    if (!activePath || !activeId) return;
+    const key = chatKey(activePath, activeId);
     try {
-      await api.reply(activeId, requestID, decision);
+      await api.reply(activePath, activeId, requestID, decision);
       setChats((prev) => {
-        const chat = prev[activeId];
+        const chat = prev[key];
         if (!chat) return prev;
-        return {
-          ...prev,
-          [activeId]: { ...chat, pending: chat.pending.filter((item) => item.id !== requestID) },
-        };
+        return { ...prev, [key]: { ...chat, pending: chat.pending.filter((item) => item.id !== requestID) } };
       });
     } catch (error) {
-      setChats((prev) => ({
-        ...prev,
-        [activeId]: { ...prev[activeId], error: messageOf(error) },
-      }));
+      setChats((prev) => ({ ...prev, [key]: { ...prev[key], error: messageOf(error) } }));
     }
   };
 
-  const rename = async (session: SessionInfo) => {
+  const rename = async (workspace: string, session: SessionInfo) => {
     const title = window.prompt("Rename session", session.title);
     if (!title || title.trim() === "") return;
     try {
-      await api.rename(session.id, title.trim());
-      await loadSessions();
+      await api.rename(workspace, session.id, title.trim());
+      if (workspace === activePathRef.current) await loadSessions(workspace);
     } catch (error) {
-      setStatus((prev) => ({ ...prev, error: messageOf(error) }));
+      setNotice(messageOf(error));
     }
   };
 
-  const remove = async (session: SessionInfo) => {
+  const remove = async (workspace: string, session: SessionInfo) => {
     if (!window.confirm(`Delete "${session.title || session.id}"?`)) return;
     try {
-      await api.remove(session.id);
-      setSessions((prev) => prev.filter((item) => item.id !== session.id));
+      await api.remove(workspace, session.id);
+      if (workspace === activePathRef.current) {
+        setSessions((prev) => prev.filter((item) => item.id !== session.id));
+      }
       setChats((prev) => {
         const next = { ...prev };
-        delete next[session.id];
+        delete next[chatKey(workspace, session.id)];
         return next;
       });
-      if (activeId === session.id) setActiveId(undefined);
+      if (activeByWorkspace[workspace] === session.id) {
+        setActiveByWorkspace((prev) => ({ ...prev, [workspace]: "" }));
+      }
     } catch (error) {
-      setStatus((prev) => ({ ...prev, error: messageOf(error) }));
+      setNotice(messageOf(error));
+    }
+  };
+
+  const addWorkspace = async () => {
+    try {
+      const info = await api.addWorkspace();
+      await loadWorkspaces();
+      if (info?.path) setActivePath(info.path);
+    } catch (error) {
+      setNotice(messageOf(error));
+      await loadWorkspaces();
+    }
+  };
+
+  const removeWorkspace = async (path: string) => {
+    if (!window.confirm(`Remove workspace "${workspaceName(path)}"? Session data stays on disk.`)) return;
+    try {
+      await api.removeWorkspace(path);
+      await loadWorkspaces();
+      if (activePath === path) {
+        setActivePath(undefined);
+        setSessions([]);
+      }
+    } catch (error) {
+      setNotice(messageOf(error));
     }
   };
 
   const compact = async () => {
-    if (!activeId) return;
+    if (!activePath || !activeId) return;
     try {
-      await api.compact(activeId);
-      await refreshChat(activeId);
+      await api.compact(activePath, activeId);
+      await refreshChat(activePath, activeId);
     } catch (error) {
       setChats((prev) => ({
         ...prev,
-        [activeId]: { ...prev[activeId], error: messageOf(error) },
+        [chatKey(activePath, activeId)]: { ...prev[chatKey(activePath, activeId)], error: messageOf(error) },
       }));
     }
   };
 
-  const active = activeId ? chats[activeId] : undefined;
-
   return (
     <div className="flex h-full bg-bg text-ink">
       <Sidebar
+        workspaces={workspaces}
+        activePath={activePath}
         sessions={sessions}
         chats={chats}
         activeId={activeId}
-        status={status}
+        onSelectWorkspace={selectWorkspace}
+        onAddWorkspace={addWorkspace}
+        onRemoveWorkspace={removeWorkspace}
         onNew={newChat}
         onOpen={open}
         onRename={rename}
@@ -228,12 +286,20 @@ export default function App() {
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
+        {notice && (
+          <div className="flex items-center gap-3 border-b border-destructive/30 bg-destructive/[0.06] px-6 py-2 text-[12px] text-destructive">
+            <span className="min-w-0 flex-1 truncate">{notice}</span>
+            <button onClick={() => setNotice(undefined)} className="text-destructive/70 hover:text-destructive">
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {active ? (
           <>
             <header className="flex h-11 shrink-0 items-center gap-3 border-b border-line-weak px-6">
-              <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
-                {active.title || "New session"}
-              </h1>
+              <span className="shrink-0 text-[12px] text-ink-faint">{activeWorkspace?.name}</span>
+              <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{active.title || "New session"}</h1>
               <span className="text-[11px] tabular-nums text-ink-faint">
                 {active.window > 0 ? `${formatTokens(active.tokens)} / ${formatTokens(active.window)}` : "—"}
               </span>
@@ -259,7 +325,7 @@ export default function App() {
 
             <Messages chat={active} />
             <PermissionCard requests={active.pending} onReply={reply} />
-            <Composer running={active.running} disabled={!status.connected} onSend={send} onStop={stop} />
+            <Composer running={active.running} disabled={!activeWorkspace?.connected} onSend={send} onStop={stop} />
           </>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-4">
@@ -267,11 +333,17 @@ export default function App() {
               L
             </div>
             <div className="text-center">
-              <p className="text-[13px] text-ink-mid">No session selected</p>
-              <p className="mt-1 text-[12px] text-ink-faint">Pick one on the left or start a new session.</p>
+              <p className="text-[13px] text-ink-mid">
+                {workspaces.length === 0 ? "No workspace yet" : "No session selected"}
+              </p>
+              <p className="mt-1 text-[12px] text-ink-faint">
+                {workspaces.length === 0
+                  ? "Add a directory to use as a workspace."
+                  : "Pick a session on the left or start a new one."}
+              </p>
             </div>
-            <Button onClick={newChat} disabled={!status.connected}>
-              New session
+            <Button onClick={() => (workspaces.length === 0 ? void addWorkspace() : activePath && void newChat(activePath))} disabled={workspaces.length > 0 && !activePath}>
+              {workspaces.length === 0 ? "Add workspace" : "New session"}
             </Button>
           </div>
         )}
@@ -280,8 +352,8 @@ export default function App() {
   );
 }
 
-function applyEvent(chats: Record<string, ChatState>, event: CoreEvent): Record<string, ChatState> {
-  const chat = chats[event.sessionId];
+function applyEvent(chats: Record<string, ChatState>, key: string, event: CoreEvent): Record<string, ChatState> {
+  const chat = chats[key];
   if (!chat) return chats;
   const data = event.data ?? {};
   const next: ChatState = { ...chat };
@@ -351,7 +423,7 @@ function applyEvent(chats: Record<string, ChatState>, event: CoreEvent): Record<
       break;
   }
 
-  return { ...chats, [event.sessionId]: next };
+  return { ...chats, [key]: next };
 }
 
 function messageOf(error: unknown): string {
