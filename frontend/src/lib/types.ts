@@ -59,10 +59,21 @@ export interface ToolRun {
   done: boolean;
 }
 
+/** Prompt-side and output tokens reported by the provider for this client run. */
+export interface UsageTotals {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+export type RunStatus = "completed" | "stopped" | "max-steps" | "failed";
+
 export interface ChatState {
   id: string;
   title: string;
   draft: boolean;
+  loading?: boolean;
   messages: Message[];
   tools: ToolRun[];
   liveText: string;
@@ -70,6 +81,11 @@ export interface ChatState {
   tokens: number;
   window: number;
   pending: PermissionRequest[];
+  usage?: UsageTotals;
+  runStartedAt?: number;
+  runEndedAt?: number;
+  lastRunMs?: number;
+  lastRunStatus?: RunStatus;
   error?: string;
   notice?: string;
 }
@@ -79,6 +95,7 @@ export function blankChat(id: string, title = "New session"): ChatState {
     id,
     title,
     draft: true,
+    loading: false,
     messages: [],
     tools: [],
     liveText: "",

@@ -10,33 +10,33 @@ interface Props {
 export function PermissionCard({ requests, onReply }: Props) {
   if (requests.length === 0) return null;
   return (
-    <div className="border-t border-border bg-raised px-8 py-3">
-      <div className="mx-auto max-w-[736px] divide-y divide-border">
+    <div className="select-none border-t border-border-base bg-bg-layer-02 px-inset-page py-3">
+      <div role="region" aria-label="Permission requests" className="mx-auto w-full max-w-chat divide-y divide-border-base">
         {requests.map((request) => (
           <div key={request.id} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
-            <TriangleAlert className="mt-[3px] size-4 shrink-0 text-warning" />
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-state-fg-warning" />
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2 text-[13px] text-foreground">
+              <div className="flex items-baseline gap-2 text-body text-text-base">
                 <span>Permission required</span>
-                <span className="font-mono text-[12px] text-ink-mid">{request.action}</span>
+                <span className="font-mono text-meta text-text-muted">{request.action}</span>
               </div>
               {request.resources.length > 0 && (
-                <div className="mt-1 space-y-0.5 font-mono text-[12px] leading-5 break-all text-ink-mid">
+                <div className="mt-1 select-text font-mono text-meta leading-5 break-all text-text-muted">
                   {request.resources.map((resource, index) => (
                     <div key={index}>{resource}</div>
                   ))}
                 </div>
               )}
-              {request.message && <p className="mt-1 text-[12px] leading-5 text-ink-weak">{request.message}</p>}
+              {request.message && <p className="mt-1 text-meta leading-5 text-text-faint">{request.message}</p>}
             </div>
 
-            <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+            <div className="flex shrink-0 items-center gap-2 pt-0.5">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onReply(request.id, "reject")}
-                className="font-normal text-ink-mid hover:text-foreground"
+                className="font-normal text-text-muted hover:text-text-base"
               >
                 Deny
               </Button>
@@ -44,7 +44,7 @@ export function PermissionCard({ requests, onReply }: Props) {
                 variant="outline"
                 size="sm"
                 onClick={() => onReply(request.id, "always")}
-                className="font-normal text-ink-mid hover:text-foreground"
+                className="font-normal text-text-muted hover:text-text-base"
               >
                 Allow always
               </Button>

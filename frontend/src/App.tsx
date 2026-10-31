@@ -1,20 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./lib/api";
-import { blankChat, chatKey, type ChatState, type CoreEvent, type SessionInfo, type WorkspaceInfo } from "./lib/types";
+import { blankChat, chatKey, type ChatState, type CoreEvent, type SessionInfo, type UsageTotals, type WorkspaceInfo } from "./lib/types";
 import { workspaceName } from "./lib/history";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "./components/Sidebar";
 import { Messages } from "./components/Messages";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
+import { ConfirmDialog, RenameDialog } from "./components/Dialogs";
+import { Toast, type ToastTone } from "./components/Toast";
+
+interface Notice {
+  id: number;
+  text: string;
+  tone: ToastTone;
+}
 
 export default function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
   const [activePath, setActivePath] = useState<string>();
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionInfo[]>>({});
   const [chats, setChats] = useState<Record<string, ChatState>>({});
   const [activeByWorkspace, setActiveByWorkspace] = useState<Record<string, string>>({});
-  const [notice, setNotice] = useState<string>();
+  const [toast, setToast] = useState<Notice>();
+  const [renameTarget, setRenameTarget] = useState<{ workspace: string; session: SessionInfo }>();
+  const [deleteTarget, setDeleteTarget] = useState<{ workspace: string; session: SessionInfo }>();
+  const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = useState<string>();
+
+  const toastID = useRef(0);
+  const notify = useCallback((text: string, tone: ToastTone = "error") => {
+    toastID.current += 1;
+    setToast({ id: toastID.current, text, tone });
+  }, []);
 
   const activePathRef = useRef(activePath);
   activePathRef.current = activePath;
@@ -33,19 +50,19 @@ export default function App() {
         return first?.path;
       });
     } catch (error) {
-      setNotice(messageOf(error));
+      notify(messageOf(error));
     }
-  }, []);
+  }, [notify]);
 
   const loadSessions = useCallback(async (path: string) => {
     try {
       const list = await api.sessions(path);
-      if (activePathRef.current === path) setSessions(list);
+      setSessionsByWorkspace((prev) => ({ ...prev, [path]: list }));
     } catch (error) {
-      if (activePathRef.current === path) setSessions([]);
-      setNotice(messageOf(error));
+      setSessionsByWorkspace((prev) => ({ ...prev, [path]: [] }));
+      notify(messageOf(error));
     }
-  }, []);
+  }, [notify]);
 
   const refreshChat = useCallback(async (workspace: string, sessionID: string, title = "") => {
     const key = chatKey(workspace, sessionID);
@@ -61,6 +78,7 @@ export default function App() {
           ...prev,
           [key]: {
             ...chat,
+            loading: false,
             draft: false,
             messages,
             tools: [],
@@ -74,7 +92,11 @@ export default function App() {
     } catch (error) {
       setChats((prev) => ({
         ...prev,
-        [key]: { ...(prev[key] ?? blankChat(sessionID, title)), error: messageOf(error) },
+        [key]: {
+          ...(prev[key] ?? blankChat(sessionID, title)),
+          loading: false,
+          error: messageOf(error),
+        },
       }));
     }
   }, []);
@@ -86,52 +108,61 @@ export default function App() {
       setChats((prev) => applyEvent(prev, key, event));
       if (event.type === "run.end" || event.type === "client.done") {
         void refreshChat(event.workspace, event.sessionId);
-        if (event.workspace === activePathRef.current) void loadSessions(event.workspace);
+        void loadSessions(event.workspace);
       }
     });
     return off;
   }, [loadSessions, loadWorkspaces, refreshChat]);
 
-  useEffect(() => {
-    if (!activePath) {
-      setSessions([]);
-      return;
-    }
-    void loadSessions(activePath);
-  }, [activePath, loadSessions]);
-
   const selectWorkspace = (path: string) => {
     if (path === activePathRef.current) return;
     setActivePath(path);
-    setSessions([]);
   };
 
   const open = async (workspace: string, sessionID: string) => {
     if (workspace !== activePathRef.current) {
       setActivePath(workspace);
-      setSessions([]);
     }
     setActiveByWorkspace((prev) => ({ ...prev, [workspace]: sessionID }));
     const key = chatKey(workspace, sessionID);
+    // A draft has no durable session yet; selecting it must not fetch history.
+    if (chats[key]?.draft) return;
     if (!chats[key]) {
-      const info = workspace === activePathRef.current ? sessions.find((session) => session.id === sessionID) : undefined;
-      setChats((prev) => (prev[key] ? prev : { ...prev, [key]: { ...blankChat(sessionID, info?.title ?? ""), draft: false } }));
+      const info = sessionsByWorkspace[workspace]?.find((session) => session.id === sessionID);
+      setChats((prev) =>
+        prev[key]
+          ? prev
+          : {
+              ...prev,
+              [key]: { ...blankChat(sessionID, info?.title ?? ""), draft: false, loading: true },
+            },
+      );
     }
     await refreshChat(workspace, sessionID);
   };
 
   const newChat = async (workspace: string) => {
+    // Only one draft may exist per workspace: reuse it instead of stacking a
+    // second "New Session" row in the sidebar.
+    const existing = Object.keys(chats)
+      .filter((key) => key.startsWith(`${workspace}\u0000`))
+      .map((key) => chats[key])
+      .find((chat) => chat.draft);
+    if (existing) {
+      if (workspace !== activePathRef.current) setActivePath(workspace);
+      setActiveByWorkspace((prev) => ({ ...prev, [workspace]: existing.id }));
+      return;
+    }
     try {
       const id = await api.newSessionID();
       const key = chatKey(workspace, id);
       setChats((prev) => ({ ...prev, [key]: blankChat(id) }));
       if (workspace !== activePathRef.current) {
         setActivePath(workspace);
-        setSessions([]);
       }
       setActiveByWorkspace((prev) => ({ ...prev, [workspace]: id }));
     } catch (error) {
-      setNotice(messageOf(error));
+      notify(messageOf(error));
     }
   };
 
@@ -142,10 +173,25 @@ export default function App() {
     const title = chat.title && chat.title !== "New session" ? chat.title : text.slice(0, 40);
     setChats((prev) => ({
       ...prev,
-      [key]: { ...chat, title, draft: false, running: true, error: undefined, notice: undefined },
+      [key]: {
+        ...chat,
+        title,
+        draft: false,
+        loading: false,
+        running: true,
+        runStartedAt: Date.now(),
+        runEndedAt: undefined,
+        lastRunMs: undefined,
+        lastRunStatus: undefined,
+        error: undefined,
+        notice: undefined,
+      },
     }));
     if (chat.draft) {
-      setSessions((prev) => [{ id: activeId, title, updated: new Date().toISOString() }, ...prev]);
+      setSessionsByWorkspace((prev) => ({
+        ...prev,
+        [activePath]: [{ id: activeId, title, updated: new Date().toISOString() }, ...(prev[activePath] ?? [])],
+      }));
     }
     try {
       await api.send(activePath, activeId, text);
@@ -199,34 +245,48 @@ export default function App() {
     }
   };
 
-  const rename = async (workspace: string, session: SessionInfo) => {
-    const title = window.prompt("Rename session", session.title);
-    if (!title || title.trim() === "") return;
+  const requestRename = (workspace: string, session: SessionInfo) => {
+    setRenameTarget({ workspace, session });
+  };
+
+  const confirmRename = async (title: string) => {
+    const target = renameTarget;
+    if (!target) return;
+    setRenameTarget(undefined);
     try {
-      await api.rename(workspace, session.id, title.trim());
-      if (workspace === activePathRef.current) await loadSessions(workspace);
+      await api.rename(target.workspace, target.session.id, title);
+      if (target.workspace === activePathRef.current) await loadSessions(target.workspace);
+      notify("Session renamed", "info");
     } catch (error) {
-      setNotice(messageOf(error));
+      notify(messageOf(error));
     }
   };
 
-  const remove = async (workspace: string, session: SessionInfo) => {
-    if (!window.confirm(`Delete "${session.title || session.id}"?`)) return;
+  const requestDelete = (workspace: string, session: SessionInfo) => {
+    setDeleteTarget({ workspace, session });
+  };
+
+  const confirmDelete = async () => {
+    const target = deleteTarget;
+    if (!target) return;
+    setDeleteTarget(undefined);
     try {
-      await api.remove(workspace, session.id);
-      if (workspace === activePathRef.current) {
-        setSessions((prev) => prev.filter((item) => item.id !== session.id));
-      }
+      await api.remove(target.workspace, target.session.id);
+      setSessionsByWorkspace((prev) => ({
+        ...prev,
+        [target.workspace]: (prev[target.workspace] ?? []).filter((item) => item.id !== target.session.id),
+      }));
       setChats((prev) => {
         const next = { ...prev };
-        delete next[chatKey(workspace, session.id)];
+        delete next[chatKey(target.workspace, target.session.id)];
         return next;
       });
-      if (activeByWorkspace[workspace] === session.id) {
-        setActiveByWorkspace((prev) => ({ ...prev, [workspace]: "" }));
+      if (activeByWorkspace[target.workspace] === target.session.id) {
+        setActiveByWorkspace((prev) => ({ ...prev, [target.workspace]: "" }));
       }
+      notify("Session deleted", "info");
     } catch (error) {
-      setNotice(messageOf(error));
+      notify(messageOf(error));
     }
   };
 
@@ -235,23 +295,35 @@ export default function App() {
       const info = await api.addWorkspace();
       await loadWorkspaces();
       if (info?.path) setActivePath(info.path);
+      notify("Workspace added", "info");
     } catch (error) {
-      setNotice(messageOf(error));
+      notify(messageOf(error));
       await loadWorkspaces();
     }
   };
 
-  const removeWorkspace = async (path: string) => {
-    if (!window.confirm(`Remove workspace "${workspaceName(path)}"? Session data stays on disk.`)) return;
+  const requestRemoveWorkspace = (path: string) => {
+    setRemoveWorkspaceTarget(path);
+  };
+
+  const confirmRemoveWorkspace = async () => {
+    const path = removeWorkspaceTarget;
+    if (!path) return;
+    setRemoveWorkspaceTarget(undefined);
     try {
       await api.removeWorkspace(path);
       await loadWorkspaces();
+      setSessionsByWorkspace((prev) => {
+        const next = { ...prev };
+        delete next[path];
+        return next;
+      });
       if (activePath === path) {
         setActivePath(undefined);
-        setSessions([]);
       }
+      notify("Workspace removed", "info");
     } catch (error) {
-      setNotice(messageOf(error));
+      notify(messageOf(error));
     }
   };
 
@@ -269,55 +341,36 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-full bg-bg text-ink">
+    <div className="flex h-full bg-bg-base text-text-base">
       <Sidebar
         workspaces={workspaces}
         activePath={activePath}
-        sessions={sessions}
+        sessionsByWorkspace={sessionsByWorkspace}
         chats={chats}
         activeId={activeId}
         onSelectWorkspace={selectWorkspace}
+        onLoadSessions={loadSessions}
         onAddWorkspace={addWorkspace}
-        onRemoveWorkspace={removeWorkspace}
+        onRemoveWorkspace={requestRemoveWorkspace}
         onNew={newChat}
         onOpen={open}
-        onRename={rename}
-        onDelete={remove}
+        onRename={requestRename}
+        onDelete={requestDelete}
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        {notice && (
-          <div className="flex items-center gap-3 border-b border-destructive/30 bg-destructive/[0.06] px-6 py-2 text-[12px] text-destructive">
-            <span className="min-w-0 flex-1 truncate">{notice}</span>
-            <button onClick={() => setNotice(undefined)} className="text-destructive/70 hover:text-destructive">
-              Dismiss
-            </button>
-          </div>
-        )}
-
         {active ? (
           <>
-            <header className="flex h-11 shrink-0 items-center gap-3 border-b border-line-weak px-6">
-              <span className="shrink-0 text-[12px] text-ink-faint">{activeWorkspace?.name}</span>
-              <h1 className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{active.title || "New session"}</h1>
-              <span className="text-[11px] tabular-nums text-ink-faint">
-                {active.window > 0 ? `${formatTokens(active.tokens)} / ${formatTokens(active.window)}` : "—"}
-              </span>
-              <div className="h-[3px] w-20 overflow-hidden rounded-full bg-white/[0.08]">
-                <div
-                  className={`h-full rounded-full transition-[width] ${
-                    active.window > 0 && active.tokens / active.window > 0.8 ? "bg-warning" : "bg-brand"
-                  }`}
-                  style={{ width: `${active.window > 0 ? Math.min(100, (active.tokens / active.window) * 100) : 0}%` }}
-                />
-              </div>
+            <header className="flex h-12 shrink-0 select-none items-center gap-3 border-b border-border-weak px-inset-page">
+              <span className="shrink-0 text-caption text-text-faint">{activeWorkspace?.name}</span>
+              <h1 className="min-w-0 flex-1 truncate text-body font-medium text-text-base">{active.title || "New session"}</h1>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={compact}
                 disabled={active.running || active.messages.length === 0}
                 title="Summarize older context"
-                className="font-normal text-ink-weak hover:text-foreground"
+                className="font-normal text-text-muted hover:text-text-base"
               >
                 Compact
               </Button>
@@ -325,18 +378,26 @@ export default function App() {
 
             <Messages chat={active} />
             <PermissionCard requests={active.pending} onReply={reply} />
-            <Composer running={active.running} disabled={!activeWorkspace?.connected} onSend={send} onStop={stop} />
+            <Composer
+              running={active.running}
+              disabled={!activeWorkspace?.connected}
+              tokens={active.tokens}
+              window={active.window}
+              usage={active.usage}
+              onSend={send}
+              onStop={stop}
+            />
           </>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4">
-            <div className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-[#141414] text-sm font-semibold text-brand">
+          <div className="flex flex-1 select-none flex-col items-center justify-center gap-4 px-inset-page">
+            <div className="grid size-12 place-items-center rounded-xl border border-border-base bg-bg-layer-01 text-body font-medium text-text-accent">
               L
             </div>
             <div className="text-center">
-              <p className="text-[13px] text-ink-mid">
+              <p className="text-body text-text-muted">
                 {workspaces.length === 0 ? "No workspace yet" : "No session selected"}
               </p>
-              <p className="mt-1 text-[12px] text-ink-faint">
+              <p className="mt-1 text-meta text-text-faint">
                 {workspaces.length === 0
                   ? "Add a directory to use as a workspace."
                   : "Pick a session on the left or start a new one."}
@@ -348,6 +409,41 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {toast && <Toast key={toast.id} text={toast.text} tone={toast.tone} onDone={() => setToast(undefined)} />}
+
+      <RenameDialog
+        open={renameTarget !== undefined}
+        initial={renameTarget?.session.title ?? ""}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(undefined);
+        }}
+        onConfirm={(title) => void confirmRename(title)}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== undefined}
+        title="Delete session"
+        description={`Delete "${deleteTarget?.session.title || deleteTarget?.session.id || "this session"}"? Its log is removed from disk.`}
+        confirmLabel="Delete"
+        destructive
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(undefined);
+        }}
+        onConfirm={() => void confirmDelete()}
+      />
+
+      <ConfirmDialog
+        open={removeWorkspaceTarget !== undefined}
+        title="Remove workspace"
+        description={`Remove "${removeWorkspaceTarget ? workspaceName(removeWorkspaceTarget) : ""}" from the sidebar? Session data stays on disk.`}
+        confirmLabel="Remove"
+        destructive
+        onOpenChange={(open) => {
+          if (!open) setRemoveWorkspaceTarget(undefined);
+        }}
+        onConfirm={() => void confirmRemoveWorkspace()}
+      />
     </div>
   );
 }
@@ -356,17 +452,26 @@ function applyEvent(chats: Record<string, ChatState>, key: string, event: CoreEv
   const chat = chats[key];
   if (!chat) return chats;
   const data = event.data ?? {};
-  const next: ChatState = { ...chat };
+  const next: ChatState = { ...chat, loading: false };
+  const startedAt = () => {
+    if (next.runStartedAt === undefined) next.runStartedAt = Date.now();
+  };
 
   switch (event.type) {
+    case "step.start":
+      startedAt();
+      break;
     case "text.delta":
+      startedAt();
       next.liveText = chat.liveText + String(data.text ?? "");
       break;
     case "assistant.message":
+      startedAt();
       next.messages = [...chat.messages, { role: "assistant", content: String(data.text ?? "") }];
       next.liveText = "";
       break;
     case "tool.call":
+      startedAt();
       if (chat.liveText) {
         next.messages = [...chat.messages, { role: "assistant", content: chat.liveText }];
         next.liveText = "";
@@ -405,35 +510,58 @@ function applyEvent(chats: Record<string, ChatState>, key: string, event: CoreEv
       break;
     case "usage":
       next.tokens = Number(data.input ?? 0) + Number(data.cacheRead ?? 0);
+      next.usage = addUsage(chat.usage, data);
       break;
     case "compaction":
       next.notice = "Context compacted";
       break;
-    case "run.end":
+    case "run.end": {
+      const reason = String(data.reason ?? "done");
       next.running = false;
       next.liveText = "";
       next.tools = chat.tools.map((tool) => (tool.done ? tool : { ...tool, done: true }));
+      next.lastRunStatus =
+        reason === "done"
+          ? "completed"
+          : reason === "interrupted"
+            ? "stopped"
+            : reason === "max_steps"
+              ? "max-steps"
+              : "failed";
+      next.lastRunMs = chat.runStartedAt === undefined ? undefined : Date.now() - chat.runStartedAt;
+      next.runEndedAt = Date.now();
+      next.runStartedAt = undefined;
       break;
+    }
     case "client.done":
       next.running = false;
       break;
     case "client.error":
       next.running = false;
+      next.lastRunStatus = "failed";
       next.error = String(data.message ?? "stream failed");
+      break;
+    case "error":
+      next.running = false;
+      next.lastRunStatus = "failed";
+      next.error = String(data.message ?? "run failed");
       break;
   }
 
   return { ...chats, [key]: next };
 }
 
+function addUsage(previous: UsageTotals | undefined, data: Record<string, unknown>): UsageTotals {
+  return {
+    input: (previous?.input ?? 0) + Number(data.input ?? 0),
+    output: (previous?.output ?? 0) + Number(data.output ?? 0),
+    cacheRead: (previous?.cacheRead ?? 0) + Number(data.cacheRead ?? 0),
+    cacheWrite: (previous?.cacheWrite ?? 0) + Number(data.cacheWrite ?? 0),
+  };
+}
+
 function messageOf(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
   return String(error);
-}
-
-function formatTokens(value: number): string {
-  if (!value) return "0";
-  if (value < 1000) return String(value);
-  return `${(value / 1000).toFixed(1)}k`;
 }

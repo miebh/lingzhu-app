@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronRight, CircleAlert, Copy, FileText, Search, Terminal } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ArrowDown, Check, ChevronRight, CircleAlert, FileText, Search, Terminal } from "lucide-react";
+import { CopyButton, Markdown } from "./Markdown";
+import { formatDuration } from "../lib/format";
 import type { ChatState, Message, ToolRun } from "../lib/types";
 
 export function Messages({ chat }: { chat: ChatState }) {
   const container = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
 
   // History carries tool results but not their arguments, so pair them with the
   // assistant tool calls that produced them.
@@ -20,74 +20,118 @@ export function Messages({ chat }: { chat: ChatState }) {
 
   useEffect(() => {
     const element = container.current;
-    if (element && pinned.current) {
-      element.scrollTop = element.scrollHeight;
-    }
+    if (element && pinned.current) element.scrollTop = element.scrollHeight;
   }, [chat.messages.length, chat.liveText, chat.tools.length, chat.running]);
+
+  // The composer grows with its content; keeping the bottom pinned on container
+  // resizes prevents the last message from jumping out of view while typing.
+  useEffect(() => {
+    const element = container.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      if (pinned.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const onScroll = () => {
     const element = container.current;
     if (!element) return;
-    pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+    const near = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+    pinned.current = near;
+    setAwayFromBottom(!near);
+  };
+
+  const toBottom = () => {
+    const element = container.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    pinned.current = true;
+    setAwayFromBottom(false);
   };
 
   const empty = chat.messages.length === 0 && chat.tools.length === 0 && !chat.liveText;
+
+  if (chat.loading && empty) {
+    return (
+      <div className="flex-1 overflow-y-auto px-inset-page py-inset-panel">
+        <div role="status" aria-label="Loading conversation" className="mx-auto flex w-full max-w-chat flex-col gap-6">
+          {[0, 1, 2].map((index) => (
+            <div key={index} aria-hidden className="flex flex-col gap-2">
+              <div className={`h-2 rounded-xs bg-bg-layer-02 motion-safe:animate-pulse ${index === 1 ? "w-2/3" : "w-1/2"}`} />
+              <div className="h-2 w-full rounded-xs bg-bg-layer-01 motion-safe:animate-pulse" />
+              <div className="h-2 w-4/5 rounded-xs bg-bg-layer-01 motion-safe:animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const working = chat.running && !chat.liveText && chat.tools.every((tool) => tool.done);
 
   return (
-    <div ref={container} onScroll={onScroll} className="flex-1 overflow-y-auto px-8 py-6">
-      <div className="mx-auto flex max-w-[736px] flex-col gap-5">
-        {empty && (
-          <div className="mt-28 text-center">
-            <div className="mx-auto mb-4 grid h-10 w-10 place-items-center rounded-xl border border-border bg-card text-sm font-semibold text-brand">
-              L
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={container}
+        onScroll={onScroll}
+        aria-busy={chat.running}
+        className="scroll-stable flex-1 overflow-y-auto px-inset-page pt-6 pb-4"
+      >
+        <div className="mx-auto flex w-full max-w-chat flex-col gap-0">          {empty && <EmptyState />}
+
+          {chat.messages.map((message, index) => (
+            <MessageView key={index} message={message} argumentsByID={argumentsByID} />
+          ))}
+
+          {chat.tools.map((tool) => (
+            <ToolRow key={tool.id} tool={tool} />
+          ))}
+
+          {chat.liveText && <Markdown text={chat.liveText} className="mt-6" />}
+
+          {working && <RunningStatus startedAt={chat.runStartedAt} />}
+
+          {chat.notice && <TimelineSeparator label={chat.notice} />}
+
+          {chat.error && (
+            <div className="mt-4 flex select-none items-start gap-2 rounded-md border border-state-border-danger bg-state-bg-danger px-3 py-2 text-meta leading-5 text-state-fg-danger">
+              <CircleAlert className="mt-0.5 size-4 shrink-0" />
+              <span className="select-text">{chat.error}</span>
             </div>
-            <p className="text-[13px] text-ink-mid">Ask lingzhu to work in this project.</p>
-            <p className="mx-auto mt-1.5 max-w-sm text-[12px] leading-5 text-ink-faint">
-              It reads files, runs commands and edits code. Tool calls ask for permission first.
-            </p>
-          </div>
-        )}
+          )}
 
-        {chat.messages.map((message, index) => (
-          <MessageView key={index} message={message} argumentsByID={argumentsByID} />
-        ))}
-
-        {chat.tools.map((tool) => (
-          <ToolRow key={tool.id} tool={tool} />
-        ))}
-
-        {chat.liveText && (
-          <div className="whitespace-pre-wrap text-[14px] leading-[1.65] text-foreground">
-            {chat.liveText}
-            <span className="ml-0.5 inline-block h-[13px] w-[2px] animate-pulse bg-brand align-middle" />
-          </div>
-        )}
-
-        {working && (
-          <div className="flex items-center gap-1.5 py-0.5 text-[13px] text-ink-faint">
-            <span className="thinking-dot h-1 w-1 rounded-full bg-ink-weak" />
-            <span className="thinking-dot h-1 w-1 rounded-full bg-ink-weak" />
-            <span className="thinking-dot h-1 w-1 rounded-full bg-ink-weak" />
-            <span className="ml-1">Working…</span>
-          </div>
-        )}
-
-        {chat.notice && (
-          <div className="flex items-center gap-3 py-1 text-[12px] text-ink-faint">
-            <span className="h-px flex-1 bg-line-weak" />
-            {chat.notice}
-            <span className="h-px flex-1 bg-line-weak" />
-          </div>
-        )}
-
-        {chat.error && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-[12px] leading-5 text-destructive">
-            <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
-            <span>{chat.error}</span>
-          </div>
-        )}
+          {chat.lastRunStatus && !chat.running && (
+            <RunFooter status={chat.lastRunStatus} ms={chat.lastRunMs} />
+          )}
+        </div>
       </div>
+
+      {awayFromBottom && (
+        <button
+          type="button"
+          onClick={toBottom}
+          aria-label="Scroll to latest"
+          className="interactive absolute right-6 bottom-4 z-10 grid size-control-md place-items-center rounded-full border border-border-strong bg-bg-layer-02 text-text-muted"
+        >
+          <ArrowDown className="size-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="select-none py-24 text-center">
+      <div className="mx-auto mb-4 grid size-12 place-items-center rounded-xl border border-border-base bg-bg-layer-01 text-body font-medium text-text-accent">
+        L
+      </div>
+      <p className="text-reading text-text-base">Ask lingzhu to work in this project.</p>
+      <p className="mx-auto mt-2 max-w-measure-narrow text-body leading-5 text-text-faint">
+        It reads files, runs commands and edits code. Tool calls ask for permission first.
+      </p>
     </div>
   );
 }
@@ -107,80 +151,151 @@ function MessageView({ message, argumentsByID }: { message: Message; argumentsBy
     );
   }
   if (message.role === "user") {
-    return (
-      <div className="ml-auto max-w-[80%] whitespace-pre-wrap rounded-[10px] bg-white/[0.06] px-3.5 py-2 text-[14px] leading-[1.6] text-foreground">
-        {message.content}
-      </div>
-    );
+    return <UserBubble text={message.content} />;
   }
   if (!message.content) return null;
   return <AssistantText text={message.content} />;
 }
 
-function AssistantText({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    await navigator.clipboard?.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
+/** Right-aligned user bubble; the action row reveals on hover or keyboard focus. */
+function UserBubble({ text }: { text: string }) {
   return (
-    <div className="group/assistant relative whitespace-pre-wrap text-[14px] leading-[1.65] text-foreground">
-      {text}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Copy response"
-            onClick={() => void copy()}
-            className="absolute -top-1 right-0 hidden text-ink-faint group-hover/assistant:inline-flex"
-          >
-            {copied ? <Check /> : <Copy />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">{copied ? "Copied" : "Copy response"}</TooltipContent>
-      </Tooltip>
+    <div className="group/user mt-6 flex flex-col items-end">
+      <div className="max-w-[min(82%,64ch)] rounded-[10px] bg-bg-layer-02 px-3 py-2 text-reading text-text-base whitespace-pre-wrap select-text">
+        {text}
+      </div>
+      <div className="mt-2 flex h-5 items-center opacity-0 transition-opacity group-focus-within/user:opacity-100 group-hover/user:opacity-100">
+        <CopyButton text={text} label="Copy message" />
+      </div>
     </div>
   );
 }
 
+/** Assistant reply: full-width Markdown with a hover-revealed copy footer. */
+function AssistantText({ text }: { text: string }) {
+  return (
+    <div className="group/assistant mt-6">
+      <Markdown text={text} />
+      <div className="mt-2 flex h-5 select-none items-center opacity-0 transition-opacity group-focus-within/assistant:opacity-100 group-hover/assistant:opacity-100">
+        <CopyButton text={text} label="Copy response" />
+      </div>
+    </div>
+  );
+}
+
+/** Timeline divider for context compaction, as a timeline separator. */
+function TimelineSeparator({ label }: { label: string }) {
+  return (
+    <div className="my-2 flex h-8 select-none items-center gap-3 text-text-faint">
+      <span className="h-px min-w-0 flex-1 bg-gradient-to-r from-transparent to-border-strong" />
+      <span className="shrink-0 text-body">{label}</span>
+      <span className="h-px min-w-0 flex-1 bg-gradient-to-l from-transparent to-border-strong" />
+    </div>
+  );
+}
+
+/** Live turn clock under the last content, matching a running row. */
+function RunningStatus({ startedAt }: { startedAt?: number }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (startedAt === undefined) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
+
+  const elapsed = startedAt === undefined ? "" : ` for ${formatDuration(now - startedAt)}`;
+
+  return (
+    <div className="mt-4 flex select-none items-center gap-2 text-body text-text-faint">
+      <span className="size-2 shrink-0 animate-pulse rounded-full bg-text-accent" />
+      <span>Working{elapsed}…</span>
+    </div>
+  );
+}
+
+function RunFooter({ status, ms }: { status: NonNullable<ChatState["lastRunStatus"]>; ms?: number }) {
+  const label =
+    status === "completed"
+      ? "Completed"
+      : status === "stopped"
+        ? "Stopped"
+        : status === "max-steps"
+          ? "Step limit reached"
+          : "Failed";
+  return (
+    <div className="mt-3 flex select-none items-center gap-2 text-caption text-text-faint">
+      <span
+        className={`size-1.5 rounded-full bg-current ${
+          status === "completed"
+            ? "text-state-fg-success"
+            : status === "stopped"
+              ? "text-text-faint"
+              : status === "max-steps"
+                ? "text-state-fg-warning"
+                : "text-state-fg-danger"
+        }`}
+      />
+      <span>{label}</span>
+      {ms !== undefined && ms > 0 && (
+        <>
+          <span aria-hidden>·</span>
+          <span className="tabular-nums">{formatDuration(ms)}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One tool call: a 28px trigger row (icon, name, argument subtitle, state) that
+ * expands into an indented rail, following a compact tool row.
+ */
 function ToolRow({ tool }: { tool: ToolRun }) {
   const [open, setOpen] = useState(false);
   const running = !tool.done;
   const subtitle = toolSubtitle(tool.name, tool.arguments);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-md border border-border/70 bg-card">
-      <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] [&[data-state=open]>svg:first-child]:rotate-90">
-        <ChevronRight className="size-3 shrink-0 text-ink-faint transition-transform" />
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="interactive group/tool flex h-7 w-full select-none items-center gap-2 rounded-xs px-1 text-left"
+      >
+        <ChevronRight
+          className={`size-3 shrink-0 text-text-faint transition-transform ${open ? "rotate-90" : ""}`}
+        />
         <ToolIcon name={tool.name} />
-        <span className="shrink-0 text-ink-mid">{tool.name}</span>
-        {subtitle && <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink-faint">{subtitle}</span>}
+        <span className="shrink-0 text-body font-medium text-text-base">{tool.name}</span>
+        {subtitle && (
+          <span className="min-w-0 flex-1 truncate font-mono text-body text-text-muted">{subtitle}</span>
+        )}
         {!subtitle && <span className="flex-1" />}
         {running ? (
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
+          <span className="size-2 shrink-0 animate-pulse rounded-full bg-text-accent" />
         ) : tool.failed ? (
-          <span className="text-[11px] text-destructive">failed</span>
+          <span className="shrink-0 text-caption text-state-fg-danger">failed</span>
         ) : (
-          <Check className="size-3 text-ink-faint" />
+          <Check className="size-3.5 shrink-0 text-text-faint" />
         )}
-      </CollapsibleTrigger>
-      {tool.output !== undefined && (
-        <CollapsibleContent>
-          <pre className="max-h-64 overflow-auto border-t border-border/60 px-3 py-2 font-mono text-[12px] leading-5 whitespace-pre-wrap text-ink-weak">
+      </button>
+
+      {open && tool.output !== undefined && (
+        <div className="mt-1 ml-2 border-l border-border-base py-1 pl-3">
+          <pre className="max-h-60 select-text overflow-auto font-mono text-meta leading-5 whitespace-pre-wrap break-all text-text-muted">
             {tool.output || "(no output)"}
           </pre>
-        </CollapsibleContent>
+        </div>
       )}
-    </Collapsible>
+    </div>
   );
 }
 
 function ToolIcon({ name }: { name: string }) {
-  const className = "size-3.5 shrink-0 text-ink-faint";
+  const className = "size-4 shrink-0 text-text-faint";
   if (name === "bash") return <Terminal className={className} />;
   if (name === "glob" || name === "grep") return <Search className={className} />;
   if (name === "read_file" || name === "write_file" || name === "edit") return <FileText className={className} />;
