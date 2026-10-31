@@ -21,8 +21,21 @@ cd lingzhu && go build -o ../build/lingzhu.exe ./cmd/lingzhu
 
 cd ../lingzhu-app
 wails3 dev          # hot reload
-wails3 build        # production binary in bin/
+wails3 build        # production binary at ../build/lingzhu-app.exe
 ```
+
+All artifacts live in the repository `build/` directory, next to the core and `config.json`:
+
+```text
+build/lingzhu.exe        core server
+build/lingzhu-app.exe    desktop client
+build/config.json        core configuration
+build/data/              session logs
+```
+
+Because the app sits beside the core, it finds both the binary and the config without any
+environment variables: the config makes its parent directory (the repository root) the agent
+working directory.
 
 At startup the app looks for the core binary next to itself, in `../build/`, and on `PATH`, and for a
 config by walking up from the working directory (`config.json` or `build/config.json`). A discovered
