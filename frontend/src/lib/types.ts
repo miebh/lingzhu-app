@@ -37,6 +37,7 @@ export interface Status {
   addr: string;
   owned: boolean;
   logPath: string;
+  workdir: string;
   error: string;
 }
 

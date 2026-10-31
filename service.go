@@ -21,9 +21,10 @@ const eventChannel = "lingzhu:event"
 
 // CoreService bridges the webview and the lingzhu core process.
 type CoreService struct {
-	ctx  context.Context
-	core *core.Core
-	err  string
+	ctx     context.Context
+	core    *core.Core
+	err     string
+	workdir string
 
 	mu      sync.Mutex
 	streams map[string]context.CancelFunc
@@ -35,6 +36,7 @@ type Status struct {
 	Addr      string `json:"addr"`
 	Owned     bool   `json:"owned"`
 	LogPath   string `json:"logPath"`
+	Workdir   string `json:"workdir"`
 	Error     string `json:"error"`
 }
 
@@ -58,6 +60,10 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 	if workdir == "" {
 		workdir = discoverWorkdir(config)
 	}
+	if workdir == "" {
+		workdir, _ = os.Getwd()
+	}
+	s.workdir = workdir
 	info, err := core.Ensure(ctx, core.Options{
 		Addr:    os.Getenv("LINGZHU_ADDR"),
 		Binary:  os.Getenv("LINGZHU_CORE"),
@@ -91,7 +97,7 @@ func (s *CoreService) ServiceShutdown() error {
 }
 
 func (s *CoreService) Status() Status {
-	status := Status{Error: s.err}
+	status := Status{Error: s.err, Workdir: s.workdir}
 	if s.core != nil {
 		status.Connected = true
 		status.Addr = s.core.Addr

@@ -7,7 +7,7 @@ import { Messages } from "./components/Messages";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 
-const emptyStatus: Status = { connected: false, addr: "", owned: false, logPath: "", error: "" };
+const emptyStatus: Status = { connected: false, addr: "", owned: false, logPath: "", workdir: "", error: "" };
 
 export default function App() {
   const [status, setStatus] = useState<Status>(emptyStatus);
@@ -213,15 +213,12 @@ export default function App() {
   };
 
   const active = activeId ? chats[activeId] : undefined;
-  const drafts = Object.values(chats).filter(
-    (chat) => chat.draft && !sessions.some((session) => session.id === chat.id),
-  );
 
   return (
     <div className="flex h-full bg-bg text-ink">
       <Sidebar
         sessions={sessions}
-        drafts={drafts}
+        chats={chats}
         activeId={activeId}
         status={status}
         onNew={newChat}
