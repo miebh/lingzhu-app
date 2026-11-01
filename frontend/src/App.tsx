@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./lib/api";
-import { blankChat, chatKey, entriesFromMessages, type ChatState, type CoreEvent, type SessionInfo, type TimelineEntry, type UsageTotals, type WorkspaceInfo } from "./lib/types";
+import { blankChat, chatKey, entriesFromMessages, type AppPreferences, type ChatState, type CoreEvent, type ProviderSettings, type SessionInfo, type TimelineEntry, type UsageTotals, type WorkspaceInfo } from "./lib/types";
 import { workspaceName } from "./lib/history";
-import { Button } from "@/components/ui/button";
+import { applyPreferences, defaultPreferences } from "./lib/preferences";
 import { Sidebar } from "./components/Sidebar";
 import { TitleBar } from "./components/TitleBar";
 import { Messages } from "./components/Messages";
 import { Composer } from "./components/Composer";
+import { NewSessionHome } from "./components/NewSessionHome";
 import { PermissionCard } from "./components/PermissionCard";
 import { ConfirmDialog, RenameDialog } from "./components/Dialogs";
-import { SettingsPage } from "./components/SettingsPage";
+import { SettingsPage } from "./components/settings/SettingsPage";
 import { TabBar, type AppTab, type AppTabID } from "./components/TabBar";
 import { Toast, type ToastTone } from "./components/Toast";
 
@@ -31,6 +32,12 @@ export default function App() {
   const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = useState<string>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tab, setTab] = useState<AppTabID>("chat");
+  const [preferences, setPreferences] = useState<AppPreferences>(defaultPreferences);
+  const [catalog, setCatalog] = useState<{ provider: string; model: string; providers: ProviderSettings[] }>();
+  const [homeSelection, setHomeSelection] = useState<{ provider?: string; model?: string }>({});
+
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
 
   const toastID = useRef(0);
   const notify = useCallback((text: string, tone: ToastTone = "error") => {
@@ -44,6 +51,15 @@ export default function App() {
   const activeId = activePath ? activeByWorkspace[activePath] : undefined;
   const active = activePath && activeId ? chats[chatKey(activePath, activeId)] : undefined;
   const activeWorkspace = workspaces.find((workspace) => workspace.path === activePath);
+  const homePath = activePath ?? workspaces.find((workspace) => workspace.connected)?.path;
+  const preferredHome = homePath ? preferences.workspaceModels[homePath] : undefined;
+  const homeProvider = active?.provider ?? homeSelection.provider ?? preferredHome?.provider ?? catalog?.provider ?? "";
+  const homeModel = active?.model ?? homeSelection.model ?? preferredHome?.model ?? catalog?.model ?? "";
+  const homeWindow =
+    catalog?.providers
+      .find((provider) => provider.id === homeProvider)
+      ?.models.find((model) => model.id === homeModel)?.contextWindow ?? 0;
+  const atHome = !active || (active.draft && active.entries.length === 0 && !active.running);
 
   const loadWorkspaces = useCallback(async () => {
     try {
@@ -51,6 +67,8 @@ export default function App() {
       setWorkspaces(list);
       setActivePath((prev) => {
         if (prev && list.some((workspace) => workspace.path === prev)) return prev;
+        const preferred = preferencesRef.current.defaultWorkspace;
+        if (preferred && list.some((workspace) => workspace.path === preferred)) return preferred;
         const first = list.find((workspace) => workspace.connected) ?? list[0];
         return first?.path;
       });
@@ -59,8 +77,17 @@ export default function App() {
     }
   }, [notify]);
 
-  const loadSessions = useCallback(async (path: string) => {
+  const loadCatalog = useCallback(async () => {
     try {
+      const settings = await api.settings();
+      setCatalog({ provider: settings.provider, model: settings.model, providers: settings.providers });
+    } catch {
+      // The settings page surfaces config errors; the composer falls back to
+      // the core's default selection.
+    }
+  }, []);
+
+  const loadSessions = useCallback(async (path: string) => {    try {
       const list = await api.sessions(path);
       setSessionsByWorkspace((prev) => ({ ...prev, [path]: list }));
     } catch (error) {
@@ -88,6 +115,8 @@ export default function App() {
             entries: entriesFromMessages(messages),
             tokens: context.tokens,
             window: context.window,
+            provider: context.provider,
+            model: context.model,
             pending,
           },
         };
@@ -105,8 +134,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void loadWorkspaces();
+    // Preferences decide the startup workspace, so load them before the list.
+    void (async () => {
+      try {
+        const value = await api.preferences();
+        setPreferences(value);
+        preferencesRef.current = value;
+        applyPreferences(value);
+      } catch (error) {
+        notify(messageOf(error));
+      }
+      await loadWorkspaces();
+      await loadCatalog();
+    })();
+
     const off = api.onEvent((event) => {
+      if (event.type === "permission.asked" && preferencesRef.current.autoApprove) {
+        const id = String(event.data?.id ?? "");
+        if (id) {
+          void api
+            .reply(event.workspace, event.sessionId, id, "once")
+            .catch((error) => notify(messageOf(error)));
+        }
+      }
       const key = chatKey(event.workspace, event.sessionId);
       setChats((prev) => applyEvent(prev, key, event));
       if (event.type === "run.end" || event.type === "client.done") {
@@ -115,7 +165,7 @@ export default function App() {
       }
     });
     return off;
-  }, [loadSessions, loadWorkspaces, refreshChat]);
+  }, [loadCatalog, loadSessions, loadWorkspaces, notify, refreshChat]);
 
   const selectWorkspace = (path: string) => {
     if (path === activePathRef.current) return;
@@ -162,7 +212,24 @@ export default function App() {
     try {
       const id = await api.newSessionID();
       const key = chatKey(workspace, id);
-      setChats((prev) => ({ ...prev, [key]: blankChat(id) }));
+      const preferred = preferencesRef.current.workspaceModels[workspace];
+      const usable =
+        preferred &&
+        catalog?.providers.some(
+          (provider) =>
+            provider.id === preferred.provider && provider.models.some((entry) => entry.id === preferred.model),
+        )
+          ? preferred
+          : undefined;
+      setChats((prev) => ({
+        ...prev,
+        [key]: blankChat(
+          id,
+          "New session",
+          usable?.provider ?? catalog?.provider,
+          usable?.model ?? catalog?.model,
+        ),
+      }));
       setTab("chat");
       if (workspace !== activePathRef.current) {
         setActivePath(workspace);
@@ -173,10 +240,16 @@ export default function App() {
     }
   };
 
-  const send = async (text: string) => {
-    if (!activePath || !activeId) return;
-    const key = chatKey(activePath, activeId);
-    const chat = chats[key] ?? blankChat(activeId);
+  const sendTo = async (
+    workspace: string,
+    sessionID: string,
+    text: string,
+    source: ChatState | undefined,
+    providerID: string,
+    modelID: string,
+  ) => {
+    const key = chatKey(workspace, sessionID);
+    const chat = source ?? chats[key] ?? blankChat(sessionID);
     const title = chat.title && chat.title !== "New session" ? chat.title : text.slice(0, 40);
     setChats((prev) => {
       const current = prev[key] ?? chat;
@@ -203,12 +276,18 @@ export default function App() {
     if (chat.draft) {
       setSessionsByWorkspace((prev) => ({
         ...prev,
-        [activePath]: [{ id: activeId, title, updated: new Date().toISOString() }, ...(prev[activePath] ?? [])],
+        [workspace]: [{ id: sessionID, title, updated: new Date().toISOString() }, ...(prev[workspace] ?? [])],
       }));
     }
     try {
-      await api.send(activePath, activeId, text);
-      void refreshContext(activePath, activeId);
+      await api.send(
+        workspace,
+        sessionID,
+        text,
+        providerID || catalog?.provider || "",
+        modelID || catalog?.model || "",
+      );
+      void refreshContext(workspace, sessionID);
     } catch (error) {
       setChats((prev) => {
         const failed = prev[key];
@@ -223,6 +302,40 @@ export default function App() {
           },
         };
       });
+    }
+  };
+
+  const send = async (text: string) => {
+    if (!activePath || !activeId) return;
+    const chat = chats[chatKey(activePath, activeId)];
+    await sendTo(activePath, activeId, text, chat, chat?.provider ?? "", chat?.model ?? "");
+  };
+
+  /** Home composer: reuse an empty draft, otherwise create the session here. */
+  const startSession = async (text: string) => {
+    const path = activePathRef.current ?? workspaces.find((workspace) => workspace.connected)?.path;
+    if (!path) {
+      notify("Add a workspace before starting a session");
+      return;
+    }
+    const current = activePathRef.current === path && activeId ? chats[chatKey(path, activeId)] : undefined;
+    const draft = current?.draft && current.entries.length === 0 && !current.running ? current : undefined;
+    const providerID = draft?.provider || homeProvider;
+    const modelID = draft?.model || homeModel;
+    if (draft) {
+      await sendTo(path, draft.id, text, draft, providerID, modelID);
+      return;
+    }
+    try {
+      const id = await api.newSessionID();
+      const chat = blankChat(id, "New session", providerID, modelID);
+      setChats((prev) => ({ ...prev, [chatKey(path, id)]: chat }));
+      setTab("chat");
+      if (path !== activePathRef.current) setActivePath(path);
+      setActiveByWorkspace((prev) => ({ ...prev, [path]: id }));
+      await sendTo(path, id, text, chat, providerID, modelID);
+    } catch (error) {
+      notify(messageOf(error));
     }
   };
 
@@ -252,8 +365,32 @@ export default function App() {
     }
   };
 
-  const reply = async (requestID: string, decision: string) => {
-    if (!activePath || !activeId) return;
+  const selectModel = async (providerID: string, modelID: string) => {
+    const path = activePathRef.current;
+    if (!path) return;
+    if (!activeId) {
+      setHomeSelection({ provider: providerID, model: modelID });
+      return;
+    }
+    const key = chatKey(path, activeId);
+    const chat = chats[key];
+    if (!chat) return;
+    const previous = { provider: chat.provider, model: chat.model };
+    setChats((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], provider: providerID, model: modelID },
+    }));
+    // A draft has no log yet; its first prompt persists the selection.
+    if (chat.draft) return;
+    try {
+      await api.selectModel(path, activeId, providerID, modelID);
+    } catch (error) {
+      setChats((prev) => ({ ...prev, [key]: { ...prev[key], ...previous } }));
+      notify(messageOf(error));
+    }
+  };
+
+  const reply = async (requestID: string, decision: string) => {    if (!activePath || !activeId) return;
     const key = chatKey(activePath, activeId);
     try {
       await api.reply(activePath, activeId, requestID, decision);
@@ -349,15 +486,46 @@ export default function App() {
     }
   };
 
-  const settingsSaved = async (reused: string[]) => {
-    await loadWorkspaces();
-    notify(
-      reused.length > 0
-        ? `Settings saved. Restart the shared core for ${reused.join(", ")} to apply.`
-        : "Settings saved",
-      "info",
-    );
+  const toggleWorkspaceDefault = () => {
+    const path = activePathRef.current;
+    if (!path) return;
+    const providerID = homeProvider;
+    const modelID = homeModel;
+    if (!providerID || !modelID) return;
+    const current = preferences.workspaceModels[path];
+    const workspaceModels = { ...preferences.workspaceModels };
+    if (current && current.provider === providerID && current.model === modelID) {
+      delete workspaceModels[path];
+    } else {
+      workspaceModels[path] = { provider: providerID, model: modelID };
+    }
+    void savePreferences({ ...preferences, workspaceModels });
   };
+
+  const settingsSaved = async (reused: string[]) => {    await Promise.all([loadWorkspaces(), loadCatalog()]);
+    if (reused.length > 0) {
+      notify(`Settings saved. Restart the shared core for ${reused.join(", ")} to apply.`, "info");
+    }
+  };
+
+  const savePreferences = useCallback(
+    async (next: AppPreferences) => {
+      const previous = preferencesRef.current;
+      // Appearance applies optimistically; a failed write rolls it back.
+      setPreferences(next);
+      preferencesRef.current = next;
+      applyPreferences(next);
+      try {
+        await api.savePreferences(next);
+      } catch (error) {
+        setPreferences(previous);
+        preferencesRef.current = previous;
+        applyPreferences(previous);
+        notify(messageOf(error));
+      }
+    },
+    [notify],
+  );
 
   const openSettings = () => {
     setSettingsOpen(true);
@@ -412,7 +580,7 @@ export default function App() {
               aria-hidden={tab === "settings" ? true : undefined}
               className={`flex min-h-0 flex-1 flex-col ${tab === "settings" ? "invisible" : ""}`}
             >
-              {active ? (
+              {active && !atHome ? (
                 <>
                   <Messages chat={active} />
                   <PermissionCard requests={active.pending} onReply={reply} />
@@ -422,26 +590,34 @@ export default function App() {
                     tokens={active.tokens}
                     window={active.window}
                     usage={active.usage}
+                    providers={catalog?.providers ?? []}
+                    provider={active.provider ?? catalog?.provider ?? ""}
+                    model={active.model ?? catalog?.model ?? ""}
+                    workspaceDefault={activePath ? preferences.workspaceModels[activePath] : undefined}
+                    onSelectModel={(providerID, modelID) => void selectModel(providerID, modelID)}
+                    onToggleWorkspaceDefault={toggleWorkspaceDefault}
                     onSend={send}
                     onStop={stop}
                   />
                 </>
               ) : (
-                <div className="flex flex-1 select-none flex-col items-center justify-center gap-4 px-inset-page">
-                  <div className="text-center">
-                    <p className="text-body text-text-muted">
-                      {workspaces.length === 0 ? "No workspace yet" : "No session selected"}
-                    </p>
-                    <p className="mt-1 text-meta text-text-faint">
-                      {workspaces.length === 0
-                        ? "Add a directory to use as a workspace."
-                        : "Pick a session on the left or start a new one."}
-                    </p>
-                  </div>
-                  <Button onClick={() => (workspaces.length === 0 ? void addWorkspace() : activePath && void newChat(activePath))} disabled={workspaces.length > 0 && !activePath}>
-                    {workspaces.length === 0 ? "Add workspace" : "New session"}
-                  </Button>
-                </div>
+                <NewSessionHome
+                  workspaceName={activeWorkspace?.name ?? workspaces.find((workspace) => workspace.path === homePath)?.name}
+                  connected={
+                    activeWorkspace?.connected ??
+                    workspaces.find((workspace) => workspace.path === homePath)?.connected ??
+                    false
+                  }
+                  providers={catalog?.providers ?? []}
+                  provider={homeProvider}
+                  model={homeModel}
+                  workspaceDefault={homePath ? preferences.workspaceModels[homePath] : undefined}
+                  window={homeWindow}
+                  onSelectModel={(providerID, modelID) => void selectModel(providerID, modelID)}
+                  onToggleWorkspaceDefault={toggleWorkspaceDefault}
+                  onSend={startSession}
+                  onAddWorkspace={() => void addWorkspace()}
+                />
               )}
             </div>
 
@@ -453,6 +629,9 @@ export default function App() {
               >
                 <SettingsPage
                   busy={Object.values(chats).some((chat) => chat.running)}
+                  workspaces={workspaces}
+                  preferences={preferences}
+                  onSavePreferences={savePreferences}
                   onSaved={(reused) => void settingsSaved(reused)}
                 />
               </div>

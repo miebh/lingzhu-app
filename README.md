@@ -69,18 +69,18 @@ frontend/bindings    Generated from Go; not committed, run `wails3 generate bind
 
 ## Notes
 
-- The UI follows the design's desktop design language: near-black surfaces, hairline borders, a warm
+- The UI uses a dark desktop design language: near-black surfaces, hairline borders, a warm
   peach accent, 13–14px type, one-line expandable tool rows and a permission dock above the composer.
 - `src/index.css` is the single token source: OKLCH primitive scales feed semantic roles
   (`bg-*`, `fg-*`, `border-*`, `state-*`, overlays, `elevation-*`), and components only consume those
   roles. The app uses one `data-color-scheme="dark"` block; spacing stays on the 4px ladder, control
   heights are 24/28/32, reading width is measured in characters, focus is a 2px outline, hover/press are
   translucent overlays, and variants/states are driven by `data-*` attributes.
-- The conversation follows the design's session view: the transcript and composer share the
+- The conversation uses an ordered session view: the transcript and composer share the
   `--container-session` width axis (744px); user turns are right-aligned bubbles capped at
   `min(82%, 64ch)`, assistant turns are borderless Markdown (14px / 160%), tool calls are 28px compact
   triggers that expand along a hairline rail, and copy/metadata chrome only appears on hover or focus.
-- The composer mirrors the design's editor: no border, `rounded-xl` with `elevation-raised` (0.5px light
+- The composer uses an elevated editor: no border, `rounded-xl` with `elevation-raised` (0.5px light
   stroke, two soft dark shadows, a bottom inner highlight), a 13px / weight-440 draft surface, a 180px
   scrollport without a visible scrollbar, and one 44px control row (`+`, context readings, 28px square
   submit key that turns into Stop while a turn runs).

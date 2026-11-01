@@ -15,6 +15,8 @@ export interface Message {
 export interface SessionInfo {
   id: string;
   title: string;
+  provider?: string;
+  model?: string;
   updated: string;
 }
 
@@ -22,6 +24,8 @@ export interface ContextInfo {
   messages: Message[];
   tokens: number;
   window: number;
+  provider: string;
+  model: string;
 }
 
 export interface PermissionRequest {
@@ -50,26 +54,108 @@ export interface ConfigRule {
 /** Editable view of the shared core config; the API key is never returned. */
 export interface AppSettings {
   configPath: string;
+  provider: string;
   model: string;
-  baseUrl: string;
-  apiKeySet: boolean;
+  providers: ProviderSettings[];
   maxSteps: number;
   contextWindow: number;
   compactKeep: number;
   systemPrompt: string;
+  shell: string[];
   permission: ConfigRule[];
 }
 
-/** Settings payload; an empty apiKey keeps the stored key. */
-export interface SettingsInput {
-  model: string;
+export interface ProviderSettings {
+  id: string;
+  name: string;
   baseUrl: string;
-  apiKey: string;
+  apiKeySet: boolean;
+  apiKeyEnv: string;
+  ready: boolean;
+  models: ModelSettings[];
+}
+
+export interface ModelSettings {
+  id: string;
+  name: string;
+  contextWindow: number;
+  enabled: boolean;
+}
+
+/** Settings payload; an empty apiKey keeps the stored key unless clearKey is set. */
+export interface SettingsInput {
+  provider: string;
+  model: string;
+  providers: ProviderInput[];
   maxSteps: number;
   contextWindow: number;
   compactKeep: number;
   systemPrompt: string;
+  shell: string[];
   permission: ConfigRule[];
+}
+
+export interface ProviderInput {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  apiKeyEnv: string;
+  clearKey: boolean;
+  models: ModelInput[];
+}
+
+export interface ModelInput {
+  id: string;
+  name: string;
+  contextWindow: number;
+  enabled: boolean;
+}
+
+/** Built-in starting point for a mainstream provider. */
+export interface ProviderPreset {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKeyEnv: string;
+  models: PresetModel[];
+}
+
+export interface PresetModel {
+  id: string;
+  name: string;
+  contextWindow: number;
+}
+
+/** Local preferences; applied immediately and never restart a core. */
+export interface AppPreferences {
+  defaultWorkspace: string;
+  autoApprove: boolean;
+  workspaceModels: Record<string, WorkspaceSelection>;
+  appearance: AppearancePreferences;
+}
+
+export interface WorkspaceSelection {
+  provider: string;
+  model: string;
+}
+
+export interface AppearancePreferences {
+  fontFamily: string;
+  density: "comfortable" | "compact";
+  timelineWidth: "focused" | "comfortable" | "wide";
+  reduceMotion: "system" | "on" | "off";
+}
+
+/** Read-only About data. */
+export interface AppInfo {
+  version: string;
+  built: string;
+  configPath: string;
+  preferencesPath: string;
+  appDataDir: string;
+  dataDir: string;
+  logPath: string;
 }
 
 export interface CoreEvent {
@@ -120,6 +206,8 @@ export interface ChatState {
   id: string;
   title: string;
   draft: boolean;
+  provider?: string;
+  model?: string;
   loading?: boolean;
   entries: TimelineEntry[];
   running: boolean;
@@ -135,11 +223,13 @@ export interface ChatState {
   notice?: string;
 }
 
-export function blankChat(id: string, title = "New session"): ChatState {
+export function blankChat(id: string, title = "New session", provider?: string, model?: string): ChatState {
   return {
     id,
     title,
     draft: true,
+    provider,
+    model,
     loading: false,
     entries: [],
     running: false,

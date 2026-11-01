@@ -1,11 +1,14 @@
 import { CoreService } from "../../bindings/lingzhu-app";
 import { Events } from "@wailsio/runtime";
 import type {
+  AppInfo,
+  AppPreferences,
   AppSettings,
   ContextInfo,
   CoreEvent,
   Message,
   PermissionRequest,
+  ProviderPreset,
   SessionInfo,
   SettingsInput,
   WorkspaceInfo,
@@ -23,7 +26,10 @@ export const api = {
   sessions: (workspace: string): Promise<SessionInfo[]> => call.Sessions(workspace),
   messages: (workspace: string, sessionID: string): Promise<Message[]> => call.Messages(workspace, sessionID),
   context: (workspace: string, sessionID: string): Promise<ContextInfo> => call.Context(workspace, sessionID),
-  send: (workspace: string, sessionID: string, text: string): Promise<void> => call.Send(workspace, sessionID, text),
+  send: (workspace: string, sessionID: string, text: string, providerID: string, model: string): Promise<void> =>
+    call.Send(workspace, sessionID, text, providerID, model),
+  selectModel: (workspace: string, sessionID: string, providerID: string, model: string): Promise<void> =>
+    call.SelectModel(workspace, sessionID, providerID, model),
   interrupt: (workspace: string, sessionID: string): Promise<boolean> => call.Interrupt(workspace, sessionID),
   pending: (workspace: string, sessionID: string): Promise<PermissionRequest[]> => call.Pending(workspace, sessionID),
   reply: (workspace: string, sessionID: string, requestID: string, decision: string, message = ""): Promise<void> =>
@@ -36,6 +42,13 @@ export const api = {
 
   settings: (): Promise<AppSettings> => call.Settings(),
   saveSettings: (input: SettingsInput): Promise<string[]> => call.SaveSettings(input),
+  testProvider: (providerID: string, baseUrl: string, apiKey: string, apiKeyEnv: string): Promise<string> =>
+    call.TestProvider(providerID, baseUrl, apiKey, apiKeyEnv),
+  presets: (): Promise<ProviderPreset[]> => call.ProviderPresets(),
+
+  preferences: (): Promise<AppPreferences> => call.Preferences(),
+  savePreferences: (input: AppPreferences): Promise<void> => call.SavePreferences(input),
+  info: (): Promise<AppInfo> => call.Info(),
 
   onEvent(handler: (event: CoreEvent) => void): () => void {
     return Events.On("lingzhu:event", (payload: any) => handler(payload.data as CoreEvent));

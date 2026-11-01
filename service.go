@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +19,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"lingzhu-app/internal/core"
+	"lingzhu-app/internal/preferences"
 	"lingzhu-app/internal/workspaces"
 )
 
@@ -32,6 +33,7 @@ type CoreService struct {
 	baseData    string
 	defaultRoot string
 	store       *workspaces.Store
+	prefs       *preferences.Store
 	err         string
 
 	mu      sync.Mutex
@@ -67,38 +69,39 @@ type EventEnvelope struct {
 	Data      map[string]any `json:"data"`
 }
 
-// AppSettings is the editable view of the shared core config file. The API key
-// itself never leaves the host; the dialog only learns whether one is stored.
-type AppSettings struct {
-	ConfigPath    string       `json:"configPath"`
-	Model         string       `json:"model"`
-	BaseURL       string       `json:"baseUrl"`
-	APIKeySet     bool         `json:"apiKeySet"`
-	MaxSteps      int          `json:"maxSteps"`
-	ContextWindow int          `json:"contextWindow"`
-	CompactKeep   int          `json:"compactKeep"`
-	SystemPrompt  string       `json:"systemPrompt"`
-	Permission    []ConfigRule `json:"permission"`
+// AppPreferences is the local, immediately applied preference document. It is
+// separate from the shared core config and never restarts a core.
+type AppPreferences struct {
+	DefaultWorkspace string                        `json:"defaultWorkspace"`
+	AutoApprove      bool                          `json:"autoApprove"`
+	WorkspaceModels  map[string]WorkspaceSelection `json:"workspaceModels"`
+	Appearance       AppearancePreferences         `json:"appearance"`
 }
 
-// ConfigRule mirrors one permission rule in the core config file.
-type ConfigRule struct {
-	Action   string `json:"action"`
-	Resource string `json:"resource"`
-	Effect   string `json:"effect"`
+// WorkspaceSelection is the default provider/model for new sessions in one
+// workspace.
+type WorkspaceSelection struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
 }
 
-// SettingsInput is the subset the settings dialog can change. An empty APIKey
-// keeps the stored key.
-type SettingsInput struct {
-	Model         string       `json:"model"`
-	BaseURL       string       `json:"baseUrl"`
-	APIKey        string       `json:"apiKey"`
-	MaxSteps      int          `json:"maxSteps"`
-	ContextWindow int          `json:"contextWindow"`
-	CompactKeep   int          `json:"compactKeep"`
-	SystemPrompt  string       `json:"systemPrompt"`
-	Permission    []ConfigRule `json:"permission"`
+// AppearancePreferences controls the client look without touching core config.
+type AppearancePreferences struct {
+	FontFamily    string `json:"fontFamily"`
+	Density       string `json:"density"`
+	TimelineWidth string `json:"timelineWidth"`
+	ReduceMotion  string `json:"reduceMotion"`
+}
+
+// AppInfo is the read-only About payload.
+type AppInfo struct {
+	Version         string `json:"version"`
+	Built           string `json:"built"`
+	ConfigPath      string `json:"configPath"`
+	PreferencesPath string `json:"preferencesPath"`
+	AppDataDir      string `json:"appDataDir"`
+	DataDir         string `json:"dataDir"`
+	LogPath         string `json:"logPath"`
 }
 
 // Core defaults used when the config file omits a field. Keep them in sync
@@ -124,6 +127,13 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 	if s.defaultRoot == "" {
 		s.defaultRoot, _ = os.Getwd()
 	}
+
+	prefs, err := preferences.Open()
+	if err != nil {
+		s.err = err.Error()
+		return nil
+	}
+	s.prefs = prefs
 
 	store, err := workspaces.Open()
 	if err != nil {
@@ -296,7 +306,7 @@ func (s *CoreService) Context(workspace, sessionID string) (core.ContextInfo, er
 }
 
 // Send starts a turn in one workspace and streams its events to the frontend.
-func (s *CoreService) Send(workspace, sessionID, text string) error {
+func (s *CoreService) Send(workspace, sessionID, text, providerID, model string) error {
 	client, err := s.client(workspace)
 	if err != nil {
 		return err
@@ -318,7 +328,7 @@ func (s *CoreService) Send(workspace, sessionID, text string) error {
 			s.mu.Unlock()
 			cancel()
 		}()
-		err := client.Prompt(ctx, sessionID, text, func(ev core.Event) {
+		err := client.Prompt(ctx, sessionID, text, providerID, model, func(ev core.Event) {
 			s.emit(EventEnvelope{
 				Workspace: workspace,
 				SessionID: sessionID,
@@ -382,6 +392,15 @@ func (s *CoreService) Rename(workspace, sessionID, title string) error {
 	return client.Rename(s.ctx, sessionID, title)
 }
 
+// SelectModel persists a session-level provider/model override.
+func (s *CoreService) SelectModel(workspace, sessionID, providerID, model string) error {
+	client, err := s.client(workspace)
+	if err != nil {
+		return err
+	}
+	return client.SetModel(s.ctx, sessionID, providerID, model)
+}
+
 func (s *CoreService) Delete(workspace, sessionID string) error {
 	client, err := s.client(workspace)
 	if err != nil {
@@ -396,69 +415,15 @@ func (s *CoreService) Settings() (AppSettings, error) {
 	if err != nil {
 		return AppSettings{}, err
 	}
-	settings := AppSettings{
-		ConfigPath:    s.configFilePath(),
-		Model:         stringSetting(file, "model"),
-		BaseURL:       stringSetting(file, "base_url"),
-		APIKeySet:     stringSetting(file, "api_key") != "",
-		MaxSteps:      intSetting(file, "max_steps", defaultMaxSteps),
-		ContextWindow: intSetting(file, "context_window", defaultContextWindow),
-		CompactKeep:   intSetting(file, "compact_keep", defaultCompactKeep),
-		SystemPrompt:  stringSetting(file, "system_prompt"),
-		Permission:    []ConfigRule{},
-	}
-	if raw, ok := file["permission"].([]any); ok {
-		for _, item := range raw {
-			entry, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			settings.Permission = append(settings.Permission, ConfigRule{
-				Action:   stringSetting(entry, "action"),
-				Resource: stringSetting(entry, "resource"),
-				Effect:   stringSetting(entry, "effect"),
-			})
-		}
-	}
-	return settings, nil
+	return buildAppSettings(s.configFilePath(), file), nil
 }
 
 // SaveSettings validates and writes the shared config file, then restarts the
 // workspace cores so every workspace picks it up. It returns the workspaces
 // whose core was left alone because this app does not own the process.
 func (s *CoreService) SaveSettings(input SettingsInput) ([]string, error) {
-	model := strings.TrimSpace(input.Model)
-	if model == "" {
-		return nil, errors.New("model is required")
-	}
-	baseURL := strings.TrimSpace(input.BaseURL)
-	if baseURL != "" {
-		parsed, err := url.Parse(baseURL)
-		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-			return nil, errors.New("base URL must be an absolute http(s) URL")
-		}
-	}
-	if input.MaxSteps < 1 {
-		return nil, errors.New("max steps must be at least 1")
-	}
-	if input.ContextWindow < 0 {
-		return nil, errors.New("context window cannot be negative")
-	}
-	if input.CompactKeep < 1 {
-		return nil, errors.New("compact keep must be at least 1")
-	}
-	rules := make([]ConfigRule, 0, len(input.Permission))
-	for _, rule := range input.Permission {
-		action := strings.TrimSpace(rule.Action)
-		resource := strings.TrimSpace(rule.Resource)
-		effect := strings.TrimSpace(rule.Effect)
-		if action == "" || resource == "" {
-			return nil, errors.New("permission rules need an action and a resource")
-		}
-		if effect != "allow" && effect != "ask" && effect != "deny" {
-			return nil, fmt.Errorf("unknown permission effect %q", effect)
-		}
-		rules = append(rules, ConfigRule{Action: action, Resource: resource, Effect: effect})
+	if err := validateSettingsInput(input); err != nil {
+		return nil, err
 	}
 
 	s.mu.Lock()
@@ -472,28 +437,7 @@ func (s *CoreService) SaveSettings(input SettingsInput) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	file["model"] = model
-	if baseURL == "" {
-		delete(file, "base_url")
-	} else {
-		file["base_url"] = strings.TrimRight(baseURL, "/")
-	}
-	if key := strings.TrimSpace(input.APIKey); key != "" {
-		file["api_key"] = key
-	}
-	file["max_steps"] = input.MaxSteps
-	file["context_window"] = input.ContextWindow
-	file["compact_keep"] = input.CompactKeep
-	if prompt := strings.TrimSpace(input.SystemPrompt); prompt == "" {
-		delete(file, "system_prompt")
-	} else {
-		file["system_prompt"] = input.SystemPrompt
-	}
-	if len(rules) == 0 {
-		delete(file, "permission")
-	} else {
-		file["permission"] = rules
-	}
+	applySettingsInput(file, input)
 
 	path := s.configFilePath()
 	if err := writeConfigFile(path, file); err != nil {
@@ -504,6 +448,106 @@ func (s *CoreService) SaveSettings(input SettingsInput) ([]string, error) {
 	s.mu.Unlock()
 
 	return s.restartWorkspaces(), nil
+}
+
+// Preferences returns the local app preferences; it never touches core config.
+func (s *CoreService) Preferences() AppPreferences {
+	prefs := preferences.Default()
+	if s.prefs != nil {
+		prefs = s.prefs.Get()
+	}
+	return AppPreferences{
+		DefaultWorkspace: prefs.DefaultWorkspace,
+		AutoApprove:      prefs.AutoApprove,
+		WorkspaceModels:  workspaceSelections(prefs.WorkspaceModels),
+		Appearance: AppearancePreferences{
+			FontFamily:    prefs.Appearance.FontFamily,
+			Density:       prefs.Appearance.Density,
+			TimelineWidth: prefs.Appearance.TimelineWidth,
+			ReduceMotion:  prefs.Appearance.ReduceMotion,
+		},
+	}
+}
+
+func workspaceSelections(input map[string]preferences.Selection) map[string]WorkspaceSelection {
+	out := make(map[string]WorkspaceSelection, len(input))
+	for path, selection := range input {
+		out[path] = WorkspaceSelection{Provider: selection.Provider, Model: selection.Model}
+	}
+	return out
+}
+
+// SavePreferences stores local preferences. Changes apply to the webview
+// immediately and never restart a core.
+func (s *CoreService) SavePreferences(input AppPreferences) error {
+	if s.prefs == nil {
+		return errors.New("preferences are unavailable")
+	}
+	return s.prefs.Save(preferences.Preferences{
+		DefaultWorkspace: strings.TrimSpace(input.DefaultWorkspace),
+		AutoApprove:      input.AutoApprove,
+		WorkspaceModels:  selectionMap(input.WorkspaceModels),
+		Appearance: preferences.Appearance{
+			FontFamily:    input.Appearance.FontFamily,
+			Density:       input.Appearance.Density,
+			TimelineWidth: input.Appearance.TimelineWidth,
+			ReduceMotion:  input.Appearance.ReduceMotion,
+		},
+	})
+}
+
+func selectionMap(input map[string]WorkspaceSelection) map[string]preferences.Selection {
+	out := make(map[string]preferences.Selection, len(input))
+	for path, selection := range input {
+		out[path] = preferences.Selection{Provider: selection.Provider, Model: selection.Model}
+	}
+	return out
+}
+
+// Info returns the read-only diagnostics shown on the About page.
+func (s *CoreService) Info() AppInfo {
+	version := "dev"
+	if build, ok := debug.ReadBuildInfo(); ok && build.Main.Version != "" && build.Main.Version != "(devel)" {
+		version = build.Main.Version
+	}
+	prefsPath := ""
+	if s.prefs != nil {
+		prefsPath = s.prefs.Path()
+	}
+	built := ""
+	if exe, err := os.Executable(); err == nil {
+		if stat, err := os.Stat(exe); err == nil {
+			built = stat.ModTime().Format("2006-01-02 15:04")
+		}
+	}
+	return AppInfo{
+		Version:         version,
+		Built:           built,
+		ConfigPath:      s.configFilePath(),
+		PreferencesPath: prefsPath,
+		AppDataDir:      localAppDir(),
+		DataDir:         s.baseData,
+		LogPath:         filepath.Join(localCacheDir(), "core.log"),
+	}
+}
+
+// localAppDir is the per-user directory that holds preferences and the
+// workspace list, matching the path package workspaces writes to.
+func localAppDir() string {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, "lingzhu", "app")
+}
+
+// localCacheDir holds the core log, matching internal/core's log location.
+func localCacheDir() string {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, "lingzhu", "app")
 }
 
 // restartWorkspaces stops and starts every core this app owns. Reused cores

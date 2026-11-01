@@ -37,10 +37,11 @@
   --container-composer: 780px;
   --container-dialog: 400px;
   --container-dialog-wide: 560px;
-  --container-settings: 640px;
+  --container-settings: 720px;
+  --container-settings-nav: 240px;
   --container-sidebar: 280px;
   /* Shared by the transcript, permission dock and composer so their edges
-     align (the `--container-session`: 720px content plus its gutter). */
+     align (`--container-session`: 720px content plus its gutter). */
   --container-session: 744px;
 
   /* Control heights and spacing roles. Values stay on the 4px ladder. */
@@ -239,7 +240,6 @@
 
 [data-color-scheme="dark"] {
   color-scheme: dark;
-
   --bg-base: var(--p-neutral-1200);
   --bg-layer-01: var(--p-neutral-1100);
   --bg-layer-02: var(--p-neutral-1000);
@@ -256,7 +256,7 @@
   --border-weak: var(--p-neutral-1000);
   --border-base: var(--p-neutral-900);
   --border-strong: var(--p-neutral-800);
-  --border-focus: var(--p-brand-400);
+  --border-focus: var(--p-neutral-400);
 
   --state-bg-success: color-mix(in oklch, var(--p-success-600) 14%, transparent);
   --state-fg-success: var(--p-success-300);
@@ -283,6 +283,26 @@
     0 0 0 0.5px var(--p-alpha-white-16),
     0 -0.5px 0 0 var(--p-alpha-white-6);
   --elevation-stroke: var(--p-alpha-white-16);
+}
+
+/* App preferences. Density only tightens macro spacing; the fixed control
+   heights (24/28/32) are never remapped. Timeline width reuses the session
+   container token so the transcript and composer stay on one axis. */
+[data-density="compact"] {
+  --spacing-block-sm: 8px;
+  --spacing-block-md: 12px;
+  --spacing-block-lg: 16px;
+  --spacing-inset-panel: 16px;
+  --spacing-inset-page: 24px;
+  --spacing-inset-chat: 12px;
+}
+
+[data-timeline-width="focused"] {
+  --container-session: 640px;
+}
+
+[data-timeline-width="wide"] {
+  --container-session: 960px;
 }
 
 @layer base {
@@ -418,9 +438,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  :root:not([data-reduce-motion="off"]) *,
+  :root:not([data-reduce-motion="off"]) *::before,
+  :root:not([data-reduce-motion="off"]) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -428,8 +448,17 @@
   }
 }
 
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 ::selection {
-  background: color-mix(in oklch, var(--p-brand-400) 26%, transparent);
+  background: var(--overlay-selected);
 }
 
 ::-webkit-scrollbar {

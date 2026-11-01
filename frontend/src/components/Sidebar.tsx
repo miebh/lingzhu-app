@@ -73,7 +73,8 @@ export function Sidebar({
   const [visible, setVisible] = useState<Record<string, number>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  // The active workspace always reveals its sessions; a user fold only hides groups they are not working in.
+  // The active workspace always reveals its sessions; a user fold only hides
+  // groups they are not working in.
   useEffect(() => {
     if (!activePath) return;
     onLoadSessions(activePath);

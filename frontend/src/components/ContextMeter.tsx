@@ -14,7 +14,7 @@ interface Props {
   inline?: boolean;
 }
 
-/** Context ring plus whole-run token and cache readings, as compact dock pills. */
+/** Context ring plus whole-run token and cache readings, shown as dock pills. */
 export function ContextMeter({ tokens, window, usage, inline = false }: Props) {
   if (window <= 0 && usage === undefined) return null;
   const percent = contextPercent(tokens, window);

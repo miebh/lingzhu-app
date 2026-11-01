@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-/** Copy control with a two-second confirmation, matching the message footer. */
+/** Copy control with a two-second confirmation, shown in the message footer. */
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -34,7 +34,7 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
   );
 }
 
-/** A fenced code block with its own copy control, as a code card. */
+/** A fenced code block with its own copy control. */
 function CodeBlock({ language, children }: { language?: string; children: string }) {
   return (
     <div className="my-3 overflow-hidden rounded-md border border-border-base">

@@ -41,9 +41,11 @@ type Health struct {
 }
 
 type SessionInfo struct {
-	ID      string    `json:"id"`
-	Title   string    `json:"title"`
-	Updated time.Time `json:"updated"`
+	ID       string    `json:"id"`
+	Title    string    `json:"title"`
+	Provider string    `json:"provider,omitempty"`
+	Model    string    `json:"model,omitempty"`
+	Updated  time.Time `json:"updated"`
 }
 
 type ToolCall struct {
@@ -64,6 +66,8 @@ type ContextInfo struct {
 	Messages []Message `json:"messages"`
 	Tokens   int       `json:"tokens"`
 	Window   int       `json:"window"`
+	Provider string    `json:"provider"`
+	Model    string    `json:"model"`
 }
 
 type PermissionRequest struct {
@@ -118,6 +122,12 @@ func (c *Client) Rename(ctx context.Context, sessionID, title string) error {
 	return c.do(ctx, http.MethodPatch, "/sessions/"+sessionID, body, nil)
 }
 
+// SetModel stores the session-level provider/model override.
+func (c *Client) SetModel(ctx context.Context, sessionID, providerID, model string) error {
+	body := map[string]string{"provider": providerID, "model": model}
+	return c.do(ctx, http.MethodPatch, "/sessions/"+sessionID, body, nil)
+}
+
 func (c *Client) Delete(ctx context.Context, sessionID string) error {
 	return c.do(ctx, http.MethodDelete, "/sessions/"+sessionID, nil, nil)
 }
@@ -153,8 +163,12 @@ func (c *Client) ReplyPermission(ctx context.Context, sessionID, requestID, deci
 }
 
 // Prompt starts a turn and streams its events to emit until the turn ends.
-func (c *Client) Prompt(ctx context.Context, sessionID, text string, emit func(Event)) error {
-	payload, err := json.Marshal(map[string]string{"text": text})
+func (c *Client) Prompt(ctx context.Context, sessionID, text, providerID, model string, emit func(Event)) error {
+	payload, err := json.Marshal(map[string]string{
+		"text":     text,
+		"provider": providerID,
+		"model":    model,
+	})
 	if err != nil {
 		return err
 	}

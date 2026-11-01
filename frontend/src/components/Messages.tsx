@@ -185,7 +185,7 @@ function AssistantText({ text }: { text: string }) {
   );
 }
 
-/** Timeline divider for context compaction, as a timeline separator. */
+/** Timeline divider for context compaction. */
 function TimelineSeparator({ label }: { label: string }) {
   return (
     <div className="my-2 flex h-8 select-none items-center gap-3 text-text-faint">
@@ -196,7 +196,7 @@ function TimelineSeparator({ label }: { label: string }) {
   );
 }
 
-/** Live turn clock under the last content, matching a running row. */
+/** Live turn clock under the last content. */
 function RunningStatus({ startedAt }: { startedAt?: number }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -252,7 +252,7 @@ function RunFooter({ status, ms }: { status: NonNullable<ChatState["lastRunStatu
 
 /**
  * One tool call: a 28px trigger row (icon, name, argument subtitle, state) that
- * expands into an indented rail, following a compact tool row.
+ * expands into an indented rail.
  */
 function ToolRow({ tool }: { tool: ToolRun }) {
   const [open, setOpen] = useState(false);
@@ -305,7 +305,7 @@ function ToolIcon({ name }: { name: string }) {
 }
 
 // toolSubtitle shows the most useful argument instead of raw JSON, matching the
-// one-line titles of tool rows.
+// one-line titles of the tool rows.
 function toolSubtitle(name: string, args: string): string {
   if (!args) return "";
   try {
