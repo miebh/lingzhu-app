@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./lib/api";
-import { blankChat, chatKey, type ChatState, type CoreEvent, type SessionInfo, type UsageTotals, type WorkspaceInfo } from "./lib/types";
+import { blankChat, chatKey, entriesFromMessages, type ChatState, type CoreEvent, type SessionInfo, type TimelineEntry, type UsageTotals, type WorkspaceInfo } from "./lib/types";
 import { workspaceName } from "./lib/history";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "./components/Sidebar";
+import { TitleBar } from "./components/TitleBar";
 import { Messages } from "./components/Messages";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 import { ConfirmDialog, RenameDialog } from "./components/Dialogs";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { Toast, type ToastTone } from "./components/Toast";
 
 interface Notice {
@@ -26,6 +28,7 @@ export default function App() {
   const [renameTarget, setRenameTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [deleteTarget, setDeleteTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = useState<string>();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const toastID = useRef(0);
   const notify = useCallback((text: string, tone: ToastTone = "error") => {
@@ -80,9 +83,7 @@ export default function App() {
             ...chat,
             loading: false,
             draft: false,
-            messages,
-            tools: [],
-            liveText: "",
+            entries: entriesFromMessages(messages),
             tokens: context.tokens,
             window: context.window,
             pending,
@@ -171,22 +172,28 @@ export default function App() {
     const key = chatKey(activePath, activeId);
     const chat = chats[key] ?? blankChat(activeId);
     const title = chat.title && chat.title !== "New session" ? chat.title : text.slice(0, 40);
-    setChats((prev) => ({
-      ...prev,
-      [key]: {
-        ...chat,
-        title,
-        draft: false,
-        loading: false,
-        running: true,
-        runStartedAt: Date.now(),
-        runEndedAt: undefined,
-        lastRunMs: undefined,
-        lastRunStatus: undefined,
-        error: undefined,
-        notice: undefined,
-      },
-    }));
+    setChats((prev) => {
+      const current = prev[key] ?? chat;
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          title,
+          draft: false,
+          loading: false,
+          running: true,
+          runStartedAt: Date.now(),
+          runEndedAt: undefined,
+          lastRunMs: undefined,
+          lastRunStatus: undefined,
+          error: undefined,
+          notice: undefined,
+          // Show the turn immediately; the core echoes it back as user.message
+          // and history replaces the optimistic row when the run ends.
+          entries: [...current.entries, { key: nextEntryKey("user"), role: "user", text, pending: true }],
+        },
+      };
+    });
     if (chat.draft) {
       setSessionsByWorkspace((prev) => ({
         ...prev,
@@ -197,10 +204,19 @@ export default function App() {
       await api.send(activePath, activeId, text);
       void refreshContext(activePath, activeId);
     } catch (error) {
-      setChats((prev) => ({
-        ...prev,
-        [key]: { ...prev[key], running: false, error: messageOf(error) },
-      }));
+      setChats((prev) => {
+        const failed = prev[key];
+        if (!failed) return prev;
+        return {
+          ...prev,
+          [key]: {
+            ...failed,
+            running: false,
+            error: messageOf(error),
+            entries: failed.entries.filter((entry) => !entry.pending),
+          },
+        };
+      });
     }
   };
 
@@ -327,8 +343,17 @@ export default function App() {
     }
   };
 
-  const compact = async () => {
-    if (!activePath || !activeId) return;
+  const settingsSaved = async (reused: string[]) => {
+    await loadWorkspaces();
+    notify(
+      reused.length > 0
+        ? `Settings saved. Restart the shared core for ${reused.join(", ")} to apply.`
+        : "Settings saved",
+      "info",
+    );
+  };
+
+  const compact = async () => {    if (!activePath || !activeId) return;
     try {
       await api.compact(activePath, activeId);
       await refreshChat(activePath, activeId);
@@ -341,74 +366,66 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-full bg-bg-base text-text-base">
-      <Sidebar
-        workspaces={workspaces}
-        activePath={activePath}
-        sessionsByWorkspace={sessionsByWorkspace}
-        chats={chats}
-        activeId={activeId}
-        onSelectWorkspace={selectWorkspace}
-        onLoadSessions={loadSessions}
-        onAddWorkspace={addWorkspace}
-        onRemoveWorkspace={requestRemoveWorkspace}
-        onNew={newChat}
-        onOpen={open}
-        onRename={requestRename}
-        onDelete={requestDelete}
+    <div className="flex h-full flex-col bg-bg-base text-text-base">
+      <TitleBar
+        workspace={activeWorkspace?.name}
+        title={active ? active.title || "New session" : undefined}
+        compactable={Boolean(active && !active.running && active.entries.length > 0)}
+        onCompact={() => void compact()}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        {active ? (
-          <>
-            <header className="flex h-12 shrink-0 select-none items-center gap-3 border-b border-border-weak px-inset-page">
-              <span className="shrink-0 text-caption text-text-faint">{activeWorkspace?.name}</span>
-              <h1 className="min-w-0 flex-1 truncate text-body font-medium text-text-base">{active.title || "New session"}</h1>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={compact}
-                disabled={active.running || active.messages.length === 0}
-                title="Summarize older context"
-                className="font-normal text-text-muted hover:text-text-base"
-              >
-                Compact
-              </Button>
-            </header>
+      <div className="flex min-h-0 flex-1">
+        <Sidebar
+          workspaces={workspaces}
+          activePath={activePath}
+          sessionsByWorkspace={sessionsByWorkspace}
+          chats={chats}
+          activeId={activeId}
+          onSelectWorkspace={selectWorkspace}
+          onLoadSessions={loadSessions}
+          onAddWorkspace={addWorkspace}
+          onRemoveWorkspace={requestRemoveWorkspace}
+          onNew={newChat}
+          onOpen={open}
+          onRename={requestRename}
+          onDelete={requestDelete}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
 
-            <Messages chat={active} />
-            <PermissionCard requests={active.pending} onReply={reply} />
-            <Composer
-              running={active.running}
-              disabled={!activeWorkspace?.connected}
-              tokens={active.tokens}
-              window={active.window}
-              usage={active.usage}
-              onSend={send}
-              onStop={stop}
-            />
-          </>
-        ) : (
-          <div className="flex flex-1 select-none flex-col items-center justify-center gap-4 px-inset-page">
-            <div className="grid size-12 place-items-center rounded-xl border border-border-base bg-bg-layer-01 text-body font-medium text-text-accent">
-              L
+        <main className="flex min-w-0 flex-1 flex-col">
+          {active ? (
+            <>
+              <Messages chat={active} />
+              <PermissionCard requests={active.pending} onReply={reply} />
+              <Composer
+                running={active.running}
+                disabled={!activeWorkspace?.connected}
+                tokens={active.tokens}
+                window={active.window}
+                usage={active.usage}
+                onSend={send}
+                onStop={stop}
+              />
+            </>
+          ) : (
+            <div className="flex flex-1 select-none flex-col items-center justify-center gap-4 px-inset-page">
+              <div className="text-center">
+                <p className="text-body text-text-muted">
+                  {workspaces.length === 0 ? "No workspace yet" : "No session selected"}
+                </p>
+                <p className="mt-1 text-meta text-text-faint">
+                  {workspaces.length === 0
+                    ? "Add a directory to use as a workspace."
+                    : "Pick a session on the left or start a new one."}
+                </p>
+              </div>
+              <Button onClick={() => (workspaces.length === 0 ? void addWorkspace() : activePath && void newChat(activePath))} disabled={workspaces.length > 0 && !activePath}>
+                {workspaces.length === 0 ? "Add workspace" : "New session"}
+              </Button>
             </div>
-            <div className="text-center">
-              <p className="text-body text-text-muted">
-                {workspaces.length === 0 ? "No workspace yet" : "No session selected"}
-              </p>
-              <p className="mt-1 text-meta text-text-faint">
-                {workspaces.length === 0
-                  ? "Add a directory to use as a workspace."
-                  : "Pick a session on the left or start a new one."}
-              </p>
-            </div>
-            <Button onClick={() => (workspaces.length === 0 ? void addWorkspace() : activePath && void newChat(activePath))} disabled={workspaces.length > 0 && !activePath}>
-              {workspaces.length === 0 ? "Add workspace" : "New session"}
-            </Button>
-          </div>
-        )}
-      </main>
+          )}
+        </main>
+      </div>
 
       {toast && <Toast key={toast.id} text={toast.text} tone={toast.tone} onDone={() => setToast(undefined)} />}
 
@@ -444,6 +461,13 @@ export default function App() {
         }}
         onConfirm={() => void confirmRemoveWorkspace()}
       />
+
+      <SettingsDialog
+        open={settingsOpen}
+        busy={Object.values(chats).some((chat) => chat.running)}
+        onOpenChange={setSettingsOpen}
+        onSaved={(reused) => void settingsSaved(reused)}
+      />
     </div>
   );
 }
@@ -456,43 +480,81 @@ function applyEvent(chats: Record<string, ChatState>, key: string, event: CoreEv
   const startedAt = () => {
     if (next.runStartedAt === undefined) next.runStartedAt = Date.now();
   };
+  let entries = chat.entries;
 
   switch (event.type) {
+    case "user.message": {
+      // The composer already rendered an optimistic row; adopt it instead of
+      // stacking a second copy when the core echoes the prompt back.
+      const text = String(data.text ?? "");
+      const pendingAt = findLastIndex(entries, (entry) => entry.pending === true && entry.text === text);
+      if (pendingAt >= 0) {
+        entries = entries.map((entry, index) => (index === pendingAt ? { ...entry, pending: false } : entry));
+      } else {
+        entries = [...entries, { key: nextEntryKey("user"), role: "user", text }];
+      }
+      break;
+    }
     case "step.start":
       startedAt();
       break;
-    case "text.delta":
+    case "text.delta": {
       startedAt();
-      next.liveText = chat.liveText + String(data.text ?? "");
+      const text = String(data.text ?? "");
+      if (!text) break;
+      const last = entries[entries.length - 1];
+      if (last?.role === "assistant" && last.live) {
+        entries = [...entries.slice(0, -1), { ...last, text: (last.text ?? "") + text }];
+      } else {
+        entries = [...entries, { key: nextEntryKey("assistant"), role: "assistant", text, live: true }];
+      }
       break;
-    case "assistant.message":
+    }
+    case "assistant.message": {
       startedAt();
-      next.messages = [...chat.messages, { role: "assistant", content: String(data.text ?? "") }];
-      next.liveText = "";
+      const text = String(data.text ?? "");
+      const last = entries[entries.length - 1];
+      // The streamed row is authoritative until this event confirms it.
+      if (last?.role === "assistant" && last.live) {
+        entries = [...entries.slice(0, -1), { ...last, text, live: false }];
+      } else {
+        entries = [...entries, { key: nextEntryKey("assistant"), role: "assistant", text }];
+      }
       break;
+    }
     case "tool.call":
       startedAt();
-      if (chat.liveText) {
-        next.messages = [...chat.messages, { role: "assistant", content: chat.liveText }];
-        next.liveText = "";
-      }
-      next.tools = [
-        ...chat.tools,
+      entries = [
+        ...entries,
         {
-          id: String(data.id ?? ""),
-          name: String(data.name ?? "tool"),
-          arguments: String(data.arguments ?? ""),
-          done: false,
+          key: nextEntryKey("tool"),
+          role: "tool",
+          tool: {
+            id: String(data.id ?? ""),
+            name: String(data.name ?? "tool"),
+            arguments: String(data.arguments ?? ""),
+            done: false,
+          },
         },
       ];
       break;
-    case "tool.result":
-      next.tools = chat.tools.map((tool) =>
-        tool.id === String(data.id)
-          ? { ...tool, output: String(data.output ?? ""), failed: Boolean(data.failed), done: true }
-          : tool,
+    case "tool.result": {
+      const id = String(data.id ?? "");
+      entries = entries.map((entry) =>
+        entry.role === "tool" && entry.tool?.id === id && !entry.tool.done
+          ? {
+              ...entry,
+              tool: {
+                ...entry.tool,
+                output: String(data.output ?? ""),
+                failed: Boolean(data.failed),
+                done: true,
+              },
+            }
+          : entry,
       );
       break;
+    }
     case "permission.asked":
       next.pending = [
         ...chat.pending,
@@ -518,8 +580,14 @@ function applyEvent(chats: Record<string, ChatState>, key: string, event: CoreEv
     case "run.end": {
       const reason = String(data.reason ?? "done");
       next.running = false;
-      next.liveText = "";
-      next.tools = chat.tools.map((tool) => (tool.done ? tool : { ...tool, done: true }));
+      // The checkpoint message already marks the compaction in history; the
+      // live separator only belongs to the turn that produced it.
+      next.notice = undefined;
+      entries = entries.map((entry) =>
+        entry.role === "tool" && entry.tool && !entry.tool.done
+          ? { ...entry, tool: { ...entry.tool, done: true } }
+          : entry,
+      );
       next.lastRunStatus =
         reason === "done"
           ? "completed"
@@ -548,7 +616,21 @@ function applyEvent(chats: Record<string, ChatState>, key: string, event: CoreEv
       break;
   }
 
+  next.entries = entries;
   return { ...chats, [key]: next };
+}
+
+let entryID = 0;
+function nextEntryKey(prefix: string): string {
+  entryID += 1;
+  return `${prefix}-${entryID}`;
+}
+
+function findLastIndex(entries: TimelineEntry[], match: (entry: TimelineEntry) => boolean): number {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (match(entries[index])) return index;
+  }
+  return -1;
 }
 
 function addUsage(previous: UsageTotals | undefined, data: Record<string, unknown>): UsageTotals {

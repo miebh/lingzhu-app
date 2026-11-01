@@ -32,14 +32,14 @@
   --container-measure-standard: 68ch;
   --container-measure-wide: 76ch;
 
-  /* Conversation geometry follows the DSH client: a 748px transcript column
-     with a slightly wider composer card, and a 400px dialog. */
-  --container-chat: 748px;
+  /* Session geometry: the transcript and composer share one 744px outer axis
+     (720px content plus a 12px gutter), the sidebar is 280px, dialogs 400px. */
   --container-composer: 780px;
   --container-dialog: 400px;
+  --container-dialog-wide: 560px;
   --container-sidebar: 280px;
-  /* Shared by the transcript and composer so their edges align (the design's
-     `--container-session`: 720px composer plus its 12px gutter). */
+  /* Shared by the transcript, permission dock and composer so their edges
+     align (the `--container-session`: 720px content plus its gutter). */
   --container-session: 744px;
 
   /* Control heights and spacing roles. Values stay on the 4px ladder. */
@@ -47,6 +47,10 @@
   --spacing-control-sm: 28px;
   --spacing-control-md: 32px;
   --spacing-composer-text: 336px;
+
+  /* Window chrome: one title-bar height and one caption-button width. */
+  --spacing-chrome-titlebar: 40px;
+  --spacing-chrome-button: 44px;
 
   --spacing-inline-xs: 4px;
   --spacing-inline-sm: 6px;
@@ -263,6 +267,7 @@
   --overlay-hover: var(--p-alpha-white-6);
   --overlay-pressed: var(--p-alpha-white-10);
   --overlay-selected: var(--p-alpha-white-8);
+  --overlay-danger: color-mix(in oklch, var(--p-danger-500) 26%, transparent);
   --overlay-hover-inverse: var(--p-alpha-black-6);
   --overlay-pressed-inverse: var(--p-alpha-black-10);
 
@@ -361,8 +366,31 @@
     outline: none;
   }
 
+  /* The title bar is the client-side window drag region; controls inside it
+     opt out so they keep receiving clicks. */
+  .titlebar {
+    --wails-draggable: drag;
+  }
+
+  .window-control {
+    --wails-draggable: no-drag;
+    transition: color 120ms ease;
+  }
+
+  .window-control[data-variant="close"]:hover:not(:disabled),
+  .window-control[data-variant="close"][data-state="hover"] {
+    background-image: linear-gradient(var(--overlay-danger), var(--overlay-danger));
+    color: var(--state-fg-danger);
+  }
+
   .scroll-stable {
     scrollbar-gutter: stable;
+  }
+
+  /* Symmetric gutters keep the transcript axis centred on the composer even
+     while the scrollbar is visible. */
+  .scroll-stable-both {
+    scrollbar-gutter: stable both-edges;
   }
 
   /* The editor grows with its content inside a capped scrollport, so the

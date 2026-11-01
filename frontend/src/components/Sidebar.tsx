@@ -8,6 +8,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings,
   Trash2,
   X,
 } from "lucide-react";
@@ -41,6 +42,7 @@ interface Props {
   onOpen: (path: string, id: string) => void;
   onRename: (path: string, session: SessionInfo) => void;
   onDelete: (path: string, session: SessionInfo) => void;
+  onOpenSettings: () => void;
 }
 
 interface SearchHit {
@@ -64,6 +66,7 @@ export function Sidebar({
   onOpen,
   onRename,
   onDelete,
+  onOpenSettings,
 }: Props) {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -155,7 +158,6 @@ export function Sidebar({
     closeSearch();
   };
 
-  const connected = workspaces.filter((workspace) => workspace.connected).length;
   const newSession = () => {
     const path = activePath ?? workspaces.find((workspace) => workspace.connected)?.path;
     if (path) onNew(path);
@@ -163,14 +165,7 @@ export function Sidebar({
 
   return (
     <aside aria-label="Workspaces" className="flex h-full w-sidebar shrink-0 select-none flex-col border-r border-border-base bg-bg-base">
-      <div className="flex h-12 items-center gap-2 px-3">
-        <span className="grid size-control-xs place-items-center rounded-xs bg-bg-accent-soft text-caption font-medium text-text-accent">
-          L
-        </span>
-        <span className="text-body font-medium text-text-base">lingzhu</span>
-      </div>
-
-      <div className="px-2 pb-1">
+      <div className="px-2 pt-3 pb-1">
         <button
           type="button"
           onClick={newSession}
@@ -362,11 +357,21 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="flex h-control-md items-center gap-2 border-t border-border-base px-3 text-caption text-text-faint">
-        <span className={`size-1.5 rounded-full bg-current ${connected > 0 ? "text-state-fg-success" : "text-state-fg-danger"}`} />
-        <span className="truncate">
-          {connected}/{workspaces.length} workspace{workspaces.length === 1 ? "" : "s"}
-        </span>
+      <div className="flex h-control-md items-center justify-end border-t border-border-base pr-2 pl-3">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Settings"
+              onClick={onOpenSettings}
+              className="text-text-faint hover:text-text-base"
+            >
+              <Settings />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Settings</TooltipContent>
+        </Tooltip>
       </div>
     </aside>
   );

@@ -1,11 +1,13 @@
 import { CoreService } from "../../bindings/lingzhu-app";
 import { Events } from "@wailsio/runtime";
 import type {
+  AppSettings,
   ContextInfo,
   CoreEvent,
   Message,
   PermissionRequest,
   SessionInfo,
+  SettingsInput,
   WorkspaceInfo,
 } from "./types";
 
@@ -31,6 +33,9 @@ export const api = {
     call.Rename(workspace, sessionID, title),
   remove: (workspace: string, sessionID: string): Promise<void> => call.Delete(workspace, sessionID),
   newSessionID: (): Promise<string> => call.NewSessionID(),
+
+  settings: (): Promise<AppSettings> => call.Settings(),
+  saveSettings: (input: SettingsInput): Promise<string[]> => call.SaveSettings(input),
 
   onEvent(handler: (event: CoreEvent) => void): () => void {
     return Events.On("lingzhu:event", (payload: any) => handler(payload.data as CoreEvent));

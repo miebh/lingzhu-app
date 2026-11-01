@@ -10,8 +10,8 @@ interface Props {
 export function PermissionCard({ requests, onReply }: Props) {
   if (requests.length === 0) return null;
   return (
-    <div className="select-none border-t border-border-base bg-bg-layer-02 px-inset-page py-3">
-      <div role="region" aria-label="Permission requests" className="mx-auto w-full max-w-chat divide-y divide-border-base">
+    <div className="select-none border-t border-border-base bg-bg-layer-02 py-3">
+      <div role="region" aria-label="Permission requests" className="mx-auto w-full max-w-session divide-y divide-border-base px-3">
         {requests.map((request) => (
           <div key={request.id} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-state-fg-warning" />

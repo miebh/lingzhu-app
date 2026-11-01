@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,48 @@ type EventEnvelope struct {
 	At        time.Time      `json:"at"`
 	Data      map[string]any `json:"data"`
 }
+
+// AppSettings is the editable view of the shared core config file. The API key
+// itself never leaves the host; the dialog only learns whether one is stored.
+type AppSettings struct {
+	ConfigPath    string       `json:"configPath"`
+	Model         string       `json:"model"`
+	BaseURL       string       `json:"baseUrl"`
+	APIKeySet     bool         `json:"apiKeySet"`
+	MaxSteps      int          `json:"maxSteps"`
+	ContextWindow int          `json:"contextWindow"`
+	CompactKeep   int          `json:"compactKeep"`
+	SystemPrompt  string       `json:"systemPrompt"`
+	Permission    []ConfigRule `json:"permission"`
+}
+
+// ConfigRule mirrors one permission rule in the core config file.
+type ConfigRule struct {
+	Action   string `json:"action"`
+	Resource string `json:"resource"`
+	Effect   string `json:"effect"`
+}
+
+// SettingsInput is the subset the settings dialog can change. An empty APIKey
+// keeps the stored key.
+type SettingsInput struct {
+	Model         string       `json:"model"`
+	BaseURL       string       `json:"baseUrl"`
+	APIKey        string       `json:"apiKey"`
+	MaxSteps      int          `json:"maxSteps"`
+	ContextWindow int          `json:"contextWindow"`
+	CompactKeep   int          `json:"compactKeep"`
+	SystemPrompt  string       `json:"systemPrompt"`
+	Permission    []ConfigRule `json:"permission"`
+}
+
+// Core defaults used when the config file omits a field. Keep them in sync
+// with lingzhu/internal/config.
+const (
+	defaultMaxSteps      = 16
+	defaultContextWindow = 128000
+	defaultCompactKeep   = 15000
+)
 
 func NewCoreService() *CoreService {
 	return &CoreService{
@@ -345,6 +388,242 @@ func (s *CoreService) Delete(workspace, sessionID string) error {
 		return err
 	}
 	return client.Delete(s.ctx, sessionID)
+}
+
+// Settings returns the editable subset of the shared config file.
+func (s *CoreService) Settings() (AppSettings, error) {
+	file, err := s.readConfigFile()
+	if err != nil {
+		return AppSettings{}, err
+	}
+	settings := AppSettings{
+		ConfigPath:    s.configFilePath(),
+		Model:         stringSetting(file, "model"),
+		BaseURL:       stringSetting(file, "base_url"),
+		APIKeySet:     stringSetting(file, "api_key") != "",
+		MaxSteps:      intSetting(file, "max_steps", defaultMaxSteps),
+		ContextWindow: intSetting(file, "context_window", defaultContextWindow),
+		CompactKeep:   intSetting(file, "compact_keep", defaultCompactKeep),
+		SystemPrompt:  stringSetting(file, "system_prompt"),
+		Permission:    []ConfigRule{},
+	}
+	if raw, ok := file["permission"].([]any); ok {
+		for _, item := range raw {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			settings.Permission = append(settings.Permission, ConfigRule{
+				Action:   stringSetting(entry, "action"),
+				Resource: stringSetting(entry, "resource"),
+				Effect:   stringSetting(entry, "effect"),
+			})
+		}
+	}
+	return settings, nil
+}
+
+// SaveSettings validates and writes the shared config file, then restarts the
+// workspace cores so every workspace picks it up. It returns the workspaces
+// whose core was left alone because this app does not own the process.
+func (s *CoreService) SaveSettings(input SettingsInput) ([]string, error) {
+	model := strings.TrimSpace(input.Model)
+	if model == "" {
+		return nil, errors.New("model is required")
+	}
+	baseURL := strings.TrimSpace(input.BaseURL)
+	if baseURL != "" {
+		parsed, err := url.Parse(baseURL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return nil, errors.New("base URL must be an absolute http(s) URL")
+		}
+	}
+	if input.MaxSteps < 1 {
+		return nil, errors.New("max steps must be at least 1")
+	}
+	if input.ContextWindow < 0 {
+		return nil, errors.New("context window cannot be negative")
+	}
+	if input.CompactKeep < 1 {
+		return nil, errors.New("compact keep must be at least 1")
+	}
+	rules := make([]ConfigRule, 0, len(input.Permission))
+	for _, rule := range input.Permission {
+		action := strings.TrimSpace(rule.Action)
+		resource := strings.TrimSpace(rule.Resource)
+		effect := strings.TrimSpace(rule.Effect)
+		if action == "" || resource == "" {
+			return nil, errors.New("permission rules need an action and a resource")
+		}
+		if effect != "allow" && effect != "ask" && effect != "deny" {
+			return nil, fmt.Errorf("unknown permission effect %q", effect)
+		}
+		rules = append(rules, ConfigRule{Action: action, Resource: resource, Effect: effect})
+	}
+
+	s.mu.Lock()
+	busy := len(s.streams) > 0
+	s.mu.Unlock()
+	if busy {
+		return nil, errors.New("stop running sessions before changing settings")
+	}
+
+	file, err := s.readConfigFile()
+	if err != nil {
+		return nil, err
+	}
+	file["model"] = model
+	if baseURL == "" {
+		delete(file, "base_url")
+	} else {
+		file["base_url"] = strings.TrimRight(baseURL, "/")
+	}
+	if key := strings.TrimSpace(input.APIKey); key != "" {
+		file["api_key"] = key
+	}
+	file["max_steps"] = input.MaxSteps
+	file["context_window"] = input.ContextWindow
+	file["compact_keep"] = input.CompactKeep
+	if prompt := strings.TrimSpace(input.SystemPrompt); prompt == "" {
+		delete(file, "system_prompt")
+	} else {
+		file["system_prompt"] = input.SystemPrompt
+	}
+	if len(rules) == 0 {
+		delete(file, "permission")
+	} else {
+		file["permission"] = rules
+	}
+
+	path := s.configFilePath()
+	if err := writeConfigFile(path, file); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	s.configPath = path
+	s.mu.Unlock()
+
+	return s.restartWorkspaces(), nil
+}
+
+// restartWorkspaces stops and starts every core this app owns. Reused cores
+// keep running and are reported so the UI can ask the user to restart them.
+func (s *CoreService) restartWorkspaces() []string {
+	s.mu.Lock()
+	paths := append([]string(nil), s.order...)
+	s.mu.Unlock()
+
+	reused := make([]string, 0)
+	for _, path := range paths {
+		s.mu.Lock()
+		runtime := s.spaces[path]
+		s.mu.Unlock()
+		if runtime == nil {
+			continue
+		}
+		if runtime.Core != nil && !runtime.Core.Owned {
+			reused = append(reused, runtime.Name)
+			continue
+		}
+		if runtime.Core != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			_ = runtime.Core.Stop(ctx)
+			cancel()
+		}
+		s.mu.Lock()
+		runtime.Core = nil
+		runtime.Addr = ""
+		runtime.Err = ""
+		s.mu.Unlock()
+		if err := s.startCore(runtime); err != nil {
+			s.mu.Lock()
+			runtime.Err = err.Error()
+			s.mu.Unlock()
+		}
+	}
+	return reused
+}
+
+// configFilePath returns the file the settings dialog edits. When startup found
+// no config, the file next to the executable becomes the one new cores load.
+func (s *CoreService) configFilePath() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.configPath != "" {
+		return s.configPath
+	}
+	if exe, err := os.Executable(); err == nil {
+		return filepath.Join(filepath.Dir(exe), "config.json")
+	}
+	return "config.json"
+}
+
+func (s *CoreService) readConfigFile() (map[string]any, error) {
+	path := s.configFilePath()
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	file := map[string]any{}
+	if strings.TrimSpace(string(data)) == "" {
+		return file, nil
+	}
+	if err := json.Unmarshal(data, &file); err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	return file, nil
+}
+
+// writeConfigFile replaces the file through a temp file so a failed write never
+// leaves a half-written config behind.
+func writeConfigFile(path string, file map[string]any) error {
+	data, err := json.MarshalIndent(file, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+func stringSetting(file map[string]any, key string) string {
+	value, _ := file[key].(string)
+	return value
+}
+
+func intSetting(file map[string]any, key string, fallback int) int {
+	value, ok := file[key].(float64)
+	if !ok {
+		return fallback
+	}
+	n := int(value)
+	// Zero is meaningful for the context window: it disables automatic
+	// compaction. Every other numeric setting treats zero as unset.
+	if key == "context_window" {
+		if n < 0 {
+			return fallback
+		}
+		return n
+	}
+	if n <= 0 {
+		return fallback
+	}
+	return n
 }
 
 // NewSessionID returns an ID the core accepts, used before the first message.

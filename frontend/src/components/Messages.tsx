@@ -2,26 +2,42 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, Check, ChevronRight, CircleAlert, FileText, Search, Terminal } from "lucide-react";
 import { CopyButton, Markdown } from "./Markdown";
 import { formatDuration } from "../lib/format";
-import type { ChatState, Message, ToolRun } from "../lib/types";
+import type { ChatState, TimelineEntry, ToolRun } from "../lib/types";
 
 export function Messages({ chat }: { chat: ChatState }) {
   const container = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
 
-  // History carries tool results but not their arguments, so pair them with the
-  // assistant tool calls that produced them.
-  const argumentsByID = new Map<string, string>();
-  for (const message of chat.messages) {
-    for (const call of message.toolCalls ?? []) {
-      argumentsByID.set(call.id, call.arguments);
-    }
-  }
+  const scrollToEnd = () => {
+    const element = container.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  };
+
+  // Switching sessions starts at the newest content, never at the previous
+  // session's scroll offset.
+  useEffect(() => {
+    pinned.current = true;
+    setAwayFromBottom(false);
+    scrollToEnd();
+  }, [chat.id]);
+
+  // A new turn pulls the view back down, even if the user had scrolled up.
+  useEffect(() => {
+    if (!chat.running) return;
+    pinned.current = true;
+    setAwayFromBottom(false);
+  }, [chat.running]);
 
   useEffect(() => {
-    const element = container.current;
-    if (element && pinned.current) element.scrollTop = element.scrollHeight;
-  }, [chat.messages.length, chat.liveText, chat.tools.length, chat.running]);
+    if (pinned.current) scrollToEnd();
+  }, [chat.entries]);
+
+  // History arrives after the first paint; pin again once it is rendered.
+  useEffect(() => {
+    if (chat.loading) return;
+    if (pinned.current) scrollToEnd();
+  }, [chat.loading]);
 
   // The composer grows with its content; keeping the bottom pinned on container
   // resizes prevents the last message from jumping out of view while typing.
@@ -51,12 +67,14 @@ export function Messages({ chat }: { chat: ChatState }) {
     setAwayFromBottom(false);
   };
 
-  const empty = chat.messages.length === 0 && chat.tools.length === 0 && !chat.liveText;
+  const empty = chat.entries.length === 0;
+  const streaming = chat.entries.some((entry) => entry.live && entry.text);
+  const working = chat.running && !streaming;
 
   if (chat.loading && empty) {
     return (
-      <div className="flex-1 overflow-y-auto px-inset-page py-inset-panel">
-        <div role="status" aria-label="Loading conversation" className="mx-auto flex w-full max-w-chat flex-col gap-6">
+      <div className="flex-1 overflow-y-auto py-inset-panel">
+        <div role="status" aria-label="Loading conversation" className="mx-auto flex w-full max-w-session flex-col gap-6 px-3">
           {[0, 1, 2].map((index) => (
             <div key={index} aria-hidden className="flex flex-col gap-2">
               <div className={`h-2 rounded-xs bg-bg-layer-02 motion-safe:animate-pulse ${index === 1 ? "w-2/3" : "w-1/2"}`} />
@@ -69,27 +87,20 @@ export function Messages({ chat }: { chat: ChatState }) {
     );
   }
 
-  const working = chat.running && !chat.liveText && chat.tools.every((tool) => tool.done);
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={container}
         onScroll={onScroll}
         aria-busy={chat.running}
-        className="scroll-stable flex-1 overflow-y-auto px-inset-page pt-6 pb-4"
+        className="scroll-stable-both flex-1 overflow-y-auto pt-6 pb-4"
       >
-        <div className="mx-auto flex w-full max-w-chat flex-col gap-0">          {empty && <EmptyState />}
+        <div className="mx-auto flex w-full max-w-session flex-col px-3">
+          {empty && <EmptyState />}
 
-          {chat.messages.map((message, index) => (
-            <MessageView key={index} message={message} argumentsByID={argumentsByID} />
+          {chat.entries.map((entry) => (
+            <EntryView key={entry.key} entry={entry} />
           ))}
-
-          {chat.tools.map((tool) => (
-            <ToolRow key={tool.id} tool={tool} />
-          ))}
-
-          {chat.liveText && <Markdown text={chat.liveText} className="mt-6" />}
 
           {working && <RunningStatus startedAt={chat.runStartedAt} />}
 
@@ -125,9 +136,6 @@ export function Messages({ chat }: { chat: ChatState }) {
 function EmptyState() {
   return (
     <div className="select-none py-24 text-center">
-      <div className="mx-auto mb-4 grid size-12 place-items-center rounded-xl border border-border-base bg-bg-layer-01 text-body font-medium text-text-accent">
-        L
-      </div>
       <p className="text-reading text-text-base">Ask lingzhu to work in this project.</p>
       <p className="mx-auto mt-2 max-w-measure-narrow text-body leading-5 text-text-faint">
         It reads files, runs commands and edits code. Tool calls ask for permission first.
@@ -136,32 +144,26 @@ function EmptyState() {
   );
 }
 
-function MessageView({ message, argumentsByID }: { message: Message; argumentsByID: Map<string, string> }) {
-  if (message.role === "tool") {
-    return (
-      <ToolRow
-        tool={{
-          id: message.toolCallId ?? "",
-          name: message.name || "tool",
-          arguments: argumentsByID.get(message.toolCallId ?? "") ?? "",
-          output: message.content,
-          done: true,
-        }}
-      />
-    );
+/** One row of the ordered transcript: user turn, assistant text or tool call. */
+function EntryView({ entry }: { entry: TimelineEntry }) {
+  if (entry.role === "tool") {
+    return entry.tool ? <ToolRow tool={entry.tool} /> : null;
   }
-  if (message.role === "user") {
-    return <UserBubble text={message.content} />;
+  if (entry.role === "user") {
+    return <UserBubble text={entry.text ?? ""} pending={entry.pending} />;
   }
-  if (!message.content) return null;
-  return <AssistantText text={message.content} />;
+  if (!entry.text) return null;
+  return <AssistantText text={entry.text} />;
 }
 
 /** Right-aligned user bubble; the action row reveals on hover or keyboard focus. */
-function UserBubble({ text }: { text: string }) {
+function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
   return (
-    <div className="group/user mt-6 flex flex-col items-end">
-      <div className="max-w-[min(82%,64ch)] rounded-[10px] bg-bg-layer-02 px-3 py-2 text-reading text-text-base whitespace-pre-wrap select-text">
+    <div data-entry="user" className="group/user mt-6 flex flex-col items-end">
+      <div
+        data-pending={pending ? "true" : undefined}
+        className="max-w-[min(82%,64ch)] rounded-[10px] bg-bg-layer-02 px-3 py-2 text-reading whitespace-pre-wrap text-text-base select-text"
+      >
         {text}
       </div>
       <div className="mt-2 flex h-5 items-center opacity-0 transition-opacity group-focus-within/user:opacity-100 group-hover/user:opacity-100">
@@ -174,7 +176,7 @@ function UserBubble({ text }: { text: string }) {
 /** Assistant reply: full-width Markdown with a hover-revealed copy footer. */
 function AssistantText({ text }: { text: string }) {
   return (
-    <div className="group/assistant mt-6">
+    <div data-entry="assistant" className="group/assistant mt-6">
       <Markdown text={text} />
       <div className="mt-2 flex h-5 select-none items-center opacity-0 transition-opacity group-focus-within/assistant:opacity-100 group-hover/assistant:opacity-100">
         <CopyButton text={text} label="Copy response" />
@@ -258,7 +260,7 @@ function ToolRow({ tool }: { tool: ToolRun }) {
   const subtitle = toolSubtitle(tool.name, tool.arguments);
 
   return (
-    <div className="mt-1">
+    <div data-entry="tool" className="mt-1">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
