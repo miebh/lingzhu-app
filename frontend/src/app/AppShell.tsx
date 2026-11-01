@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Composer } from "../components/Composer";
 import { ConfirmDialog, RenameDialog } from "../components/Dialogs";
 import { Messages } from "../components/Messages";
@@ -10,48 +11,103 @@ import { TabBar, type AppTab } from "../components/TabBar";
 import { TitleBar } from "../components/TitleBar";
 import { workspaceName } from "../lib/history";
 import type { SessionInfo } from "../lib/types";
-import { useCatalog } from "./CatalogProvider";
-import { useChats } from "./ChatProvider";
-import { useNotify } from "./NotifyProvider";
-import { usePreferences } from "./PreferencesProvider";
-import { useView } from "./ViewProvider";
-import { useWorkspaces } from "./WorkspaceProvider";
+import { useCatalog, useCatalogStore } from "../store/catalog";
+import {
+  useActiveChat,
+  useActiveChatID,
+  useAnyChatRunning,
+  useAtHome,
+  useChatHome,
+  useChatMap,
+  useChatStore,
+} from "../store/chat";
+import { notify } from "../store/notify";
+import { usePreferences, usePreferencesStore } from "../store/preferences";
+import { useViewStore } from "../store/view";
+import {
+  useActivePath,
+  useSessionsByWorkspace,
+  useWorkspaceStore,
+  useWorkspaces,
+} from "../store/workspaces";
 
 /**
  * The window layout: sidebar, tab strip, chat or settings pane, and the
- * confirm dialogs. It only wires providers to components; every mutation
- * lives in the provider that owns the state.
+ * confirm dialogs. It reads stores directly; every mutation lives in the
+ * store that owns the state.
  */
 export function AppShell() {
-  const notify = useNotify();
   const preferences = usePreferences();
+  const savePreferences = usePreferencesStore((state) => state.save);
   const catalog = useCatalog();
-  const view = useView();
-  const workspaces = useWorkspaces();
-  const chats = useChats();
+  const reloadCatalog = useCatalogStore((state) => state.reload);
+
+  const view = useViewStore(
+    useShallow((state) => ({
+      tab: state.tab,
+      settingsOpen: state.settingsOpen,
+      select: state.select,
+      showChat: state.showChat,
+      openSettings: state.openSettings,
+      closeSettings: state.closeSettings,
+    })),
+  );
+
+  const workspaceList = useWorkspaces();
+  const activePath = useActivePath();
+  const sessionsByWorkspace = useSessionsByWorkspace();
+  const workspaceActions = useWorkspaceStore(
+    useShallow((state) => ({
+      select: state.select,
+      loadSessions: state.loadSessions,
+      connect: state.connect,
+      disconnect: state.disconnect,
+      renameSession: state.renameSession,
+      deleteSession: state.deleteSession,
+    })),
+  );
+
+  const chats = useChatMap();
+  const activeId = useActiveChatID();
+  const active = useActiveChat();
+  const atHome = useAtHome();
+  const running = useAnyChatRunning();
+  const home = useChatHome();
+  const chatActions = useChatStore(
+    useShallow((state) => ({
+      open: state.open,
+      newChat: state.newChat,
+      send: state.send,
+      startSession: state.startSession,
+      stop: state.stop,
+      selectModel: state.selectModel,
+      reply: state.reply,
+      discard: state.discard,
+      toggleWorkspaceDefault: state.toggleWorkspaceDefault,
+    })),
+  );
 
   const [renameTarget, setRenameTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [deleteTarget, setDeleteTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = useState<string>();
 
-  const active = chats.active;
-  const activeWorkspace = workspaces.activeWorkspace;
-  const homeWorkspace = activeWorkspace ?? workspaces.workspaces.find((workspace) => workspace.path === chats.home.path);
-  const providers = catalog.catalog?.providers ?? [];
+  const activeWorkspace = workspaceList.find((workspace) => workspace.path === activePath);
+  const homeWorkspace = activeWorkspace ?? workspaceList.find((workspace) => workspace.path === home.path);
+  const providers = catalog?.providers ?? [];
 
   const confirmRename = async (title: string) => {
     const target = renameTarget;
     if (!target) return;
     setRenameTarget(undefined);
-    await workspaces.renameSession(target.workspace, target.session.id, title);
+    await workspaceActions.renameSession(target.workspace, target.session.id, title);
   };
 
   const confirmDelete = async () => {
     const target = deleteTarget;
     if (!target) return;
     setDeleteTarget(undefined);
-    if (await workspaces.deleteSession(target.workspace, target.session.id)) {
-      chats.discard(target.workspace, target.session.id);
+    if (await workspaceActions.deleteSession(target.workspace, target.session.id)) {
+      chatActions.discard(target.workspace, target.session.id);
     }
   };
 
@@ -59,11 +115,11 @@ export function AppShell() {
     const path = removeWorkspaceTarget;
     if (!path) return;
     setRemoveWorkspaceTarget(undefined);
-    await workspaces.disconnect(path);
+    await workspaceActions.disconnect(path);
   };
 
   const settingsSaved = async (reused: string[]) => {
-    await Promise.all([workspaces.refresh(), catalog.reload()]);
+    await Promise.all([useWorkspaceStore.getState().refresh(), reloadCatalog()]);
     if (reused.length > 0) {
       notify(`Settings saved. Restart the shared core for ${reused.join(", ")} to apply.`, "info");
     }
@@ -85,20 +141,20 @@ export function AppShell() {
 
       <div className="flex min-h-0 flex-1">
         <Sidebar
-          workspaces={workspaces.workspaces}
-          activePath={workspaces.activePath}
-          sessionsByWorkspace={workspaces.sessionsByWorkspace}
-          chats={chats.chats}
-          activeId={chats.activeId}
+          workspaces={workspaceList}
+          activePath={activePath}
+          sessionsByWorkspace={sessionsByWorkspace}
+          chats={chats}
+          activeId={activeId}
           onSelectWorkspace={(path) => {
             view.showChat();
-            workspaces.select(path);
+            workspaceActions.select(path);
           }}
-          onLoadSessions={workspaces.loadSessions}
-          onAddWorkspace={() => void workspaces.connect()}
+          onLoadSessions={workspaceActions.loadSessions}
+          onAddWorkspace={() => void workspaceActions.connect()}
           onRemoveWorkspace={setRemoveWorkspaceTarget}
-          onNew={(path) => void chats.newChat(path)}
-          onOpen={(path, id) => void chats.open(path, id)}
+          onNew={(path) => void chatActions.newChat(path)}
+          onOpen={(path, id) => void chatActions.open(path, id)}
           onRename={(path, session) => setRenameTarget({ workspace: path, session })}
           onDelete={(path, session) => setDeleteTarget({ workspace: path, session })}
           onOpenSettings={view.openSettings}
@@ -115,10 +171,13 @@ export function AppShell() {
               aria-hidden={view.tab === "settings" ? true : undefined}
               className={`flex min-h-0 flex-1 flex-col ${view.tab === "settings" ? "invisible" : ""}`}
             >
-              {active && !chats.atHome ? (
+              {active && !atHome ? (
                 <>
                   <Messages chat={active} />
-                  <PermissionCard requests={active.pending} onReply={(id, decision) => void chats.reply(id, decision)} />
+                  <PermissionCard
+                    requests={active.pending}
+                    onReply={(id, decision) => void chatActions.reply(id, decision)}
+                  />
                   <Composer
                     running={active.running}
                     disabled={!activeWorkspace?.connected}
@@ -126,15 +185,13 @@ export function AppShell() {
                     window={active.window}
                     usage={active.usage}
                     providers={providers}
-                    provider={active.provider ?? catalog.catalog?.provider ?? ""}
-                    model={active.model ?? catalog.catalog?.model ?? ""}
-                    workspaceDefault={
-                      workspaces.activePath ? preferences.preferences.workspaceModels[workspaces.activePath] : undefined
-                    }
-                    onSelectModel={(providerID, modelID) => void chats.selectModel(providerID, modelID)}
-                    onToggleWorkspaceDefault={chats.toggleWorkspaceDefault}
-                    onSend={chats.send}
-                    onStop={() => void chats.stop()}
+                    provider={active.provider ?? catalog?.provider ?? ""}
+                    model={active.model ?? catalog?.model ?? ""}
+                    workspaceDefault={activePath ? preferences.workspaceModels[activePath] : undefined}
+                    onSelectModel={(providerID, modelID) => void chatActions.selectModel(providerID, modelID)}
+                    onToggleWorkspaceDefault={chatActions.toggleWorkspaceDefault}
+                    onSend={chatActions.send}
+                    onStop={() => void chatActions.stop()}
                   />
                 </>
               ) : (
@@ -142,16 +199,14 @@ export function AppShell() {
                   workspaceName={homeWorkspace?.name}
                   connected={homeWorkspace?.connected ?? false}
                   providers={providers}
-                  provider={chats.home.provider}
-                  model={chats.home.model}
-                  workspaceDefault={
-                    chats.home.path ? preferences.preferences.workspaceModels[chats.home.path] : undefined
-                  }
-                  window={chats.home.window}
-                  onSelectModel={(providerID, modelID) => void chats.selectModel(providerID, modelID)}
-                  onToggleWorkspaceDefault={chats.toggleWorkspaceDefault}
-                  onSend={chats.startSession}
-                  onAddWorkspace={() => void workspaces.connect()}
+                  provider={home.provider}
+                  model={home.model}
+                  workspaceDefault={home.path ? preferences.workspaceModels[home.path] : undefined}
+                  window={home.window}
+                  onSelectModel={(providerID, modelID) => void chatActions.selectModel(providerID, modelID)}
+                  onToggleWorkspaceDefault={chatActions.toggleWorkspaceDefault}
+                  onSend={chatActions.startSession}
+                  onAddWorkspace={() => void workspaceActions.connect()}
                 />
               )}
             </div>
@@ -163,10 +218,10 @@ export function AppShell() {
                 }`}
               >
                 <SettingsPage
-                  busy={chats.running}
-                  workspaces={workspaces.workspaces}
-                  preferences={preferences.preferences}
-                  onSavePreferences={preferences.save}
+                  busy={running}
+                  workspaces={workspaceList}
+                  preferences={preferences}
+                  onSavePreferences={savePreferences}
                   onSaved={(reused) => void settingsSaved(reused)}
                 />
               </div>

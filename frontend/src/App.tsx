@@ -1,29 +1,18 @@
+import { useEffect } from "react";
 import { AppShell } from "./app/AppShell";
-import { CatalogProvider } from "./app/CatalogProvider";
-import { ChatProvider } from "./app/ChatProvider";
-import { NotifyProvider } from "./app/NotifyProvider";
-import { PreferencesProvider } from "./app/PreferencesProvider";
-import { ViewProvider } from "./app/ViewProvider";
-import { WorkspaceProvider } from "./app/WorkspaceProvider";
+import { Toaster } from "./components/Toaster";
+import { startApp } from "./store/bootstrap";
 
-/**
- * Providers only. Each owns one domain and registers what the next one needs;
- * the window itself is AppShell.
- */
+/** Stores are module singletons, so the tree needs no provider chain. */
 export default function App() {
+  useEffect(() => {
+    startApp();
+  }, []);
+
   return (
-    <NotifyProvider>
-      <PreferencesProvider>
-        <CatalogProvider>
-          <ViewProvider>
-            <WorkspaceProvider>
-              <ChatProvider>
-                <AppShell />
-              </ChatProvider>
-            </WorkspaceProvider>
-          </ViewProvider>
-        </CatalogProvider>
-      </PreferencesProvider>
-    </NotifyProvider>
+    <>
+      <AppShell />
+      <Toaster />
+    </>
   );
 }
