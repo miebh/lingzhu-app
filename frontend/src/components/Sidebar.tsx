@@ -357,21 +357,26 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="flex h-control-md items-center justify-end border-t border-border-base pr-2 pl-3">
-        <Tooltip>
-          <TooltipTrigger asChild>
+      <div className="border-t border-border-base p-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-xs"
-              aria-label="Settings"
-              onClick={onOpenSettings}
-              className="text-text-faint hover:text-text-base"
+              size="sm"
+              aria-label="More"
+              className="w-full justify-start gap-2 px-2 font-normal text-text-muted hover:text-text-base"
             >
-              <Settings />
+              <Ellipsis />
+              More
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Settings</TooltipContent>
-        </Tooltip>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start">
+            <DropdownMenuItem onSelect={onOpenSettings}>
+              <Settings />
+              Settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );

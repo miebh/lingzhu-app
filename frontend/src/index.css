@@ -37,6 +37,7 @@
   --container-composer: 780px;
   --container-dialog: 400px;
   --container-dialog-wide: 560px;
+  --container-settings: 640px;
   --container-sidebar: 280px;
   /* Shared by the transcript, permission dock and composer so their edges
      align (the `--container-session`: 720px content plus its gutter). */
@@ -51,6 +52,9 @@
   /* Window chrome: one title-bar height and one caption-button width. */
   --spacing-chrome-titlebar: 40px;
   --spacing-chrome-button: 44px;
+
+  /* Tab strip: every tab block keeps the same width regardless of its title. */
+  --spacing-tab: 160px;
 
   --spacing-inline-xs: 4px;
   --spacing-inline-sm: 6px;

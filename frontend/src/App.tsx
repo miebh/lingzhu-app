@@ -9,7 +9,8 @@ import { Messages } from "./components/Messages";
 import { Composer } from "./components/Composer";
 import { PermissionCard } from "./components/PermissionCard";
 import { ConfirmDialog, RenameDialog } from "./components/Dialogs";
-import { SettingsDialog } from "./components/SettingsDialog";
+import { SettingsPage } from "./components/SettingsPage";
+import { TabBar, type AppTab, type AppTabID } from "./components/TabBar";
 import { Toast, type ToastTone } from "./components/Toast";
 
 interface Notice {
@@ -29,6 +30,7 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = useState<string>();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tab, setTab] = useState<AppTabID>("chat");
 
   const toastID = useRef(0);
   const notify = useCallback((text: string, tone: ToastTone = "error") => {
@@ -118,9 +120,11 @@ export default function App() {
   const selectWorkspace = (path: string) => {
     if (path === activePathRef.current) return;
     setActivePath(path);
+    setTab("chat");
   };
 
   const open = async (workspace: string, sessionID: string) => {
+    setTab("chat");
     if (workspace !== activePathRef.current) {
       setActivePath(workspace);
     }
@@ -150,6 +154,7 @@ export default function App() {
       .map((key) => chats[key])
       .find((chat) => chat.draft);
     if (existing) {
+      setTab("chat");
       if (workspace !== activePathRef.current) setActivePath(workspace);
       setActiveByWorkspace((prev) => ({ ...prev, [workspace]: existing.id }));
       return;
@@ -158,6 +163,7 @@ export default function App() {
       const id = await api.newSessionID();
       const key = chatKey(workspace, id);
       setChats((prev) => ({ ...prev, [key]: blankChat(id) }));
+      setTab("chat");
       if (workspace !== activePathRef.current) {
         setActivePath(workspace);
       }
@@ -353,25 +359,28 @@ export default function App() {
     );
   };
 
-  const compact = async () => {    if (!activePath || !activeId) return;
-    try {
-      await api.compact(activePath, activeId);
-      await refreshChat(activePath, activeId);
-    } catch (error) {
-      setChats((prev) => ({
-        ...prev,
-        [chatKey(activePath, activeId)]: { ...prev[chatKey(activePath, activeId)], error: messageOf(error) },
-      }));
-    }
+  const openSettings = () => {
+    setSettingsOpen(true);
+    setTab("settings");
   };
+
+  const closeSettings = () => {
+    setSettingsOpen(false);
+    if (tab === "settings") setTab("chat");
+  };
+
+  const chatStatus: AppTab["status"] =
+    active && active.pending.length > 0 ? "warning" : active?.running ? "ongoing" : undefined;
+  const tabs: AppTab[] = [
+    { id: "chat", label: active ? active.title || "New session" : "Chat", status: chatStatus },
+    ...(settingsOpen ? [{ id: "settings" as const, label: "Settings", closable: true }] : []),
+  ];
 
   return (
     <div className="flex h-full flex-col bg-bg-base text-text-base">
       <TitleBar
-        workspace={activeWorkspace?.name}
-        title={active ? active.title || "New session" : undefined}
-        compactable={Boolean(active && !active.running && active.entries.length > 0)}
-        onCompact={() => void compact()}
+        workspace={tab === "settings" ? undefined : activeWorkspace?.name}
+        title={tab === "settings" ? "Settings" : active ? active.title || "New session" : undefined}
       />
 
       <div className="flex min-h-0 flex-1">
@@ -389,41 +398,66 @@ export default function App() {
           onOpen={open}
           onRename={requestRename}
           onDelete={requestDelete}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={openSettings}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
-          {active ? (
-            <>
-              <Messages chat={active} />
-              <PermissionCard requests={active.pending} onReply={reply} />
-              <Composer
-                running={active.running}
-                disabled={!activeWorkspace?.connected}
-                tokens={active.tokens}
-                window={active.window}
-                usage={active.usage}
-                onSend={send}
-                onStop={stop}
-              />
-            </>
-          ) : (
-            <div className="flex flex-1 select-none flex-col items-center justify-center gap-4 px-inset-page">
-              <div className="text-center">
-                <p className="text-body text-text-muted">
-                  {workspaces.length === 0 ? "No workspace yet" : "No session selected"}
-                </p>
-                <p className="mt-1 text-meta text-text-faint">
-                  {workspaces.length === 0
-                    ? "Add a directory to use as a workspace."
-                    : "Pick a session on the left or start a new one."}
-                </p>
-              </div>
-              <Button onClick={() => (workspaces.length === 0 ? void addWorkspace() : activePath && void newChat(activePath))} disabled={workspaces.length > 0 && !activePath}>
-                {workspaces.length === 0 ? "Add workspace" : "New session"}
-              </Button>
-            </div>
+          {settingsOpen && (
+            <TabBar tabs={tabs} active={tab} onSelect={setTab} onClose={closeSettings} />
           )}
+
+          <div className="relative flex min-h-0 flex-1">
+            <div
+              inert={tab === "settings" ? true : undefined}
+              aria-hidden={tab === "settings" ? true : undefined}
+              className={`flex min-h-0 flex-1 flex-col ${tab === "settings" ? "invisible" : ""}`}
+            >
+              {active ? (
+                <>
+                  <Messages chat={active} />
+                  <PermissionCard requests={active.pending} onReply={reply} />
+                  <Composer
+                    running={active.running}
+                    disabled={!activeWorkspace?.connected}
+                    tokens={active.tokens}
+                    window={active.window}
+                    usage={active.usage}
+                    onSend={send}
+                    onStop={stop}
+                  />
+                </>
+              ) : (
+                <div className="flex flex-1 select-none flex-col items-center justify-center gap-4 px-inset-page">
+                  <div className="text-center">
+                    <p className="text-body text-text-muted">
+                      {workspaces.length === 0 ? "No workspace yet" : "No session selected"}
+                    </p>
+                    <p className="mt-1 text-meta text-text-faint">
+                      {workspaces.length === 0
+                        ? "Add a directory to use as a workspace."
+                        : "Pick a session on the left or start a new one."}
+                    </p>
+                  </div>
+                  <Button onClick={() => (workspaces.length === 0 ? void addWorkspace() : activePath && void newChat(activePath))} disabled={workspaces.length > 0 && !activePath}>
+                    {workspaces.length === 0 ? "Add workspace" : "New session"}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {settingsOpen && (
+              <div
+                className={`absolute inset-0 z-10 flex min-h-0 flex-col bg-bg-base ${
+                  tab === "settings" ? "" : "invisible"
+                }`}
+              >
+                <SettingsPage
+                  busy={Object.values(chats).some((chat) => chat.running)}
+                  onSaved={(reused) => void settingsSaved(reused)}
+                />
+              </div>
+            )}
+          </div>
         </main>
       </div>
 
@@ -460,13 +494,6 @@ export default function App() {
           if (!open) setRemoveWorkspaceTarget(undefined);
         }}
         onConfirm={() => void confirmRemoveWorkspace()}
-      />
-
-      <SettingsDialog
-        open={settingsOpen}
-        busy={Object.values(chats).some((chat) => chat.running)}
-        onOpenChange={setSettingsOpen}
-        onSaved={(reused) => void settingsSaved(reused)}
       />
     </div>
   );

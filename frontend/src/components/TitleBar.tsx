@@ -1,13 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronRight, Copy, Minus, Square, X } from "lucide-react";
 import { System, Window } from "@wailsio/runtime";
-import { Button } from "@/components/ui/button";
 
 interface Props {
   workspace?: string;
   title?: string;
-  compactable: boolean;
-  onCompact: () => void;
 }
 
 /**
@@ -15,7 +12,7 @@ interface Props {
  * inside it opts out of dragging. macOS keeps its native traffic lights, so the
  * custom caption buttons are only rendered on Windows and Linux.
  */
-export function TitleBar({ workspace, title, compactable, onCompact }: Props) {
+export function TitleBar({ workspace, title }: Props) {
   const mac = System.IsMac();
   const [maximised, setMaximised] = useState(false);
 
@@ -78,18 +75,6 @@ export function TitleBar({ workspace, title, compactable, onCompact }: Props) {
       </div>
 
       <div className="flex h-full shrink-0 items-center gap-1 pl-1">
-        {compactable && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onCompact}
-            title="Summarize older context"
-            className="font-normal text-text-muted hover:text-text-base"
-          >
-            Compact
-          </Button>
-        )}
-
         {!mac && (
           <div className="flex h-full items-center">
             <span aria-hidden className="mr-1 h-4 w-px bg-border-base" />
