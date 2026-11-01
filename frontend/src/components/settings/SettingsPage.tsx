@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "../../lib/api";
+import { messageOf } from "../../lib/errors";
 import type { AppInfo, AppPreferences, AppSettings, SettingsInput, WorkspaceInfo } from "../../lib/types";
 import { AboutSection } from "./AboutSection";
 import { AdvancedSection } from "./AdvancedSection";
@@ -524,10 +525,4 @@ function toPayload(draft: CoreDraft): { payload?: SettingsInput; error?: string 
 function serialize(draft: CoreDraft): string {
   const result = toPayload(draft);
   return result.payload ? JSON.stringify(result.payload) : "";
-}
-
-function messageOf(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
-  return String(error);
 }

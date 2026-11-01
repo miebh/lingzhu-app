@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api } from "../../lib/api";
+import { messageOf } from "../../lib/errors";
 import { ProviderDialog } from "./ProviderDialog";
 import { ProviderLogo } from "./ProviderLogo";
 import { SettingsSection } from "./primitives";
@@ -285,10 +286,4 @@ export function ProvidersSection({ scope }: Props) {
       />
     </div>
   );
-}
-
-function messageOf(error: unknown): string {
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
-  return String(error);
 }
