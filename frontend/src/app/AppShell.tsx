@@ -83,7 +83,6 @@ export function AppShell() {
       selectModel: state.selectModel,
       reply: state.reply,
       discard: state.discard,
-      toggleWorkspaceDefault: state.toggleWorkspaceDefault,
     })),
   );
 
@@ -187,9 +186,7 @@ export function AppShell() {
                     providers={providers}
                     provider={active.provider ?? catalog?.provider ?? ""}
                     model={active.model ?? catalog?.model ?? ""}
-                    workspaceDefault={activePath ? preferences.workspaceModels[activePath] : undefined}
                     onSelectModel={(providerID, modelID) => void chatActions.selectModel(providerID, modelID)}
-                    onToggleWorkspaceDefault={chatActions.toggleWorkspaceDefault}
                     onSend={chatActions.send}
                     onStop={() => void chatActions.stop()}
                   />
@@ -201,10 +198,8 @@ export function AppShell() {
                   providers={providers}
                   provider={home.provider}
                   model={home.model}
-                  workspaceDefault={home.path ? preferences.workspaceModels[home.path] : undefined}
                   window={home.window}
                   onSelectModel={(providerID, modelID) => void chatActions.selectModel(providerID, modelID)}
-                  onToggleWorkspaceDefault={chatActions.toggleWorkspaceDefault}
                   onSend={chatActions.startSession}
                   onAddWorkspace={() => void workspaceActions.connect()}
                 />

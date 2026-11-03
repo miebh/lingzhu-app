@@ -61,24 +61,26 @@ func TestSaveNormalizesAndRoundTrips(t *testing.T) {
 	}
 }
 
-func TestWorkspaceModelsAreNormalized(t *testing.T) {
+func TestDefaultModelIsNormalized(t *testing.T) {
 	store := &Store{path: filepath.Join(t.TempDir(), "preferences.json")}
-	want := Preferences{
-		WorkspaceModels: map[string]Selection{
-			" D:/project ": {Provider: " p ", Model: " m "},
-			"":             {Provider: "p", Model: "m"},
-			"D:/other":     {Provider: "", Model: "m"},
-		},
-	}
+	want := Preferences{DefaultModel: Selection{Provider: " p ", Model: " m "}}
 	if err := store.Save(want); err != nil {
 		t.Fatal(err)
 	}
 	got := store.Get()
-	if len(got.WorkspaceModels) != 1 {
-		t.Fatalf("invalid entries were not dropped: %+v", got.WorkspaceModels)
+	if got.DefaultModel.Provider != "p" || got.DefaultModel.Model != "m" {
+		t.Fatalf("default model was not normalized: %+v", got.DefaultModel)
 	}
-	selection, ok := got.WorkspaceModels["D:/project"]
-	if !ok || selection.Provider != "p" || selection.Model != "m" {
-		t.Fatalf("workspace selection was not normalized: %+v", got.WorkspaceModels)
+}
+
+func TestHalfFilledDefaultModelIsDropped(t *testing.T) {
+	store := &Store{path: filepath.Join(t.TempDir(), "preferences.json")}
+	want := Preferences{DefaultModel: Selection{Provider: "p"}}
+	if err := store.Save(want); err != nil {
+		t.Fatal(err)
+	}
+	got := store.Get()
+	if got.DefaultModel.Provider != "" || got.DefaultModel.Model != "" {
+		t.Fatalf("half-filled selection should be dropped: %+v", got.DefaultModel)
 	}
 }

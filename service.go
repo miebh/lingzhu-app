@@ -72,15 +72,14 @@ type EventEnvelope struct {
 // AppPreferences is the local, immediately applied preference document. It is
 // separate from the shared core config and never restarts a core.
 type AppPreferences struct {
-	DefaultWorkspace string                        `json:"defaultWorkspace"`
-	AutoApprove      bool                          `json:"autoApprove"`
-	WorkspaceModels  map[string]WorkspaceSelection `json:"workspaceModels"`
-	Appearance       AppearancePreferences         `json:"appearance"`
+	DefaultWorkspace string                `json:"defaultWorkspace"`
+	AutoApprove      bool                  `json:"autoApprove"`
+	DefaultModel     ModelSelection        `json:"defaultModel"`
+	Appearance       AppearancePreferences `json:"appearance"`
 }
 
-// WorkspaceSelection is the default provider/model for new sessions in one
-// workspace.
-type WorkspaceSelection struct {
+// ModelSelection is the last used provider/model, shared by the whole app.
+type ModelSelection struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 }
@@ -459,7 +458,7 @@ func (s *CoreService) Preferences() AppPreferences {
 	return AppPreferences{
 		DefaultWorkspace: prefs.DefaultWorkspace,
 		AutoApprove:      prefs.AutoApprove,
-		WorkspaceModels:  workspaceSelections(prefs.WorkspaceModels),
+		DefaultModel:     ModelSelection{Provider: prefs.DefaultModel.Provider, Model: prefs.DefaultModel.Model},
 		Appearance: AppearancePreferences{
 			FontFamily:    prefs.Appearance.FontFamily,
 			Density:       prefs.Appearance.Density,
@@ -467,14 +466,6 @@ func (s *CoreService) Preferences() AppPreferences {
 			ReduceMotion:  prefs.Appearance.ReduceMotion,
 		},
 	}
-}
-
-func workspaceSelections(input map[string]preferences.Selection) map[string]WorkspaceSelection {
-	out := make(map[string]WorkspaceSelection, len(input))
-	for path, selection := range input {
-		out[path] = WorkspaceSelection{Provider: selection.Provider, Model: selection.Model}
-	}
-	return out
 }
 
 // SavePreferences stores local preferences. Changes apply to the webview
@@ -486,7 +477,10 @@ func (s *CoreService) SavePreferences(input AppPreferences) error {
 	return s.prefs.Save(preferences.Preferences{
 		DefaultWorkspace: strings.TrimSpace(input.DefaultWorkspace),
 		AutoApprove:      input.AutoApprove,
-		WorkspaceModels:  selectionMap(input.WorkspaceModels),
+		DefaultModel: preferences.Selection{
+			Provider: input.DefaultModel.Provider,
+			Model:    input.DefaultModel.Model,
+		},
 		Appearance: preferences.Appearance{
 			FontFamily:    input.Appearance.FontFamily,
 			Density:       input.Appearance.Density,
@@ -494,14 +488,6 @@ func (s *CoreService) SavePreferences(input AppPreferences) error {
 			ReduceMotion:  input.Appearance.ReduceMotion,
 		},
 	})
-}
-
-func selectionMap(input map[string]WorkspaceSelection) map[string]preferences.Selection {
-	out := make(map[string]preferences.Selection, len(input))
-	for path, selection := range input {
-		out[path] = preferences.Selection{Provider: selection.Provider, Model: selection.Model}
-	}
-	return out
 }
 
 // Info returns the read-only diagnostics shown on the About page.

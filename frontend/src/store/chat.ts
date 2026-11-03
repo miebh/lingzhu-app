@@ -8,7 +8,7 @@ import {
   entriesFromMessages,
   type ChatState,
   type CoreEvent,
-  type WorkspaceSelection,
+  type ModelSelection,
   type WorkspaceInfo,
 } from "../lib/types";
 import { useCatalogStore, type Catalog } from "./catalog";
@@ -25,16 +25,10 @@ export interface HomeModel {
   window: number;
 }
 
-interface HomeSelection {
-  provider?: string;
-  model?: string;
-}
-
 interface ChatStore {
   /** Every live session, keyed by workspace and session ID. */
   chats: Record<string, ChatState>;
   activeByWorkspace: Record<string, string>;
-  homeSelection: HomeSelection;
   open: (workspace: string, sessionID: string) => Promise<void>;
   newChat: (workspace: string) => Promise<void>;
   send: (text: string) => Promise<void>;
@@ -43,7 +37,6 @@ interface ChatStore {
   selectModel: (providerID: string, modelID: string) => Promise<void>;
   reply: (requestID: string, decision: string) => Promise<void>;
   discard: (workspace: string, sessionID: string) => void;
-  toggleWorkspaceDefault: () => void;
   /** Folds one core event into the matching chat. */
   handleEvent: (event: CoreEvent) => void;
 }
@@ -53,8 +46,7 @@ interface HomeInput {
   workspaces: WorkspaceInfo[];
   chats: Record<string, ChatState>;
   activeByWorkspace: Record<string, string>;
-  homeSelection: HomeSelection;
-  workspaceModels: Record<string, WorkspaceSelection>;
+  defaultModel: ModelSelection;
   catalog?: Catalog;
 }
 
@@ -67,9 +59,8 @@ function activeChat(input: HomeInput): ChatState | undefined {
 export function homeModel(input: HomeInput): HomeModel {
   const active = activeChat(input);
   const path = input.activePath ?? input.workspaces.find((workspace) => workspace.connected)?.path;
-  const preferred = path ? input.workspaceModels[path] : undefined;
-  const provider = active?.provider ?? input.homeSelection.provider ?? preferred?.provider ?? input.catalog?.provider ?? "";
-  const model = active?.model ?? input.homeSelection.model ?? preferred?.model ?? input.catalog?.model ?? "";
+  const provider = active?.provider || input.defaultModel.provider || input.catalog?.provider || "";
+  const model = active?.model || input.defaultModel.model || input.catalog?.model || "";
   const window =
     input.catalog?.providers
       .find((entry) => entry.id === provider)
@@ -87,8 +78,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
     workspaces: useWorkspaceStore.getState().workspaces,
     chats: get().chats,
     activeByWorkspace: get().activeByWorkspace,
-    homeSelection: get().homeSelection,
-    workspaceModels: usePreferencesStore.getState().preferences.workspaceModels,
+    defaultModel: usePreferencesStore.getState().preferences.defaultModel,
     catalog: useCatalogStore.getState().catalog,
   });
 
@@ -227,7 +217,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
   return {
     chats: {},
     activeByWorkspace: {},
-    homeSelection: {},
 
     open: async (workspace, sessionID) => {
       activate(workspace, sessionID);
@@ -266,11 +255,12 @@ export const useChatStore = create<ChatStore>((set, get) => {
       }
       try {
         const id = await api.newSessionID();
-        const preferred = usePreferencesStore.getState().preferences.workspaceModels[workspace];
+        const preferred = usePreferencesStore.getState().preferences.defaultModel;
         const catalog = useCatalogStore.getState().catalog;
         const providers = catalog?.providers ?? [];
         const usable =
-          preferred &&
+          preferred.provider &&
+          preferred.model &&
           providers.some(
             (provider) =>
               provider.id === preferred.provider && provider.models.some((entry) => entry.id === preferred.model),
@@ -345,13 +335,17 @@ export const useChatStore = create<ChatStore>((set, get) => {
     },
 
     selectModel: async (providerID, modelID) => {
-      const path = useWorkspaceStore.getState().activePath;
-      if (!path) return;
-      const sessionID = get().activeByWorkspace[path];
-      if (!sessionID) {
-        set({ homeSelection: { provider: providerID, model: modelID } });
-        return;
+      if (!providerID || !modelID) return;
+      // Remember the pick app-wide so the next new session starts here.
+      const preferences = usePreferencesStore.getState().preferences;
+      if (preferences.defaultModel.provider !== providerID || preferences.defaultModel.model !== modelID) {
+        void usePreferencesStore
+          .getState()
+          .save({ ...preferences, defaultModel: { provider: providerID, model: modelID } });
       }
+      const path = useWorkspaceStore.getState().activePath;
+      const sessionID = path ? get().activeByWorkspace[path] : undefined;
+      if (!path || !sessionID) return;
       const key = chatKey(path, sessionID);
       const chat = get().chats[key];
       if (!chat) return;
@@ -389,22 +383,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
         if (activeByWorkspace[workspace] === sessionID) delete activeByWorkspace[workspace];
         return { chats, activeByWorkspace };
       });
-    },
-
-    toggleWorkspaceDefault: () => {
-      const path = useWorkspaceStore.getState().activePath;
-      if (!path) return;
-      const { provider: providerID, model: modelID } = homeModel(snapshot());
-      if (!providerID || !modelID) return;
-      const preferences = usePreferencesStore.getState().preferences;
-      const current = preferences.workspaceModels[path];
-      const workspaceModels = { ...preferences.workspaceModels };
-      if (current && current.provider === providerID && current.model === modelID) {
-        delete workspaceModels[path];
-      } else {
-        workspaceModels[path] = { provider: providerID, model: modelID };
-      }
-      void usePreferencesStore.getState().save({ ...preferences, workspaceModels });
     },
 
     handleEvent: (event) => {
@@ -454,10 +432,9 @@ export function useChatHome(): HomeModel {
   const workspaces = useWorkspaceStore((state) => state.workspaces);
   const chats = useChatStore((state) => state.chats);
   const activeByWorkspace = useChatStore((state) => state.activeByWorkspace);
-  const homeSelection = useChatStore((state) => state.homeSelection);
-  const workspaceModels = usePreferencesStore((state) => state.preferences.workspaceModels);
+  const defaultModel = usePreferencesStore((state) => state.preferences.defaultModel);
   const catalog = useCatalogStore((state) => state.catalog);
-  return homeModel({ activePath, workspaces, chats, activeByWorkspace, homeSelection, workspaceModels, catalog });
+  return homeModel({ activePath, workspaces, chats, activeByWorkspace, defaultModel, catalog });
 }
 
 /** True on the home screen: no session, or a draft that has not started. */

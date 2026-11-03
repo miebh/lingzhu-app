@@ -25,7 +25,7 @@
 - 层次用 **0.5px 发丝线 + 极低不透明度投影**，禁止重模糊/高不透明度投影。暗色反相：用亮色 0.5px 描边（可加底部内反光），不用暗色投影。
 - 表面按深度选档：`bg-base` → `bg-layer-01..04` → `bg-inverse` / `bg-contrast`。按层叠顺序选，不按视觉感觉选。
 - 只保留一个强调色，用于链接、选中、焦点、品牌标记；彩色面积只占很小比例，其余近中性。
-- 焦点必须 `outline: 2px solid var(--border-focus)` 且正向 `outline-offset`；禁止用 `box-shadow` 画焦点环。
+- 焦点必须 `outline: 2px solid var(--border-focus)` 且正向 `outline-offset`；禁止用 `box-shadow` 画焦点环。例外：模型选择弹窗的搜索输入框不显示聚焦描边，自动聚焦时也不得出现焦点环。
 - 禁用态用整体 `opacity` + `cursor: not-allowed`，不另建颜色令牌。
 
 ## 3. 主题化

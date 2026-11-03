@@ -131,11 +131,12 @@ export interface PresetModel {
 export interface AppPreferences {
   defaultWorkspace: string;
   autoApprove: boolean;
-  workspaceModels: Record<string, WorkspaceSelection>;
+  /** The last model picked anywhere in the app; used by new sessions. */
+  defaultModel: ModelSelection;
   appearance: AppearancePreferences;
 }
 
-export interface WorkspaceSelection {
+export interface ModelSelection {
   provider: string;
   model: string;
 }

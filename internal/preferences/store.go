@@ -30,7 +30,7 @@ type Appearance struct {
 	ReduceMotion  string `json:"reduceMotion"`
 }
 
-// Selection names a provider and model for a per-workspace default.
+// Selection names the last used provider and model.
 type Selection struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
@@ -38,16 +38,15 @@ type Selection struct {
 
 // Preferences is the persisted app-local settings document.
 type Preferences struct {
-	DefaultWorkspace string               `json:"defaultWorkspace"`
-	AutoApprove      bool                 `json:"autoApprove"`
-	WorkspaceModels  map[string]Selection `json:"workspaceModels"`
-	Appearance       Appearance           `json:"appearance"`
+	DefaultWorkspace string     `json:"defaultWorkspace"`
+	AutoApprove      bool       `json:"autoApprove"`
+	DefaultModel     Selection  `json:"defaultModel"`
+	Appearance       Appearance `json:"appearance"`
 }
 
 // Default is the preference set used when the file is missing or unreadable.
 func Default() Preferences {
 	return Preferences{
-		WorkspaceModels: map[string]Selection{},
 		Appearance: Appearance{
 			FontFamily:    "",
 			Density:       densityComfortable,
@@ -116,18 +115,11 @@ func (s *Store) Save(prefs Preferences) error {
 func Normalize(prefs Preferences) Preferences {
 	defaults := Default()
 	prefs.DefaultWorkspace = strings.TrimSpace(prefs.DefaultWorkspace)
-	if prefs.WorkspaceModels == nil {
-		prefs.WorkspaceModels = map[string]Selection{}
-	}
-	for path, selection := range prefs.WorkspaceModels {
-		cleanPath := strings.TrimSpace(path)
-		selection.Provider = strings.TrimSpace(selection.Provider)
-		selection.Model = strings.TrimSpace(selection.Model)
-		delete(prefs.WorkspaceModels, path)
-		if cleanPath == "" || selection.Provider == "" || selection.Model == "" {
-			continue
-		}
-		prefs.WorkspaceModels[cleanPath] = selection
+	prefs.DefaultModel.Provider = strings.TrimSpace(prefs.DefaultModel.Provider)
+	prefs.DefaultModel.Model = strings.TrimSpace(prefs.DefaultModel.Model)
+	// A half-filled selection is unusable; drop both halves together.
+	if prefs.DefaultModel.Provider == "" || prefs.DefaultModel.Model == "" {
+		prefs.DefaultModel = Selection{}
 	}
 	prefs.Appearance.FontFamily = strings.TrimSpace(prefs.Appearance.FontFamily)
 	if len(prefs.Appearance.FontFamily) > 256 {

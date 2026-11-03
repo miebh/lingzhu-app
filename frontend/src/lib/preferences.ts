@@ -4,7 +4,7 @@ import type { AppPreferences } from "./types";
 export const defaultPreferences: AppPreferences = {
   defaultWorkspace: "",
   autoApprove: false,
-  workspaceModels: {},
+  defaultModel: { provider: "", model: "" },
   appearance: {
     fontFamily: "",
     density: "comfortable",

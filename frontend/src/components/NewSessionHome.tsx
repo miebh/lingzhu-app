@@ -1,6 +1,6 @@
 import { Composer } from "./Composer";
 import { Button } from "@/components/ui/button";
-import type { ProviderSettings, UsageTotals, WorkspaceSelection } from "../lib/types";
+import type { ProviderSettings, UsageTotals } from "../lib/types";
 
 interface Props {
   workspaceName?: string;
@@ -8,11 +8,9 @@ interface Props {
   providers: ProviderSettings[];
   provider: string;
   model: string;
-  workspaceDefault?: WorkspaceSelection;
   window: number;
   usage?: UsageTotals;
   onSelectModel: (providerID: string, modelID: string) => void;
-  onToggleWorkspaceDefault: () => void;
   onSend: (text: string) => void;
   onAddWorkspace: () => void;
 }
@@ -27,11 +25,9 @@ export function NewSessionHome({
   providers,
   provider,
   model,
-  workspaceDefault,
   window,
   usage,
   onSelectModel,
-  onToggleWorkspaceDefault,
   onSend,
   onAddWorkspace,
 }: Props) {
@@ -53,9 +49,7 @@ export function NewSessionHome({
           providers={providers}
           provider={provider}
           model={model}
-          workspaceDefault={workspaceDefault}
           onSelectModel={onSelectModel}
-          onToggleWorkspaceDefault={onToggleWorkspaceDefault}
           onSend={onSend}
           onStop={() => undefined}
         />

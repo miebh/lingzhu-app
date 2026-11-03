@@ -1,15 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowUp, Check, ChevronDown, LoaderCircle, Square, SquareSlash } from "lucide-react";
+import { ArrowUp, LoaderCircle, Square, SquareSlash } from "lucide-react";
 import { ContextMeter } from "./ContextMeter";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ModelPicker } from "./ModelPicker";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { ProviderSettings, UsageTotals, WorkspaceSelection } from "../lib/types";
+import type { ProviderSettings, UsageTotals } from "../lib/types";
 
 interface Props {
   running: boolean;
@@ -20,9 +14,7 @@ interface Props {
   providers: ProviderSettings[];
   provider: string;
   model: string;
-  workspaceDefault?: WorkspaceSelection;
   onSelectModel: (providerID: string, modelID: string) => void;
-  onToggleWorkspaceDefault: () => void;
   onSend: (text: string) => void;
   onStop: () => void;
 }
@@ -41,9 +33,7 @@ export function Composer({
   providers,
   provider,
   model,
-  workspaceDefault,
   onSelectModel,
-  onToggleWorkspaceDefault,
   onSend,
   onStop,
 }: Props) {
@@ -128,9 +118,7 @@ export function Composer({
                   providers={providers}
                   provider={provider}
                   model={model}
-                  workspaceDefault={workspaceDefault}
                   onSelect={onSelectModel}
-                  onToggleWorkspaceDefault={onToggleWorkspaceDefault}
                 />
               </div>
 
@@ -179,76 +167,3 @@ export function Composer({
   );
 }
 
-/**
- * Session-level model switch. Providers without a key are listed but cannot be
- * selected; the label follows the resolved session selection.
- */
-function ModelPicker({
-  providers,
-  provider,
-  model,
-  workspaceDefault,
-  onSelect,
-  onToggleWorkspaceDefault,
-}: {
-  providers: ProviderSettings[];
-  provider: string;
-  model: string;
-  workspaceDefault?: WorkspaceSelection;
-  onSelect: (providerID: string, modelID: string) => void;
-  onToggleWorkspaceDefault: () => void;
-}) {
-  const selectedProvider = providers.find((item) => item.id === provider);
-  const selectedModel = selectedProvider?.models.find((item) => item.id === model);
-  const label = selectedModel?.name || selectedModel?.id || model || "Default model";
-  const isWorkspaceDefault = workspaceDefault?.provider === provider && workspaceDefault?.model === model;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="Select model"
-          title={selectedProvider ? `${selectedProvider.name} / ${label}` : label}
-          className="interactive flex h-control-xs max-w-44 min-w-0 items-center gap-1 rounded-md px-2 text-meta text-text-muted hover:text-text-base"
-        >
-          <span className="truncate">{label}</span>
-          <ChevronDown className="size-3 shrink-0" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="max-h-80 min-w-56 overflow-y-auto">
-        {providers.length === 0 && <DropdownMenuItem disabled>No provider configured</DropdownMenuItem>}
-        {providers.map((item, index) => (
-          <div key={item.id}>
-            {index > 0 && <DropdownMenuSeparator />}
-            <div className="flex items-center gap-2 px-2 py-1 text-caption text-text-faint">
-              <span className="truncate">{item.name}</span>
-              {!item.ready && <span className="shrink-0 text-state-fg-warning">No API key</span>}
-            </div>
-            {item.models.filter((model) => model.enabled !== false).map((entry) => {
-              const selected = item.id === provider && entry.id === model;
-              return (
-                <DropdownMenuItem
-                  key={`${item.id}:${entry.id}`}
-                  disabled={!item.ready}
-                  onSelect={() => onSelect(item.id, entry.id)}
-                >
-                  <span className="min-w-0 flex-1 truncate">{entry.name || entry.id}</span>
-                  {selected && <Check className="size-3.5 shrink-0 text-text-accent" />}
-                </DropdownMenuItem>
-              );
-            })}
-            {item.models.length === 0 && <DropdownMenuItem disabled>No models</DropdownMenuItem>}
-          </div>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onToggleWorkspaceDefault}>
-          <span className="min-w-0 flex-1 truncate">
-            {isWorkspaceDefault ? "Clear workspace default" : "Set as workspace default"}
-          </span>
-          {isWorkspaceDefault && <Check className="size-3.5 shrink-0 text-text-accent" />}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
