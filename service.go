@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha1"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"lingzhu-app/internal/appdb"
 	"lingzhu-app/internal/core"
 	"lingzhu-app/internal/preferences"
 	"lingzhu-app/internal/workspaces"
@@ -34,6 +36,8 @@ type CoreService struct {
 	defaultRoot string
 	store       *workspaces.Store
 	prefs       *preferences.Store
+	db          *sql.DB
+	appDBPath   string
 	err         string
 
 	mu      sync.Mutex
@@ -104,13 +108,13 @@ type AppearancePreferences struct {
 
 // AppInfo is the read-only About payload.
 type AppInfo struct {
-	Version         string `json:"version"`
-	Built           string `json:"built"`
-	ConfigPath      string `json:"configPath"`
-	PreferencesPath string `json:"preferencesPath"`
-	AppDataDir      string `json:"appDataDir"`
-	DataDir         string `json:"dataDir"`
-	LogPath         string `json:"logPath"`
+	Version      string `json:"version"`
+	Built        string `json:"built"`
+	ConfigPath   string `json:"configPath"`
+	DatabasePath string `json:"databasePath"`
+	AppDataDir   string `json:"appDataDir"`
+	DataDir      string `json:"dataDir"`
+	LogPath      string `json:"logPath"`
 }
 
 // Core defaults used when the config file omits a field. Keep them in sync
@@ -138,14 +142,25 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 		s.defaultRoot, _ = os.Getwd()
 	}
 
-	prefs, err := preferences.Open()
+	db, dbPath, err := appdb.Open()
 	if err != nil {
+		s.err = err.Error()
+		return nil
+	}
+	s.db = db
+	s.appDBPath = dbPath
+	appDir := filepath.Dir(dbPath)
+
+	prefs, err := preferences.Open(db, appDir)
+	if err != nil {
+		_ = db.Close()
+		s.db = nil
 		s.err = err.Error()
 		return nil
 	}
 	s.prefs = prefs
 
-	store, err := workspaces.Open()
+	store, err := workspaces.Open(db, appDir)
 	if err != nil {
 		s.err = err.Error()
 		return nil
@@ -192,6 +207,9 @@ func (s *CoreService) ServiceShutdown() error {
 		if runtime != nil && runtime.Core != nil {
 			_ = runtime.Core.Stop(ctx)
 		}
+	}
+	if s.db != nil {
+		_ = s.db.Close()
 	}
 	return nil
 }
@@ -552,9 +570,9 @@ func (s *CoreService) Info() AppInfo {
 	if build, ok := debug.ReadBuildInfo(); ok && build.Main.Version != "" && build.Main.Version != "(devel)" {
 		version = build.Main.Version
 	}
-	prefsPath := ""
-	if s.prefs != nil {
-		prefsPath = s.prefs.Path()
+	databasePath := s.appDBPath
+	if databasePath == "" {
+		databasePath = filepath.Join(localAppDir(), "app.db")
 	}
 	built := ""
 	if exe, err := os.Executable(); err == nil {
@@ -563,18 +581,18 @@ func (s *CoreService) Info() AppInfo {
 		}
 	}
 	return AppInfo{
-		Version:         version,
-		Built:           built,
-		ConfigPath:      s.configFilePath(),
-		PreferencesPath: prefsPath,
-		AppDataDir:      localAppDir(),
-		DataDir:         s.baseData,
-		LogPath:         filepath.Join(localCacheDir(), "core.log"),
+		Version:      version,
+		Built:        built,
+		ConfigPath:   s.configFilePath(),
+		DatabasePath: databasePath,
+		AppDataDir:   localAppDir(),
+		DataDir:      s.baseData,
+		LogPath:      filepath.Join(localCacheDir(), "core.log"),
 	}
 }
 
-// localAppDir is the per-user directory that holds preferences and the
-// workspace list, matching the path package workspaces writes to.
+// localAppDir is the per-user directory that holds the app database, matching
+// the path package appdb writes to.
 func localAppDir() string {
 	base, err := os.UserConfigDir()
 	if err != nil {

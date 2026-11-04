@@ -98,7 +98,7 @@ export function Sidebar({
   const allKeys = useMemo(() => {
     const keys: string[] = [];
     for (const [path, list] of Object.entries(sessionsByWorkspace)) {
-      for (const session of list) keys.push(chatKey(path, session.id));
+      for (const session of list ?? []) keys.push(chatKey(path, session.id));
     }
     return keys;
   }, [sessionsByWorkspace]);
@@ -250,7 +250,7 @@ export function Sidebar({
   const sortedSessions = useMemo(() => {
     const map: Record<string, SessionInfo[]> = {};
     for (const [path, list] of Object.entries(sessionsByWorkspace)) {
-      map[path] = [...list].sort((a, b) => updatedAt(b) - updatedAt(a));
+      map[path] = [...(list ?? [])].sort((a, b) => updatedAt(b) - updatedAt(a));
     }
     return map;
   }, [sessionsByWorkspace]);
@@ -487,7 +487,7 @@ export function Sidebar({
             const isActive = workspace.path === activePath;
             const isCollapsed = collapsed[workspace.path] ?? !isActive;
             const durable = sortedSessions[workspace.path] ?? [];
-            const loadingSessions = sessionsByWorkspace[workspace.path] === undefined;
+            const loadingSessions = !sessionsByWorkspace[workspace.path];
             const draftRows = (draftsByWorkspace.get(workspace.path) ?? []).filter(
               (chat) => !durable.some((session) => session.id === chat.id),
             );

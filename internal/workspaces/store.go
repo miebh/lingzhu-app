@@ -3,12 +3,17 @@
 package workspaces
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+const migratedKey = "workspaces.migrated"
 
 // Workspace is one directory the user added.
 type Workspace struct {
@@ -17,72 +22,137 @@ type Workspace struct {
 }
 
 type Store struct {
-	path string
+	db  *sql.DB
+	dir string
 }
 
-// Open loads the workspace list from the user config directory.
-func Open() (*Store, error) {
-	base, err := os.UserConfigDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	dir := filepath.Join(base, "lingzhu", "app")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+// Open prepares the workspace table and imports the legacy JSON list once.
+// dir is the app data directory that may still contain workspaces.json.
+func Open(db *sql.DB, dir string) (*Store, error) {
+	store := &Store{db: db, dir: dir}
+	if err := store.ensure(); err != nil {
 		return nil, err
 	}
-	return &Store{path: filepath.Join(dir, "workspaces.json")}, nil
+	return store, nil
+}
+
+func (s *Store) ensure() error {
+	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS meta (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	)`); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS workspaces (
+		path     TEXT PRIMARY KEY,
+		added    INTEGER NOT NULL,
+		position INTEGER NOT NULL
+	)`); err != nil {
+		return err
+	}
+	return s.migrate()
+}
+
+// migrate imports workspaces.json in its original order. The JSON file stays
+// on disk as a backup; the database is the source of truth after this runs.
+func (s *Store) migrate() error {
+	migrated, err := metaHas(s.db, migratedKey)
+	if err != nil || migrated {
+		return err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM workspaces`).Scan(&count); err != nil {
+		return err
+	}
+	if count == 0 {
+		data, err := os.ReadFile(filepath.Join(s.dir, "workspaces.json"))
+		if err == nil {
+			var list []Workspace
+			if err := json.Unmarshal(data, &list); err != nil {
+				return fmt.Errorf("workspaces.json: %w", err)
+			}
+			for index, item := range list {
+				path := strings.TrimSpace(item.Path)
+				if path == "" {
+					continue
+				}
+				added := item.Added.UnixMilli()
+				if item.Added.IsZero() {
+					added = time.Now().UTC().UnixMilli()
+				}
+				if _, err := tx.Exec(
+					`INSERT OR IGNORE INTO workspaces(path, added, position) VALUES(?, ?, ?)`,
+					path, added, index,
+				); err != nil {
+					return err
+				}
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	if _, err := tx.Exec(
+		`INSERT OR REPLACE INTO meta(key, value) VALUES(?, '1')`, migratedKey,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // List returns the saved workspaces in insertion order.
 func (s *Store) List() ([]Workspace, error) {
-	data, err := os.ReadFile(s.path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
+	rows, err := s.db.Query(`SELECT path, added FROM workspaces ORDER BY position, path`)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	var list []Workspace
-	if err := json.Unmarshal(data, &list); err != nil {
-		return nil, err
+	for rows.Next() {
+		var (
+			item  Workspace
+			added int64
+		)
+		if err := rows.Scan(&item.Path, &added); err != nil {
+			return nil, err
+		}
+		item.Added = time.UnixMilli(added).UTC()
+		list = append(list, item)
 	}
-	return list, nil
+	return list, rows.Err()
 }
 
 // Add appends a path unless it is already present. It returns the full list.
 func (s *Store) Add(path string) ([]Workspace, error) {
-	list, err := s.List()
-	if err != nil {
+	if _, err := s.db.Exec(
+		`INSERT OR IGNORE INTO workspaces(path, added, position)
+		 VALUES(?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM workspaces))`,
+		path, time.Now().UTC().UnixMilli(),
+	); err != nil {
 		return nil, err
 	}
-	for _, item := range list {
-		if item.Path == path {
-			return list, nil
-		}
-	}
-	list = append(list, Workspace{Path: path, Added: time.Now().UTC()})
-	return list, s.save(list)
+	return s.List()
 }
 
 // Remove drops a path from the list and returns the remaining workspaces.
 func (s *Store) Remove(path string) ([]Workspace, error) {
-	list, err := s.List()
-	if err != nil {
+	if _, err := s.db.Exec(`DELETE FROM workspaces WHERE path = ?`, path); err != nil {
 		return nil, err
 	}
-	out := list[:0]
-	for _, item := range list {
-		if item.Path != path {
-			out = append(out, item)
-		}
-	}
-	return out, s.save(out)
+	return s.List()
 }
 
-func (s *Store) save(list []Workspace) error {
-	data, err := json.MarshalIndent(list, "", "  ")
-	if err != nil {
-		return err
+func metaHas(db *sql.DB, key string) (bool, error) {
+	var value string
+	err := db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
 	}
-	return os.WriteFile(s.path, data, 0o644)
+	return err == nil, err
 }

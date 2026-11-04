@@ -54,7 +54,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   loadSessions: async (path) => {
     try {
-      const list = await api.sessions(path);
+      const list = (await api.sessions(path)) ?? [];
       set((state) => ({ sessionsByWorkspace: { ...state.sessionsByWorkspace, [path]: list } }));
     } catch (error) {
       set((state) => ({ sessionsByWorkspace: { ...state.sessionsByWorkspace, [path]: [] } }));

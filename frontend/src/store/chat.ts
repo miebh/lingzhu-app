@@ -113,7 +113,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
               window: context.window,
               provider: context.provider,
               model: context.model,
-              pending,
+              pending: pending ?? [],
               running,
               runStartedAt: running ? (chat.runStartedAt ?? Date.now()) : undefined,
               runEndedAt: running ? undefined : chat.runEndedAt,

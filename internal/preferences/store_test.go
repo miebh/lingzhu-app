@@ -1,13 +1,31 @@
 package preferences
 
 import (
+	"database/sql"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"lingzhu-app/internal/appdb"
 )
 
+func openAt(t *testing.T, dir string) (*Store, *sql.DB) {
+	t.Helper()
+	db, _, err := appdb.OpenAt(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store, err := Open(db, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, db
+}
+
 func TestGetMissingReturnsDefaults(t *testing.T) {
-	store := &Store{path: filepath.Join(t.TempDir(), "preferences.json")}
+	store, _ := openAt(t, t.TempDir())
 	got := store.Get()
 	if got.Appearance.Density != "comfortable" || got.Appearance.TimelineWidth != "comfortable" {
 		t.Fatalf("unexpected defaults: %+v", got.Appearance)
@@ -18,18 +36,19 @@ func TestGetMissingReturnsDefaults(t *testing.T) {
 }
 
 func TestGetCorruptReturnsDefaults(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "preferences.json")
-	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "preferences.json"), []byte("{not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got := (&Store{path: path}).Get()
+	store, _ := openAt(t, dir)
+	got := store.Get()
 	if got.Appearance.Density != "comfortable" {
-		t.Fatalf("corrupt file should fall back to defaults, got %+v", got)
+		t.Fatalf("corrupt legacy file should fall back to defaults, got %+v", got)
 	}
 }
 
 func TestSaveNormalizesAndRoundTrips(t *testing.T) {
-	store := &Store{path: filepath.Join(t.TempDir(), "preferences.json")}
+	store, _ := openAt(t, t.TempDir())
 	want := Preferences{
 		DefaultWorkspace: "D:/code/project",
 		AutoApprove:      true,
@@ -62,7 +81,7 @@ func TestSaveNormalizesAndRoundTrips(t *testing.T) {
 }
 
 func TestDefaultModelIsNormalized(t *testing.T) {
-	store := &Store{path: filepath.Join(t.TempDir(), "preferences.json")}
+	store, _ := openAt(t, t.TempDir())
 	want := Preferences{DefaultModel: Selection{Provider: " p ", Model: " m "}}
 	if err := store.Save(want); err != nil {
 		t.Fatal(err)
@@ -74,7 +93,7 @@ func TestDefaultModelIsNormalized(t *testing.T) {
 }
 
 func TestHalfFilledDefaultModelIsDropped(t *testing.T) {
-	store := &Store{path: filepath.Join(t.TempDir(), "preferences.json")}
+	store, _ := openAt(t, t.TempDir())
 	want := Preferences{DefaultModel: Selection{Provider: "p"}}
 	if err := store.Save(want); err != nil {
 		t.Fatal(err)
@@ -82,5 +101,39 @@ func TestHalfFilledDefaultModelIsDropped(t *testing.T) {
 	got := store.Get()
 	if got.DefaultModel.Provider != "" || got.DefaultModel.Model != "" {
 		t.Fatalf("half-filled selection should be dropped: %+v", got.DefaultModel)
+	}
+}
+
+func TestMigratesLegacyPreferencesOnce(t *testing.T) {
+	dir := t.TempDir()
+	legacy := Preferences{
+		DefaultWorkspace: "D:/legacy",
+		AutoApprove:      true,
+		Appearance:       Appearance{Density: "compact", TimelineWidth: "wide", ReduceMotion: "off"},
+	}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "preferences.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	store, db := openAt(t, dir)
+	got := store.Get()
+	if got.DefaultWorkspace != "D:/legacy" || !got.AutoApprove || got.Appearance.Density != "compact" {
+		t.Fatalf("legacy preferences were not imported: %+v", got)
+	}
+
+	// A later save must win over the legacy file after a restart.
+	if err := store.Save(Preferences{DefaultWorkspace: "D:/new"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, _ := openAt(t, dir)
+	if got := reopened.Get(); got.DefaultWorkspace != "D:/new" {
+		t.Fatalf("legacy file overwrote a newer value: %+v", got)
 	}
 }

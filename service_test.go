@@ -10,6 +10,13 @@ import (
 	"lingzhu-app/internal/core"
 )
 
+func TestInfoReportsAppDatabase(t *testing.T) {
+	service := &CoreService{appDBPath: "C:/app/app.db"}
+	if got := service.Info().DatabasePath; got != "C:/app/app.db" {
+		t.Fatalf("unexpected database path: %q", got)
+	}
+}
+
 func TestStreamTurnQueuesWhenPromptBusy(t *testing.T) {
 	var prompts, inputs atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

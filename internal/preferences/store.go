@@ -3,7 +3,9 @@
 package preferences
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +22,8 @@ const (
 	motionSystem = "system"
 	motionOn     = "on"
 	motionOff    = "off"
+
+	migratedKey = "preferences.migrated"
 )
 
 // Appearance controls the client look without changing core configuration.
@@ -44,7 +48,8 @@ type Preferences struct {
 	Appearance       Appearance `json:"appearance"`
 }
 
-// Default is the preference set used when the file is missing or unreadable.
+// Default is the preference set used when no row exists or the row is
+// unreadable.
 func Default() Preferences {
 	return Preferences{
 		Appearance: Appearance{
@@ -57,60 +62,107 @@ func Default() Preferences {
 }
 
 type Store struct {
-	path string
+	db  *sql.DB
+	dir string
 }
 
-// Open resolves the preference file under the user config directory.
-func Open() (*Store, error) {
-	base, err := os.UserConfigDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	dir := filepath.Join(base, "lingzhu", "app")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+// Open prepares the preferences table and imports the legacy JSON document
+// once. dir is the app data directory that may still contain preferences.json.
+func Open(db *sql.DB, dir string) (*Store, error) {
+	store := &Store{db: db, dir: dir}
+	if err := store.ensure(); err != nil {
 		return nil, err
 	}
-	return &Store{path: filepath.Join(dir, "preferences.json")}, nil
+	return store, nil
 }
 
-func (s *Store) Path() string {
-	return s.path
-}
-
-// Get returns the saved preferences; a corrupt file falls back to defaults.
-func (s *Store) Get() Preferences {
-	prefs := Default()
-	data, err := os.ReadFile(s.path)
-	if err != nil {
-		return prefs
+func (s *Store) ensure() error {
+	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS meta (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	)`); err != nil {
+		return err
 	}
-	if err := json.Unmarshal(data, &prefs); err != nil {
+	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS preferences (
+		id   INTEGER PRIMARY KEY CHECK (id = 1),
+		data TEXT NOT NULL
+	)`); err != nil {
+		return err
+	}
+	return s.migrate()
+}
+
+// migrate imports preferences.json into the new table. The JSON file stays on
+// disk as a backup; the database is the source of truth after this runs.
+func (s *Store) migrate() error {
+	migrated, err := metaHas(s.db, migratedKey)
+	if err != nil || migrated {
+		return err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM preferences`).Scan(&count); err != nil {
+		return err
+	}
+	if count == 0 {
+		data, err := os.ReadFile(filepath.Join(s.dir, "preferences.json"))
+		if err == nil {
+			var prefs Preferences
+			if json.Unmarshal(data, &prefs) == nil {
+				prefs = Normalize(prefs)
+				raw, err := json.Marshal(prefs)
+				if err != nil {
+					return err
+				}
+				if _, err := tx.Exec(`INSERT OR IGNORE INTO preferences(id, data) VALUES(1, ?)`, string(raw)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if _, err := tx.Exec(
+		`INSERT OR REPLACE INTO meta(key, value) VALUES(?, '1')`, migratedKey,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// Get returns the saved preferences; a missing or corrupt row falls back to
+// defaults.
+func (s *Store) Get() Preferences {
+	var data string
+	if err := s.db.QueryRow(`SELECT data FROM preferences WHERE id = 1`).Scan(&data); err != nil {
+		return Default()
+	}
+	prefs := Default()
+	if json.Unmarshal([]byte(data), &prefs) != nil {
 		return Default()
 	}
 	return Normalize(prefs)
 }
 
-// Save writes the preferences through a temp file so a failed write cannot
-// leave a half-written document behind.
+// Save stores the preference document in one row.
 func (s *Store) Save(prefs Preferences) error {
 	prefs = Normalize(prefs)
-	data, err := json.MarshalIndent(prefs, "", "  ")
+	data, err := json.Marshal(prefs)
 	if err != nil {
 		return err
 	}
-	data = append(data, '\n')
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	_, err = s.db.Exec(
+		`INSERT INTO preferences(id, data) VALUES(1, ?)
+		 ON CONFLICT(id) DO UPDATE SET data = excluded.data`,
+		string(data),
+	)
+	return err
 }
 
-// Normalize clamps unknown values to the defaults so a hand-edited file can
+// Normalize clamps unknown values to the defaults so a hand-edited document can
 // never inject a value the UI does not know.
 func Normalize(prefs Preferences) Preferences {
 	defaults := Default()
@@ -141,4 +193,13 @@ func Normalize(prefs Preferences) Preferences {
 		prefs.Appearance.ReduceMotion = defaults.Appearance.ReduceMotion
 	}
 	return prefs
+}
+
+func metaHas(db *sql.DB, key string) (bool, error) {
+	var value string
+	err := db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }

@@ -156,7 +156,7 @@ export interface AppInfo {
   version: string;
   built: string;
   configPath: string;
-  preferencesPath: string;
+  databasePath: string;
   appDataDir: string;
   dataDir: string;
   logPath: string;

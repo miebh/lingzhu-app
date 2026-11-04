@@ -42,7 +42,7 @@ export function AboutSection({ info, error }: Props) {
 
       <SettingsSection title="Files" description="Everything the app reads or writes on this machine.">
         <PathField label="Core config" path={info.configPath} />
-        <PathField label="Preferences" path={info.preferencesPath} />
+        <PathField label="App database" path={info.databasePath} />
         <PathField label="Data directory" path={info.dataDir} />
         <PathField label="App data" path={info.appDataDir} />
         <PathField label="Core log" path={info.logPath} />

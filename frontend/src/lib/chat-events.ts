@@ -113,6 +113,9 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
     case "run.end": {
       const reason = String(data.reason ?? "done");
       next.running = false;
+      // A pending request belongs to the turn that asked it. Cancelling or
+      // failing the turn releases it in the core, so the dock must go too.
+      next.pending = [];
       // The checkpoint message already marks the compaction in history; the
       // live separator only belongs to the turn that produced it.
       next.notice = undefined;
