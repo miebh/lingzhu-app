@@ -363,6 +363,23 @@
     background-image: linear-gradient(var(--overlay-selected), var(--overlay-selected));
   }
 
+  /* Multi-select: a pointer sweep must not pulse rows. Hover and press feedback
+     are suppressed, and the selected overlay stays put even while hovered. */
+  .interactive[data-selecting="true"]:hover:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"]:active:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"][data-state="hover"],
+  .interactive[data-selecting="true"][data-state="pressed"] {
+    background-image: none;
+  }
+
+  .interactive[data-selecting="true"][data-selected="true"],
+  .interactive[data-selecting="true"][data-selected="true"]:hover:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"][data-selected="true"]:active:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"][data-selected="true"][data-state="hover"],
+  .interactive[data-selecting="true"][data-selected="true"][data-state="pressed"] {
+    background-image: linear-gradient(var(--overlay-selected), var(--overlay-selected));
+  }
+
   .interactive-inverse {
     background-image: none;
     transition:

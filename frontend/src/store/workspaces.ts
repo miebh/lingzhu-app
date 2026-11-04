@@ -17,6 +17,8 @@ interface WorkspaceStore {
   disconnect: (path: string) => Promise<void>;
   renameSession: (workspace: string, sessionID: string, title: string) => Promise<boolean>;
   deleteSession: (workspace: string, sessionID: string) => Promise<boolean>;
+  /** Deletes several sessions in one workspace; returns the IDs that were removed. */
+  deleteSessions: (workspace: string, sessionIDs: string[]) => Promise<string[]>;
   /** Insert a row optimistically; a draft has no durable session yet. */
   prependSession: (workspace: string, session: SessionInfo) => void;
 }
@@ -119,6 +121,33 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
       notify(messageOf(error));
       return false;
     }
+  },
+
+  deleteSessions: async (workspace, sessionIDs) => {
+    const deleted: string[] = [];
+    const failures: string[] = [];
+    // Delete one by one so a single failure still removes the rest and keeps
+    // the optimistic list in sync with what actually disappeared.
+    for (const sessionID of sessionIDs) {
+      try {
+        await api.remove(workspace, sessionID);
+        deleted.push(sessionID);
+      } catch (error) {
+        failures.push(messageOf(error));
+      }
+    }
+    if (deleted.length > 0) {
+      const removed = new Set(deleted);
+      set((state) => ({
+        sessionsByWorkspace: {
+          ...state.sessionsByWorkspace,
+          [workspace]: (state.sessionsByWorkspace[workspace] ?? []).filter((item) => !removed.has(item.id)),
+        },
+      }));
+      notify(deleted.length === 1 ? "Session deleted" : `${deleted.length} sessions deleted`, "info");
+    }
+    for (const failure of failures) notify(failure);
+    return deleted;
   },
 
   prependSession: (workspace, session) => {

@@ -5,7 +5,7 @@ import { ConfirmDialog, RenameDialog } from "../components/Dialogs";
 import { Messages } from "../components/Messages";
 import { NewSessionHome } from "../components/NewSessionHome";
 import { PermissionCard } from "../components/PermissionCard";
-import { Sidebar } from "../components/Sidebar";
+import { Sidebar, type SessionSelection } from "../components/Sidebar";
 import { SettingsPage } from "../components/settings/SettingsPage";
 import { TabBar, type AppTab } from "../components/TabBar";
 import { TitleBar } from "../components/TitleBar";
@@ -64,6 +64,7 @@ export function AppShell() {
       disconnect: state.disconnect,
       renameSession: state.renameSession,
       deleteSession: state.deleteSession,
+      deleteSessions: state.deleteSessions,
     })),
   );
 
@@ -89,6 +90,9 @@ export function AppShell() {
   const [renameTarget, setRenameTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [deleteTarget, setDeleteTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = useState<string>();
+  const [bulkDeleteTarget, setBulkDeleteTarget] = useState<SessionSelection[]>();
+  // Bumped once a bulk delete settles so the sidebar can leave selection mode.
+  const [selectionReset, setSelectionReset] = useState(0);
 
   const activeWorkspace = workspaceList.find((workspace) => workspace.path === activePath);
   const homeWorkspace = activeWorkspace ?? workspaceList.find((workspace) => workspace.path === home.path);
@@ -115,6 +119,25 @@ export function AppShell() {
     if (!path) return;
     setRemoveWorkspaceTarget(undefined);
     await workspaceActions.disconnect(path);
+  };
+
+  const confirmBulkDelete = async () => {
+    const items = bulkDeleteTarget;
+    if (!items) return;
+    setBulkDeleteTarget(undefined);
+    const byWorkspace = new Map<string, string[]>();
+    for (const item of items) {
+      const ids = byWorkspace.get(item.path) ?? [];
+      ids.push(item.id);
+      byWorkspace.set(item.path, ids);
+    }
+    await Promise.all(
+      [...byWorkspace].map(async ([path, ids]) => {
+        const deleted = await workspaceActions.deleteSessions(path, ids);
+        for (const id of deleted) chatActions.discard(path, id);
+      }),
+    );
+    setSelectionReset((value) => value + 1);
   };
 
   const settingsSaved = async (reused: string[]) => {
@@ -156,6 +179,8 @@ export function AppShell() {
           onOpen={(path, id) => void chatActions.open(path, id)}
           onRename={(path, session) => setRenameTarget({ workspace: path, session })}
           onDelete={(path, session) => setDeleteTarget({ workspace: path, session })}
+          onDeleteSelected={setBulkDeleteTarget}
+          selectionReset={selectionReset}
           onOpenSettings={view.openSettings}
         />
 
@@ -244,6 +269,20 @@ export function AppShell() {
           if (!open) setDeleteTarget(undefined);
         }}
         onConfirm={() => void confirmDelete()}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteTarget !== undefined}
+        title="Delete sessions"
+        description={`Delete ${bulkDeleteTarget?.length ?? 0} session${
+          bulkDeleteTarget?.length === 1 ? "" : "s"
+        }? ${bulkDeleteTarget?.length === 1 ? "Its log is" : "Their logs are"} removed from disk.`}
+        confirmLabel="Delete"
+        destructive
+        onOpenChange={(open) => {
+          if (!open) setBulkDeleteTarget(undefined);
+        }}
+        onConfirm={() => void confirmBulkDelete()}
       />
 
       <ConfirmDialog
