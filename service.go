@@ -39,7 +39,17 @@ type CoreService struct {
 	mu      sync.Mutex
 	order   []string
 	spaces  map[string]*workspaceRuntime
-	streams map[string]context.CancelFunc
+	streams map[string]*streamState
+	feeds   map[string]context.CancelFunc
+	// emitEvent is a test seam; production uses the Wails event emitter.
+	emitEvent func(EventEnvelope)
+}
+
+// streamState is the active event stream of one session. done closes after the
+// stream is removed from the map, so a sender can wait out a finishing run.
+type streamState struct {
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 type workspaceRuntime struct {
@@ -114,7 +124,8 @@ const (
 func NewCoreService() *CoreService {
 	return &CoreService{
 		spaces:  map[string]*workspaceRuntime{},
-		streams: map[string]context.CancelFunc{},
+		streams: map[string]*streamState{},
+		feeds:   map[string]context.CancelFunc{},
 	}
 }
 
@@ -161,10 +172,14 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 
 func (s *CoreService) ServiceShutdown() error {
 	s.mu.Lock()
-	for _, cancel := range s.streams {
+	for _, state := range s.streams {
+		state.cancel()
+	}
+	s.streams = map[string]*streamState{}
+	for _, cancel := range s.feeds {
 		cancel()
 	}
-	s.streams = map[string]context.CancelFunc{}
+	s.feeds = map[string]context.CancelFunc{}
 	runtimes := make([]*workspaceRuntime, 0, len(s.order))
 	for _, path := range s.order {
 		runtimes = append(runtimes, s.spaces[path])
@@ -261,11 +276,15 @@ func (s *CoreService) RemoveWorkspace(path string) error {
 	}
 	s.order = order
 	prefix := path + "\x00"
-	for key, cancel := range s.streams {
+	for key, state := range s.streams {
 		if strings.HasPrefix(key, prefix) {
-			cancel()
+			state.cancel()
 			delete(s.streams, key)
 		}
+	}
+	if cancel := s.feeds[path]; cancel != nil {
+		cancel()
+		delete(s.feeds, path)
 	}
 	s.mu.Unlock()
 
@@ -304,51 +323,88 @@ func (s *CoreService) Context(workspace, sessionID string) (core.ContextInfo, er
 	return client.Context(s.ctx, sessionID)
 }
 
-// Send starts a turn in one workspace and streams its events to the frontend.
+// Send starts a turn when idle, or queues the text behind the active run.
+// Queued input is delivered by the original stream at its next model boundary.
 func (s *CoreService) Send(workspace, sessionID, text, providerID, model string) error {
 	client, err := s.client(workspace)
 	if err != nil {
 		return err
 	}
 	key := streamKey(workspace, sessionID)
-	s.mu.Lock()
-	if _, busy := s.streams[key]; busy {
-		s.mu.Unlock()
-		return errors.New("session is already running")
-	}
-	ctx, cancel := context.WithCancel(s.ctx)
-	s.streams[key] = cancel
-	s.mu.Unlock()
-
-	go func() {
-		defer func() {
-			s.mu.Lock()
-			delete(s.streams, key)
+	for {
+		s.mu.Lock()
+		state := s.streams[key]
+		if state == nil {
+			ctx, cancel := context.WithCancel(s.ctx)
+			state = &streamState{cancel: cancel, done: make(chan struct{})}
+			s.streams[key] = state
 			s.mu.Unlock()
-			cancel()
-		}()
-		err := client.Prompt(ctx, sessionID, text, providerID, model, func(ev core.Event) {
-			s.emit(EventEnvelope{
-				Workspace: workspace,
-				SessionID: sessionID,
-				Seq:       ev.Seq,
-				Type:      ev.Type,
-				At:        ev.At,
-				Data:      ev.Data,
-			})
-		})
-		if err != nil && !errors.Is(err, context.Canceled) {
-			s.emit(EventEnvelope{
-				Workspace: workspace,
-				SessionID: sessionID,
-				Type:      "client.error",
-				At:        time.Now(),
-				Data:      map[string]any{"message": err.Error()},
-			})
+			go s.streamTurn(client, workspace, sessionID, text, providerID, model, key, ctx, state)
+			return nil
 		}
-		s.emit(EventEnvelope{Workspace: workspace, SessionID: sessionID, Type: "client.done", At: time.Now()})
+		s.mu.Unlock()
+
+		if err := client.Input(s.ctx, sessionID, text); err == nil {
+			return nil
+		} else if !errors.Is(err, core.ErrNotRunning) {
+			return err
+		}
+		// The run ended between the local busy check and the input request.
+		// Wait for its stream to settle, then retry as a normal turn.
+		select {
+		case <-state.done:
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		}
+	}
+}
+
+func (s *CoreService) streamTurn(
+	client *core.Client,
+	workspace, sessionID, text, providerID, model, key string,
+	ctx context.Context,
+	state *streamState,
+) {
+	defer func() {
+		s.mu.Lock()
+		if s.streams[key] == state {
+			delete(s.streams, key)
+		}
+		s.mu.Unlock()
+		state.cancel()
+		close(state.done)
 	}()
-	return nil
+	// Events arrive through the workspace feed. The prompt stream only has to
+	// stay open until the turn ends so the error path can report failures.
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		err = client.Prompt(ctx, sessionID, text, providerID, model, func(core.Event) {})
+		if !errors.Is(err, core.ErrBusy) {
+			break
+		}
+		// A recovered run has no local stream, so /prompt is busy even though
+		// this client owns no send. Queue the text instead.
+		inputErr := client.Input(s.ctx, sessionID, text)
+		if inputErr == nil {
+			return
+		}
+		if !errors.Is(inputErr, core.ErrNotRunning) {
+			err = inputErr
+			break
+		}
+		// The recovered run ended before the input arrived; retry as a normal
+		// prompt once.
+	}
+	if err != nil && !errors.Is(err, context.Canceled) {
+		s.emit(EventEnvelope{
+			Workspace: workspace,
+			SessionID: sessionID,
+			Type:      "client.error",
+			At:        time.Now(),
+			Data:      map[string]any{"message": err.Error()},
+		})
+	}
+	s.emit(EventEnvelope{Workspace: workspace, SessionID: sessionID, Type: "client.done", At: time.Now()})
 }
 
 func (s *CoreService) Interrupt(workspace, sessionID string) (bool, error) {
@@ -556,6 +612,7 @@ func (s *CoreService) restartWorkspaces() []string {
 			continue
 		}
 		if runtime.Core != nil {
+			s.stopFeed(path)
 			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 			_ = runtime.Core.Stop(ctx)
 			cancel()
@@ -697,6 +754,7 @@ func (s *CoreService) startCore(runtime *workspaceRuntime) error {
 			runtime.Core = &core.Core{Client: client, Addr: core.DefaultAddr}
 			runtime.Addr = core.DefaultAddr
 			s.mu.Unlock()
+			s.watchEvents(runtime.Path, client)
 			return nil
 		}
 	}
@@ -720,6 +778,7 @@ func (s *CoreService) startCore(runtime *workspaceRuntime) error {
 			runtime.Addr = info.Addr
 			runtime.Err = ""
 			s.mu.Unlock()
+			s.watchEvents(runtime.Path, info.Client)
 			return nil
 		}
 		lastErr = err
@@ -769,8 +828,57 @@ func (s *CoreService) dataDir(path string) string {
 }
 
 func (s *CoreService) emit(event EventEnvelope) {
+	if s.emitEvent != nil {
+		s.emitEvent(event)
+		return
+	}
 	if app := application.Get(); app != nil {
 		app.Event.Emit(eventChannel, event)
+	}
+}
+
+// watchEvents follows the all-session stream of one workspace core and
+// reconnects after a dropped connection.
+func (s *CoreService) watchEvents(workspace string, client *core.Client) {
+	ctx, cancel := context.WithCancel(s.ctx)
+	s.mu.Lock()
+	if old := s.feeds[workspace]; old != nil {
+		old()
+	}
+	s.feeds[workspace] = cancel
+	s.mu.Unlock()
+
+	go func() {
+		for ctx.Err() == nil {
+			err := client.Events(ctx, func(ev core.GlobalEvent) {
+				s.emit(EventEnvelope{
+					Workspace: workspace,
+					SessionID: ev.SessionID,
+					Seq:       ev.Seq,
+					Type:      ev.Type,
+					At:        ev.At,
+					Data:      ev.Data,
+				})
+			})
+			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+				return
+			}
+			select {
+			case <-time.After(500 * time.Millisecond):
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+func (s *CoreService) stopFeed(workspace string) {
+	s.mu.Lock()
+	cancel := s.feeds[workspace]
+	delete(s.feeds, workspace)
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 }
 

@@ -17,6 +17,9 @@ import (
 // ErrBusy is returned when the session already has a running turn.
 var ErrBusy = errors.New("session is already running")
 
+// ErrNotRunning is returned when queued input arrived after the turn closed.
+var ErrNotRunning = errors.New("session is not running")
+
 // HTTPError carries a non-2xx response from the core.
 type HTTPError struct {
 	Status  int
@@ -46,6 +49,7 @@ type SessionInfo struct {
 	Provider string    `json:"provider,omitempty"`
 	Model    string    `json:"model,omitempty"`
 	Updated  time.Time `json:"updated"`
+	Running  bool      `json:"running,omitempty"`
 }
 
 type ToolCall struct {
@@ -60,6 +64,7 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"toolCalls,omitempty"`
 	ToolCallID string     `json:"toolCallId,omitempty"`
 	Name       string     `json:"name,omitempty"`
+	Diff       string     `json:"diff,omitempty"`
 }
 
 type ContextInfo struct {
@@ -68,6 +73,7 @@ type ContextInfo struct {
 	Window   int       `json:"window"`
 	Provider string    `json:"provider"`
 	Model    string    `json:"model"`
+	Running  bool      `json:"running"`
 }
 
 type PermissionRequest struct {
@@ -84,6 +90,15 @@ type Event struct {
 	Type string         `json:"type"`
 	At   time.Time      `json:"at"`
 	Data map[string]any `json:"data"`
+}
+
+// GlobalEvent is one event from the all-session stream.
+type GlobalEvent struct {
+	SessionID string         `json:"sessionId"`
+	Seq       int64          `json:"seq"`
+	Type      string         `json:"type"`
+	At        time.Time      `json:"at"`
+	Data      map[string]any `json:"data"`
 }
 
 func (c *Client) Health(ctx context.Context) error {
@@ -160,6 +175,46 @@ func (c *Client) PendingPermissions(ctx context.Context, sessionID string) ([]Pe
 func (c *Client) ReplyPermission(ctx context.Context, sessionID, requestID, decision, message string) error {
 	body := map[string]string{"decision": decision, "message": message}
 	return c.do(ctx, http.MethodPost, sessionPath(sessionID, "/permission/"+requestID), body, nil)
+}
+
+// Input queues a prompt behind the currently streaming turn.
+func (c *Client) Input(ctx context.Context, sessionID, text string) error {
+	return c.do(ctx, http.MethodPost, sessionPath(sessionID, "/input"), map[string]string{"text": text}, nil)
+}
+
+// Events streams every session event until ctx ends or the connection drops.
+func (c *Client) Events(ctx context.Context, emit func(GlobalEvent)) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/events", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "text/event-stream")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return responseError(resp)
+	}
+
+	reader := bufio.NewReaderSize(resp.Body, 64*1024)
+	for {
+		line, err := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if strings.HasPrefix(line, "data: ") {
+			var ev GlobalEvent
+			if jsonErr := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev); jsonErr == nil {
+				emit(ev)
+			}
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
 }
 
 // Prompt starts a turn and streams its events to emit until the turn ends.
@@ -249,6 +304,9 @@ func responseError(resp *http.Response) error {
 	}
 	if resp.StatusCode == http.StatusConflict && strings.Contains(message, "already running") {
 		return ErrBusy
+	}
+	if resp.StatusCode == http.StatusConflict && strings.Contains(message, "not running") {
+		return ErrNotRunning
 	}
 	return &HTTPError{Status: resp.StatusCode, Message: message}
 }

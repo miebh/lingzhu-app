@@ -79,6 +79,7 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
               tool: {
                 ...entry.tool,
                 output: String(data.output ?? ""),
+                diff: data.diff ? String(data.diff) : undefined,
                 failed: Boolean(data.failed),
                 done: true,
               },

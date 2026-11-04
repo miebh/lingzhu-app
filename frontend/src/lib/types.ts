@@ -10,6 +10,7 @@ export interface Message {
   toolCalls?: ToolCall[];
   toolCallId?: string;
   name?: string;
+  diff?: string;
 }
 
 export interface SessionInfo {
@@ -18,6 +19,7 @@ export interface SessionInfo {
   provider?: string;
   model?: string;
   updated: string;
+  running?: boolean;
 }
 
 export interface ContextInfo {
@@ -26,6 +28,7 @@ export interface ContextInfo {
   window: number;
   provider: string;
   model: string;
+  running?: boolean;
 }
 
 export interface PermissionRequest {
@@ -174,6 +177,7 @@ export interface ToolRun {
   name: string;
   arguments: string;
   output?: string;
+  diff?: string;
   failed?: boolean;
   done: boolean;
 }
@@ -272,6 +276,7 @@ export function entriesFromMessages(messages: Message[]): TimelineEntry[] {
         name: message.name || "tool",
         arguments: argumentsByID.get(message.toolCallId ?? "") ?? "",
         output: message.content,
+        diff: message.diff,
         done: true,
       },
     });

@@ -406,7 +406,9 @@ function SessionRow({
   onRename,
   onDelete,
 }: RowProps) {
-  const running = chat?.running;
+  // A recovered run exists before its chat has been opened, so the session
+  // list carries the running flag as a fallback.
+  const running = chat?.running || session.running;
   const attention = (chat?.pending.length ?? 0) > 0;
   const status = attention
     ? "warning"

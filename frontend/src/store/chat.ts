@@ -100,6 +100,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
       ]);
       set((state) => {
         const chat = state.chats[key] ?? blankChat(sessionID, title);
+        const running = context.running ?? chat.running;
         return {
           chats: {
             ...state.chats,
@@ -113,6 +114,10 @@ export const useChatStore = create<ChatStore>((set, get) => {
               provider: context.provider,
               model: context.model,
               pending,
+              running,
+              runStartedAt: running ? (chat.runStartedAt ?? Date.now()) : undefined,
+              runEndedAt: running ? undefined : chat.runEndedAt,
+              lastRunStatus: running ? undefined : chat.lastRunStatus,
             },
           },
         };
@@ -165,6 +170,9 @@ export const useChatStore = create<ChatStore>((set, get) => {
     const title = chat.title && chat.title !== "New session" ? chat.title : text.slice(0, 40);
     set((state) => {
       const current = state.chats[key] ?? chat;
+      // Steering input joins the active run, so it must not restart the timer
+      // or clear the live run status.
+      const active = current.running;
       return {
         chats: {
           ...state.chats,
@@ -174,12 +182,12 @@ export const useChatStore = create<ChatStore>((set, get) => {
             draft: false,
             loading: false,
             running: true,
-            runStartedAt: Date.now(),
-            runEndedAt: undefined,
-            lastRunMs: undefined,
-            lastRunStatus: undefined,
+            runStartedAt: active ? current.runStartedAt : Date.now(),
+            runEndedAt: active ? current.runEndedAt : undefined,
+            lastRunMs: active ? current.lastRunMs : undefined,
+            lastRunStatus: active ? current.lastRunStatus : undefined,
             error: undefined,
-            notice: undefined,
+            notice: active ? current.notice : undefined,
             // Show the turn immediately; the core echoes it back as user.message
             // and history replaces the optimistic row when the run ends.
             entries: [...current.entries, { key: nextEntryKey("user"), role: "user", text, pending: true }],

@@ -258,6 +258,13 @@ function ToolRow({ tool }: { tool: ToolRun }) {
   const [open, setOpen] = useState(false);
   const running = !tool.done;
   const subtitle = toolSubtitle(tool.name, tool.arguments);
+  const stats = tool.diff ? diffStats(tool.diff) : undefined;
+
+  // A file change is the reason to open the row, so reveal it when the result
+  // arrives without overriding a later manual collapse.
+  useEffect(() => {
+    if (tool.diff) setOpen(true);
+  }, [tool.diff]);
 
   return (
     <div data-entry="tool" className="mt-1">
@@ -276,6 +283,12 @@ function ToolRow({ tool }: { tool: ToolRun }) {
           <span className="min-w-0 flex-1 truncate font-mono text-body text-text-muted">{subtitle}</span>
         )}
         {!subtitle && <span className="flex-1" />}
+        {stats && (
+          <span className="shrink-0 font-mono text-caption tabular-nums">
+            <span className="text-state-fg-success">+{stats.added}</span>{" "}
+            <span className="text-state-fg-danger">-{stats.removed}</span>
+          </span>
+        )}
         {running ? (
           <span className="size-2 shrink-0 animate-pulse rounded-full bg-text-accent" />
         ) : tool.failed ? (
@@ -285,7 +298,8 @@ function ToolRow({ tool }: { tool: ToolRun }) {
         )}
       </button>
 
-      {open && tool.output !== undefined && (
+      {open && tool.diff && <DiffView diff={tool.diff} />}
+      {open && !tool.diff && tool.output !== undefined && (
         <div className="mt-1 ml-2 border-l border-border-base py-1 pl-3">
           <pre className="max-h-60 select-text overflow-auto font-mono text-meta leading-5 whitespace-pre-wrap break-all text-text-muted">
             {tool.output || "(no output)"}
@@ -294,6 +308,49 @@ function ToolRow({ tool }: { tool: ToolRun }) {
       )}
     </div>
   );
+}
+
+/** One unified hunk with semantic add/remove colors and a scroll cap. */
+function DiffView({ diff }: { diff: string }) {
+  const lines = diff.endsWith("\n") ? diff.slice(0, -1).split("\n") : diff.split("\n");
+  return (
+    <div className="mt-1 ml-2 overflow-hidden rounded-md border border-border-base bg-bg-layer-01">
+      <div className="max-h-80 overflow-auto py-1 font-mono text-meta leading-5">
+        {lines.map((line, index) => {
+          const meta = line.startsWith("---") || line.startsWith("+++");
+          const hunk = line.startsWith("@@");
+          const added = !meta && line.startsWith("+");
+          const removed = !meta && line.startsWith("-");
+          return (
+            <div
+              key={index}
+              className={`whitespace-pre px-2 ${
+                added
+                  ? "bg-state-bg-success text-state-fg-success"
+                  : removed
+                    ? "bg-state-bg-danger text-state-fg-danger"
+                    : meta || hunk
+                      ? "text-text-faint"
+                      : "text-text-muted"
+              }`}
+            >
+              {line || " "}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function diffStats(diff: string) {
+  let added = 0;
+  let removed = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) added += 1;
+    else if (line.startsWith("-") && !line.startsWith("---")) removed += 1;
+  }
+  return { added, removed };
 }
 
 function ToolIcon({ name }: { name: string }) {

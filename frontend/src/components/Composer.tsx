@@ -50,7 +50,10 @@ export function Composer({
   }, [text]);
 
   const empty = text.trim() === "";
-  const canSubmit = !disabled && !running && !empty && !sending;
+  // While a run is active, an empty composer keeps the stop action; typing
+  // turns the same control into a send action that queues the text.
+  const stopping = running && empty;
+  const canSubmit = !disabled && !empty && !sending;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -133,30 +136,30 @@ export function Composer({
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      disabled={running ? false : !canSubmit}
-                      aria-label={running ? "Stop" : "Send"}
-                      aria-busy={sending && !running}
+                      disabled={stopping ? false : !canSubmit}
+                      aria-label={stopping ? "Stop" : "Send"}
+                      aria-busy={sending && !stopping}
                       onClick={(event) => {
                         event.preventDefault();
-                        if (running) onStop();
+                        if (stopping) onStop();
                         else submit();
                       }}
                       className={`interactive-inverse grid size-7 shrink-0 place-items-center rounded-md p-[6px] ${
-                        running
+                        stopping
                           ? "bg-bg-inverse text-text-inverse"
                           : "bg-bg-inverse text-text-inverse disabled:cursor-not-allowed disabled:opacity-40"
                       }`}
                     >
-                      {sending && !running ? (
+                      {sending && !stopping ? (
                         <LoaderCircle className="size-4 animate-spin" />
-                      ) : running ? (
+                      ) : stopping ? (
                         <Square className="size-3.5" />
                       ) : (
                         <ArrowUp className="size-4" />
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="top">{running ? "Stop" : "Send"}</TooltipContent>
+                  <TooltipContent side="top">{stopping ? "Stop" : "Send"}</TooltipContent>
                 </Tooltip>
               </div>
             </div>
