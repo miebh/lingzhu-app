@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Composer } from "../components/Composer";
 import { ConfirmDialog, RenameDialog } from "../components/Dialogs";
+import { ManageModelsDialog } from "../components/ManageModelsDialog";
 import { Messages } from "../components/Messages";
 import { NewSessionHome } from "../components/NewSessionHome";
 import { PermissionCard } from "../components/PermissionCard";
@@ -46,9 +47,11 @@ export function AppShell() {
     useShallow((state) => ({
       tab: state.tab,
       settingsOpen: state.settingsOpen,
+      settingsSection: state.settingsSection,
       select: state.select,
       showChat: state.showChat,
       openSettings: state.openSettings,
+      selectSettingsSection: state.selectSettingsSection,
       closeSettings: state.closeSettings,
     })),
   );
@@ -91,6 +94,7 @@ export function AppShell() {
   const [deleteTarget, setDeleteTarget] = useState<{ workspace: string; session: SessionInfo }>();
   const [removeWorkspaceTarget, setRemoveWorkspaceTarget] = useState<string>();
   const [bulkDeleteTarget, setBulkDeleteTarget] = useState<SessionSelection[]>();
+  const [manageModels, setManageModels] = useState<{ connect: boolean }>();
   // Bumped once a bulk delete settles so the sidebar can leave selection mode.
   const [selectionReset, setSelectionReset] = useState(0);
 
@@ -147,6 +151,13 @@ export function AppShell() {
     }
   };
 
+  // The model picker manages the catalog in place, like the reference dialog;
+  // a hidden settings page would keep a stale draft, so close it first.
+  const openManageModels = (connect: boolean) => {
+    if (view.settingsOpen) view.closeSettings();
+    setManageModels({ connect });
+  };
+
   const chatStatus: AppTab["status"] =
     active && active.pending.length > 0 ? "warning" : active?.running ? "ongoing" : undefined;
   const tabs: AppTab[] = [
@@ -181,7 +192,7 @@ export function AppShell() {
           onDelete={(path, session) => setDeleteTarget({ workspace: path, session })}
           onDeleteSelected={setBulkDeleteTarget}
           selectionReset={selectionReset}
-          onOpenSettings={view.openSettings}
+          onOpenSettings={() => view.openSettings()}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -212,6 +223,8 @@ export function AppShell() {
                     provider={active.provider ?? catalog?.provider ?? ""}
                     model={active.model ?? catalog?.model ?? ""}
                     onSelectModel={(providerID, modelID) => void chatActions.selectModel(providerID, modelID)}
+                    onManageModels={() => openManageModels(false)}
+                    onAddProvider={() => openManageModels(true)}
                     onSend={chatActions.send}
                     onStop={() => void chatActions.stop()}
                   />
@@ -225,6 +238,8 @@ export function AppShell() {
                   model={home.model}
                   window={home.window}
                   onSelectModel={(providerID, modelID) => void chatActions.selectModel(providerID, modelID)}
+                  onManageModels={() => openManageModels(false)}
+                  onAddProvider={() => openManageModels(true)}
                   onSend={chatActions.startSession}
                   onAddWorkspace={() => void workspaceActions.connect()}
                 />
@@ -239,6 +254,8 @@ export function AppShell() {
               >
                 <SettingsPage
                   busy={running}
+                  section={view.settingsSection}
+                  onSectionChange={view.selectSettingsSection}
                   workspaces={workspaceList}
                   preferences={preferences}
                   onSavePreferences={savePreferences}
@@ -249,6 +266,18 @@ export function AppShell() {
           </div>
         </main>
       </div>
+
+      {manageModels && (
+        <ManageModelsDialog
+          open
+          busy={running}
+          initialConnect={manageModels.connect}
+          onOpenChange={(next) => {
+            if (!next) setManageModels(undefined);
+          }}
+          onSaved={(reused) => void settingsSaved(reused)}
+        />
+      )}
 
       <RenameDialog
         open={renameTarget !== undefined}

@@ -15,6 +15,8 @@ interface Props {
   provider: string;
   model: string;
   onSelectModel: (providerID: string, modelID: string) => void;
+  onManageModels: () => void;
+  onAddProvider: () => void;
   onSend: (text: string) => void;
   onStop: () => void;
 }
@@ -34,6 +36,8 @@ export function Composer({
   provider,
   model,
   onSelectModel,
+  onManageModels,
+  onAddProvider,
   onSend,
   onStop,
 }: Props) {
@@ -122,6 +126,8 @@ export function Composer({
                   provider={provider}
                   model={model}
                   onSelect={onSelectModel}
+                  onManageModels={onManageModels}
+                  onAddProvider={onAddProvider}
                 />
               </div>
 

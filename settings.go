@@ -90,6 +90,14 @@ type ModelInput struct {
 	Enabled       bool   `json:"enabled"`
 }
 
+// ModelVisibility is one model's picker visibility. The core never reads this
+// presentation flag, so changing it does not require a core restart.
+type ModelVisibility struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Enabled  bool   `json:"enabled"`
+}
+
 func buildAppSettings(configPath string, file map[string]any) AppSettings {
 	providers, provider, model := readProviderSettings(file)
 	settings := AppSettings{
@@ -392,6 +400,86 @@ func applySettingsInput(file map[string]any, input SettingsInput) {
 	} else {
 		file["permission"] = rules
 	}
+}
+
+// settingsInputFromSettings converts the read-only projection back into a save
+// payload. API keys stay in the file: an empty key means "keep the stored one".
+func settingsInputFromSettings(settings AppSettings) SettingsInput {
+	input := SettingsInput{
+		Provider:      settings.Provider,
+		Model:         settings.Model,
+		MaxSteps:      settings.MaxSteps,
+		ContextWindow: settings.ContextWindow,
+		CompactKeep:   settings.CompactKeep,
+		SystemPrompt:  settings.SystemPrompt,
+		Shell:         settings.Shell,
+		Permission:    settings.Permission,
+	}
+	for _, provider := range settings.Providers {
+		entry := ProviderInput{
+			ID:        provider.ID,
+			Name:      provider.Name,
+			BaseURL:   provider.BaseURL,
+			APIKeyEnv: provider.APIKeyEnv,
+		}
+		for _, model := range provider.Models {
+			entry.Models = append(entry.Models, ModelInput{
+				ID:            model.ID,
+				Name:          model.Name,
+				ContextWindow: model.ContextWindow,
+				Enabled:       model.Enabled,
+			})
+		}
+		input.Providers = append(input.Providers, entry)
+	}
+	return input
+}
+
+// applyModelVisibilityInput flips the flags on a save payload.
+func applyModelVisibilityInput(input *SettingsInput, entries []ModelVisibility) {
+	for i := range input.Providers {
+		for j := range input.Providers[i].Models {
+			for _, entry := range entries {
+				if entry.Provider == input.Providers[i].ID && entry.Model == input.Providers[i].Models[j].ID {
+					input.Providers[i].Models[j].Enabled = entry.Enabled
+				}
+			}
+		}
+	}
+}
+
+// applyModelVisibility flips the picker flag in place and reports whether the
+// file changed. Unknown providers or models are ignored.
+func applyModelVisibility(file map[string]any, entries []ModelVisibility) bool {
+	providers, _ := file["providers"].(map[string]any)
+	changed := false
+	for _, entry := range entries {
+		providerID := strings.TrimSpace(entry.Provider)
+		modelID := strings.TrimSpace(entry.Model)
+		if providerID == "" || modelID == "" {
+			continue
+		}
+		provider, ok := providers[providerID].(map[string]any)
+		if !ok {
+			continue
+		}
+		models, _ := provider["models"].([]any)
+		for _, item := range models {
+			model, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if id, _ := model["id"].(string); strings.TrimSpace(id) != modelID {
+				continue
+			}
+			if current, ok := model["enabled"].(bool); ok && current == entry.Enabled {
+				continue
+			}
+			model["enabled"] = entry.Enabled
+			changed = true
+		}
+	}
+	return changed
 }
 
 // TestProvider checks that an endpoint answers. It uses the saved key when the

@@ -11,6 +11,8 @@ interface Props {
   window: number;
   usage?: UsageTotals;
   onSelectModel: (providerID: string, modelID: string) => void;
+  onManageModels: () => void;
+  onAddProvider: () => void;
   onSend: (text: string) => void;
   onAddWorkspace: () => void;
 }
@@ -28,6 +30,8 @@ export function NewSessionHome({
   window,
   usage,
   onSelectModel,
+  onManageModels,
+  onAddProvider,
   onSend,
   onAddWorkspace,
 }: Props) {
@@ -50,6 +54,8 @@ export function NewSessionHome({
           provider={provider}
           model={model}
           onSelectModel={onSelectModel}
+          onManageModels={onManageModels}
+          onAddProvider={onAddProvider}
           onSend={onSend}
           onStop={() => undefined}
         />

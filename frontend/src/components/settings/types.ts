@@ -1,5 +1,15 @@
 import type { AppPreferences, ConfigRule } from "../../lib/types";
 
+/** One page in the settings center, addressable from other parts of the app. */
+export type SettingsSectionID =
+  | "general"
+  | "appearance"
+  | "providers"
+  | "models"
+  | "permissions"
+  | "advanced"
+  | "about";
+
 /** Editable strings for the shared core config; numbers stay text until commit. */
 export interface CoreDraft {
   provider: string;

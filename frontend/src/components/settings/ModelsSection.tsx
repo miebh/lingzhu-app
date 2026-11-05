@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -11,18 +11,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ProviderDialog } from "./ProviderDialog";
 import { ProviderLogo } from "./ProviderLogo";
 import { SettingsSection } from "./primitives";
-import type { CoreSettingsScope } from "./types";
+import type { CoreSettingsScope, ProviderDraft } from "./types";
 
 /**
- * Models page: grouped catalog with the default selection at the top. Editing a
- * provider's catalog still happens in the Providers connect dialog.
+ * Models page: grouped catalog with the default selection at the top. Each
+ * provider's edit action reuses the Providers connect dialog to add models.
  */
-export function ModelsSection({ scope }: { scope: CoreSettingsScope }) {
+export function ModelsSection({
+  scope,
+  onAddProvider,
+}: {
+  scope: CoreSettingsScope;
+  onAddProvider: () => void;
+}) {
   const draft = scope.draft;
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [editing, setEditing] = useState<ProviderDraft>();
   const needle = query.trim().toLowerCase();
 
   const groups = useMemo(
@@ -70,6 +78,24 @@ export function ModelsSection({ scope }: { scope: CoreSettingsScope }) {
       if (next) selection = { provider: next.provider, model: next.model };
     }
     scope.updateAndCommit({ providers, ...selection });
+  };
+
+  // Edits arrive from the provider dialog, which is also how models get added.
+  const saveProvider = (provider: ProviderDraft) => {
+    const providers = draft.providers.map((item) => (item.id === provider.id ? provider : item));
+    let selection: Partial<CoreSettingsScope["draft"]> = {};
+    const target = providers.find((item) => item.id === draft.provider);
+    if (target && !target.models.some((model) => model.id === draft.model)) {
+      const candidates = providers.flatMap((item) =>
+        item.models
+          .filter((model) => model.enabled !== false)
+          .map((model) => ({ provider: item.id, model: model.id, ready: item.ready })),
+      );
+      const next = candidates.find((item) => item.ready) ?? candidates[0];
+      if (next) selection = { provider: next.provider, model: next.model };
+    }
+    scope.updateAndCommit({ providers, ...selection });
+    setEditing(undefined);
   };
 
   return (
@@ -142,28 +168,40 @@ export function ModelsSection({ scope }: { scope: CoreSettingsScope }) {
                 const isCollapsed = !needle && collapsed[group.provider.id] === true;
                 return (
                   <>
-                    <button
-                      type="button"
-                      aria-expanded={!isCollapsed}
-                      onClick={() => setCollapsed((prev) => ({ ...prev, [group.provider.id]: !isCollapsed }))}
-                      className="interactive flex w-full items-center gap-2 rounded-md px-1 py-1 text-left"
-                    >
-                      <ChevronDown
-                        className={`size-3 shrink-0 text-text-faint transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
-                      />
-                      <ProviderLogo id={group.provider.id} name={group.provider.name} className="size-4 shrink-0 text-text-muted" />
-                      <span className="min-w-0 flex-1 truncate text-body font-medium text-text-base">
-                        {group.provider.name || group.provider.id}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 text-caption text-text-faint">
-                        <span
-                          className={`size-1.5 rounded-full ${
-                            group.provider.ready ? "bg-state-fg-success" : "bg-state-fg-warning"
-                          }`}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        aria-expanded={!isCollapsed}
+                        onClick={() => setCollapsed((prev) => ({ ...prev, [group.provider.id]: !isCollapsed }))}
+                        className="interactive flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left"
+                      >
+                        <ChevronDown
+                          className={`size-3 shrink-0 text-text-faint transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
                         />
-                        {group.provider.ready ? "Ready" : "No key"}
-                      </span>
-                    </button>
+                        <ProviderLogo id={group.provider.id} name={group.provider.name} className="size-4 shrink-0 text-text-muted" />
+                        <span className="min-w-0 flex-1 truncate text-body font-medium text-text-base">
+                          {group.provider.name || group.provider.id}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1 text-caption text-text-faint">
+                          <span
+                            className={`size-1.5 rounded-full ${
+                              group.provider.ready ? "bg-state-fg-success" : "bg-state-fg-warning"
+                            }`}
+                          />
+                          {group.provider.ready ? "Ready" : "No key"}
+                        </span>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Edit ${group.provider.name || group.provider.id}`}
+                        onClick={() => setEditing(group.provider)}
+                        className="shrink-0 text-text-faint hover:text-text-base"
+                      >
+                        <Pencil />
+                      </Button>
+                    </div>
                     {!isCollapsed && group.models.map((model) => {
                       const active = group.provider.id === draft.provider && model.id === draft.model;
                       return (
@@ -214,7 +252,28 @@ export function ModelsSection({ scope }: { scope: CoreSettingsScope }) {
             </p>
           )}
         </div>
+
+        <div className="flex items-center justify-between gap-3 border-t-[0.5px] border-border-base py-4">
+          <span className="text-meta text-text-faint">Providers supply the models in this catalog.</span>
+          <Button type="button" variant="outline" size="xs" onClick={onAddProvider} className="shrink-0">
+            <Plus />
+            Add provider
+          </Button>
+        </div>
       </SettingsSection>
+
+      <ProviderDialog
+        open={editing !== undefined}
+        initial={editing}
+        editingID={editing?.id}
+        existingIDs={draft.providers.map((provider) => provider.id)}
+        busy={scope.busy}
+        advanced
+        onOpenChange={(open) => {
+          if (!open) setEditing(undefined);
+        }}
+        onSave={saveProvider}
+      />
     </div>
   );
 }

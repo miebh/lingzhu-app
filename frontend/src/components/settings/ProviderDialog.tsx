@@ -14,6 +14,10 @@ interface Props {
   editingID?: string;
   existingIDs: string[];
   busy?: boolean;
+  /** Open the Advanced block immediately, for callers that edit the catalog. */
+  advanced?: boolean;
+  /** Match the connect flow's wide, base-surface dialog. */
+  presentation?: "default" | "connect";
   onOpenChange: (open: boolean) => void;
   onSave: (provider: ProviderDraft) => void;
 }
@@ -22,7 +26,17 @@ interface Props {
  * Provider connect dialog. The default surface is one key field, like the
  * reference's connect flow; endpoint and model details sit behind Advanced.
  */
-export function ProviderDialog({ open, initial, editingID, existingIDs, busy = false, onOpenChange, onSave }: Props) {
+export function ProviderDialog({
+  open,
+  initial,
+  editingID,
+  existingIDs,
+  busy = false,
+  advanced = false,
+  presentation = "default",
+  onOpenChange,
+  onSave,
+}: Props) {
   const [draft, setDraft] = useState<ProviderDraft>();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [newModel, setNewModel] = useState("");
@@ -31,10 +45,10 @@ export function ProviderDialog({ open, initial, editingID, existingIDs, busy = f
   useEffect(() => {
     if (!open) return;
     setDraft(initial ? clone(initial) : undefined);
-    setAdvancedOpen(!initial?.id);
+    setAdvancedOpen(advanced || !initial?.id);
     setNewModel("");
     setError(undefined);
-  }, [open, initial]);
+  }, [open, initial, advanced]);
 
   if (!open || !draft) return null;
 
@@ -116,21 +130,28 @@ export function ProviderDialog({ open, initial, editingID, existingIDs, busy = f
     });
   };
 
+  const connect = presentation === "connect";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-dialog">
+      <DialogContent
+        size={connect ? "manage" : "default"}
+        className={connect ? "border-0 bg-bg-base p-4 shadow-elevation-raised" : undefined}
+      >
         <div className="flex items-start gap-3">
           <span className="grid size-control-md shrink-0 place-items-center rounded-lg bg-bg-layer-01 text-text-muted">
             <ProviderLogo id={draft.id} name={draft.name} className="size-5" />
           </span>
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <DialogTitle>{editing ? `Edit ${draft.name || draft.id}` : `Connect ${draft.name || "provider"}`}</DialogTitle>
+            <DialogTitle className={connect ? "text-body font-[440]" : undefined}>
+              {editing ? `Edit ${draft.name || draft.id}` : `Connect ${draft.name || "provider"}`}
+            </DialogTitle>
             <span className="truncate font-mono text-caption text-text-faint" title={draft.baseUrl}>
               {draft.baseUrl || "Custom endpoint"}
             </span>
           </div>
         </div>
-        <DialogDescription>
+        <DialogDescription className={connect ? "mt-1" : undefined}>
           {draft.apiKeySet
             ? "A key is stored. Leave this blank to keep it."
             : "The key is written to the shared config and never returned to the client."}
@@ -295,10 +316,15 @@ export function ProviderDialog({ open, initial, editingID, existingIDs, busy = f
 
         <div className="mt-5 flex items-center justify-end gap-2 border-t border-border-base pt-4">
           {busy && <span className="mr-auto text-caption text-state-fg-warning">Stop running sessions before saving.</span>}
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            size={connect ? "sm" : "default"}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button type="button" onClick={submit} disabled={busy}>
+          <Button type="button" size={connect ? "sm" : "default"} onClick={submit} disabled={busy}>
             {editing ? "Save" : "Connect"}
           </Button>
         </div>

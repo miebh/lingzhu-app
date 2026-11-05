@@ -42,11 +42,13 @@ type CoreService struct {
 	appDBPath   string
 	err         string
 
-	mu      sync.Mutex
-	order   []string
-	spaces  map[string]*workspaceRuntime
-	streams map[string]*streamState
-	feeds   map[string]context.CancelFunc
+	mu sync.Mutex
+	// configMu serializes read-modify-write cycles on the shared config file.
+	configMu sync.Mutex
+	order    []string
+	spaces   map[string]*workspaceRuntime
+	streams  map[string]*streamState
+	feeds    map[string]context.CancelFunc
 	// emitEvent is a test seam; production uses the Wails event emitter.
 	emitEvent func(EventEnvelope)
 }
@@ -508,14 +510,18 @@ func (s *CoreService) SaveSettings(input SettingsInput) ([]string, error) {
 		return nil, errors.New("stop running sessions before changing settings")
 	}
 
+	s.configMu.Lock()
 	file, err := s.readConfigFile()
 	if err != nil {
+		s.configMu.Unlock()
 		return nil, err
 	}
 	applySettingsInput(file, input)
 
 	path := s.configFilePath()
-	if err := writeConfigFile(path, file); err != nil {
+	err = writeConfigFile(path, file)
+	s.configMu.Unlock()
+	if err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
@@ -523,6 +529,38 @@ func (s *CoreService) SaveSettings(input SettingsInput) ([]string, error) {
 	s.mu.Unlock()
 
 	return s.restartWorkspaces(), nil
+}
+
+// SaveModelVisibility persists which models appear in the picker. The core
+// ignores this presentation-only field, so the change never restarts a core and
+// stays available while a session is running.
+func (s *CoreService) SaveModelVisibility(entries []ModelVisibility) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+
+	file, err := s.readConfigFile()
+	if err != nil {
+		return err
+	}
+
+	// A legacy config has no providers block. Promote it first so visibility
+	// has somewhere to live; the running core never reads this flag, so the
+	// migration does not need a restart.
+	if providers, ok := file["providers"].(map[string]any); !ok || len(providers) == 0 {
+		settings := buildAppSettings("", file)
+		input := settingsInputFromSettings(settings)
+		applyModelVisibilityInput(&input, entries)
+		applySettingsInput(file, input)
+		return writeConfigFile(s.configFilePath(), file)
+	}
+
+	if !applyModelVisibility(file, entries) {
+		return nil
+	}
+	return writeConfigFile(s.configFilePath(), file)
 }
 
 // Preferences returns the local app preferences; it never touches core config.

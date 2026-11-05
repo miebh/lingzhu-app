@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Switch as SwitchPrimitive } from "radix-ui"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 
 /**
  * Semantic switch: the accent marks the on state, the muted thumb the off

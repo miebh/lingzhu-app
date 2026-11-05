@@ -7,6 +7,7 @@ import type {
   ContextInfo,
   CoreEvent,
   Message,
+  ModelVisibility,
   PermissionRequest,
   ProviderPreset,
   SessionInfo,
@@ -42,6 +43,7 @@ export const api = {
 
   settings: (): Promise<AppSettings> => call.Settings(),
   saveSettings: (input: SettingsInput): Promise<string[]> => call.SaveSettings(input),
+  saveModelVisibility: (entries: ModelVisibility[]): Promise<void> => call.SaveModelVisibility(entries),
   testProvider: (providerID: string, baseUrl: string, apiKey: string, apiKeyEnv: string): Promise<string> =>
     call.TestProvider(providerID, baseUrl, apiKey, apiKeyEnv),
   presets: (): Promise<ProviderPreset[]> => call.ProviderPresets(),

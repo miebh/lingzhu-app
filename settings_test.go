@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -231,5 +232,106 @@ func TestModelVisibilityDefaultsTrueAndRoundTrips(t *testing.T) {
 	model := entry["models"].([]any)[0].(map[string]any)
 	if model["enabled"] != false {
 		t.Fatalf("visibility was not written: %+v", model)
+	}
+}
+
+func TestApplyModelVisibilityOnlyChangesFlag(t *testing.T) {
+	file := map[string]any{
+		"provider": "p",
+		"model":    "m",
+		"providers": map[string]any{
+			"p": map[string]any{
+				"base_url": "https://p.test/v1",
+				"api_key":  "key",
+				"models": []any{
+					map[string]any{"id": "m", "name": "M"},
+					map[string]any{"id": "n", "name": "N", "enabled": true},
+				},
+			},
+		},
+	}
+	if !applyModelVisibility(file, []ModelVisibility{
+		{Provider: "p", Model: "m", Enabled: false},
+		{Provider: "missing", Model: "m", Enabled: false},
+	}) {
+		t.Fatal("want the file to change")
+	}
+	entry := file["providers"].(map[string]any)["p"].(map[string]any)
+	models := entry["models"].([]any)
+	if models[0].(map[string]any)["enabled"] != false {
+		t.Fatalf("visibility was not written: %+v", models[0])
+	}
+	if models[1].(map[string]any)["enabled"] != true {
+		t.Fatalf("unrelated model changed: %+v", models[1])
+	}
+	if entry["api_key"] != "key" || entry["base_url"] != "https://p.test/v1" {
+		t.Fatalf("provider fields changed: %+v", entry)
+	}
+	if applyModelVisibility(file, []ModelVisibility{{Provider: "p", Model: "m", Enabled: false}}) {
+		t.Fatal("an unchanged flag should not rewrite the file")
+	}
+}
+
+func TestSaveModelVisibilityWritesConfigWithoutRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"provider":"p","model":"m","providers":{"p":{"base_url":"https://p.test/v1","api_key":"key","models":[{"id":"m","name":"M"},{"id":"n","name":"N"}]}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := &CoreService{configPath: path}
+	if err := service.SaveModelVisibility([]ModelVisibility{{Provider: "p", Model: "m", Enabled: false}}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := map[string]any{}
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	settings := buildAppSettings(path, file)
+	if settings.Providers[0].Models[0].Enabled {
+		t.Fatal("visibility was not persisted")
+	}
+	provider := file["providers"].(map[string]any)["p"].(map[string]any)
+	if provider["api_key"] != "key" {
+		t.Fatal("visibility write dropped the stored key")
+	}
+}
+
+func TestSaveModelVisibilityMigratesLegacyConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	legacy := `{"model":"legacy-model","base_url":"https://legacy.test/v1","api_key":"secret","context_window":64000}`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := &CoreService{configPath: path}
+	if err := service.SaveModelVisibility([]ModelVisibility{{Provider: "default", Model: "legacy-model", Enabled: false}}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := map[string]any{}
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	provider, ok := file["providers"].(map[string]any)["default"].(map[string]any)
+	if !ok {
+		t.Fatalf("legacy config was not migrated: %+v", file)
+	}
+	if provider["api_key"] != "secret" || provider["base_url"] != "https://legacy.test/v1" {
+		t.Fatalf("legacy provider fields were not preserved: %+v", provider)
+	}
+	if _, ok := file["api_key"]; ok {
+		t.Fatal("the legacy top-level key should move into the provider")
+	}
+	settings := buildAppSettings(path, file)
+	if settings.Provider != "default" || settings.Model != "legacy-model" {
+		t.Fatalf("selection changed: %+v", settings)
+	}
+	if settings.Providers[0].Models[0].Enabled {
+		t.Fatal("visibility was not persisted during migration")
 	}
 }

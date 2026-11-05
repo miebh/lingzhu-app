@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useState, type ComponentType } from "react";
 import {
   Boxes,
   Check,
@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
-import type { AppInfo, AppPreferences, AppSettings, SettingsInput, WorkspaceInfo } from "../../lib/types";
+import type { AppInfo, AppPreferences, WorkspaceInfo } from "../../lib/types";
 import { AboutSection } from "./AboutSection";
 import { AdvancedSection } from "./AdvancedSection";
 import { AppearanceSection } from "./AppearanceSection";
@@ -23,12 +23,11 @@ import { GeneralSection } from "./GeneralSection";
 import { ModelsSection } from "./ModelsSection";
 import { PermissionsSection } from "./PermissionsSection";
 import { ProvidersSection } from "./ProvidersSection";
-import type { CoreDraft, SaveState } from "./types";
-
-type SectionID = "general" | "appearance" | "providers" | "models" | "permissions" | "advanced" | "about";
+import { useCoreConfig } from "./useCoreConfig";
+import type { SaveState, SettingsSectionID } from "./types";
 
 interface SectionItem {
-  id: SectionID;
+  id: SettingsSectionID;
   label: string;
   description: string;
   icon: ComponentType<{ className?: string }>;
@@ -62,6 +61,9 @@ const SECTIONS = GROUPS.flatMap((group) => group.items);
 interface Props {
   /** True while any session has a run in flight; core config writes are refused. */
   busy?: boolean;
+  /** Active page; other parts of the app can deep-link into a section. */
+  section: SettingsSectionID;
+  onSectionChange: (section: SettingsSectionID) => void;
   workspaces: WorkspaceInfo[];
   preferences: AppPreferences;
   onSavePreferences: (preferences: AppPreferences) => Promise<void>;
@@ -74,44 +76,33 @@ interface Props {
  * section on the right. Core config writes restart owned cores; app preferences
  * apply immediately. Every control saves on its own, with no page-level Save.
  */
-export function SettingsPage({ busy = false, workspaces, preferences, onSavePreferences, onSaved }: Props) {
-  const [section, setSection] = useState<SectionID>("general");
-  const [draft, setDraft] = useState<CoreDraft>();
-  const [configPath, setConfigPath] = useState("");
-  const [settingsError, setSettingsError] = useState<string>();
+export function SettingsPage({
+  busy = false,
+  section,
+  onSectionChange,
+  workspaces,
+  preferences,
+  onSavePreferences,
+  onSaved,
+}: Props) {
+  const {
+    draft,
+    configPath,
+    settingsError,
+    saveState,
+    saveError,
+    reload,
+    dismissSaveError,
+    update,
+    commit,
+    updateAndCommit,
+  } = useCoreConfig({ onSaved });
+
   const [info, setInfo] = useState<AppInfo>();
   const [infoError, setInfoError] = useState<string>();
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [saveError, setSaveError] = useState<string>();
-  const [reloadKey, setReloadKey] = useState(0);
-
-  const draftRef = useRef<CoreDraft | undefined>(undefined);
-  const savedKey = useRef("");
-  const lastKey = useRef("");
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const onSavedRef = useRef(onSaved);
-  onSavedRef.current = onSaved;
 
   useEffect(() => {
     let alive = true;
-    setDraft(undefined);
-    setSettingsError(undefined);
-    api
-      .settings()
-      .then((settings) => {
-        if (!alive) return;
-        const next = fromSettings(settings);
-        draftRef.current = next;
-        const key = serialize(next);
-        savedKey.current = key;
-        lastKey.current = key;
-        setDraft(next);
-        setConfigPath(settings.configPath);
-      })
-      .catch((cause) => {
-        if (alive) setSettingsError(messageOf(cause));
-      });
-
     setInfo(undefined);
     setInfoError(undefined);
     api
@@ -126,104 +117,7 @@ export function SettingsPage({ busy = false, workspaces, preferences, onSavePref
     return () => {
       alive = false;
     };
-  }, [reloadKey]);
-
-  // A successful save is acknowledged briefly instead of by a toast per field.
-  useEffect(() => {
-    if (saveState !== "saved") return;
-    const timer = window.setTimeout(() => setSaveState("idle"), 2000);
-    return () => window.clearTimeout(timer);
-  }, [saveState]);
-
-  const queueSave = useCallback((next: CoreDraft) => {
-    const result = toPayload(next);
-    if (result.error) {
-      lastKey.current = savedKey.current;
-      setSaveState("error");
-      setSaveError(result.error);
-      return;
-    }
-    const key = JSON.stringify(result.payload);
-    if (key === lastKey.current) return;
-    lastKey.current = key;
-    setSaveState("saving");
-    setSaveError(undefined);
-
-    queue.current = queue.current.then(async () => {
-      try {
-        const reused = await api.saveSettings(result.payload as SettingsInput);
-        savedKey.current = key;
-        setSaveState("saved");
-        onSavedRef.current(reused);
-
-        // Never keep a submitted key, a pending clear flag, or a stale ready
-        // flag after the save succeeds.
-        const current = draftRef.current;
-        if (current) {
-          let changed = false;
-          const providers = current.providers.map((provider) => {
-            const sent = next.providers.find((item) => item.id === provider.id);
-            if (!sent) return provider;
-            const hasKey = sent.apiKey.trim() !== "" || (provider.apiKeySet && !sent.clearKey);
-            const ready = sent.baseUrl.trim() !== "" && (hasKey || sent.apiKeyEnv.trim() !== "" || sent.clearKey === false && provider.ready);
-            const updated = {
-              ...provider,
-              apiKey: "",
-              apiKeySet: hasKey,
-              clearKey: false,
-              ready,
-            };
-            if (
-              updated.apiKey !== provider.apiKey ||
-              updated.apiKeySet !== provider.apiKeySet ||
-              updated.clearKey !== provider.clearKey ||
-              updated.ready !== provider.ready
-            ) {
-              changed = true;
-            }
-            return updated;
-          });
-          if (changed) {
-            const updated = { ...current, providers };
-            draftRef.current = updated;
-            setDraft(updated);
-            const stable = serialize(updated);
-            savedKey.current = stable;
-            lastKey.current = stable;
-          }
-        }
-      } catch (cause) {
-        lastKey.current = savedKey.current;
-        setSaveState("error");
-        setSaveError(messageOf(cause));
-      }
-    });
   }, []);
-
-  const update = useCallback((patch: Partial<CoreDraft>) => {
-    const current = draftRef.current;
-    if (!current) return;
-    const next = { ...current, ...patch };
-    draftRef.current = next;
-    setDraft(next);
-  }, []);
-
-  const commit = useCallback(() => {
-    const current = draftRef.current;
-    if (current) queueSave(current);
-  }, [queueSave]);
-
-  const updateAndCommit = useCallback(
-    (patch: Partial<CoreDraft>) => {
-      const current = draftRef.current;
-      if (!current) return;
-      const next = { ...current, ...patch };
-      draftRef.current = next;
-      setDraft(next);
-      queueSave(next);
-    },
-    [queueSave],
-  );
 
   const savePreferences = useCallback(
     (next: AppPreferences) => {
@@ -253,7 +147,7 @@ export function SettingsPage({ busy = false, workspaces, preferences, onSavePref
                     type="button"
                     data-selected={selected ? "true" : undefined}
                     aria-current={selected ? "page" : undefined}
-                    onClick={() => setSection(item.id)}
+                    onClick={() => onSectionChange(item.id)}
                     className={`interactive group/nav flex h-control-sm w-full items-center gap-2 rounded-md px-2 text-left text-body ${
                       selected ? "bg-bg-layer-03 text-text-base" : "text-text-muted hover:text-text-base"
                     }`}
@@ -297,7 +191,7 @@ export function SettingsPage({ busy = false, workspaces, preferences, onSavePref
                   variant="ghost"
                   size="icon-xs"
                   aria-label="Dismiss save error"
-                  onClick={() => setSaveError(undefined)}
+                  onClick={dismissSaveError}
                   className="text-text-faint hover:text-text-base"
                 >
                   <X />
@@ -315,7 +209,7 @@ export function SettingsPage({ busy = false, workspaces, preferences, onSavePref
                   <p role="alert" className="text-meta leading-5 text-state-fg-danger">
                     {settingsError}
                   </p>
-                  <Button variant="outline" size="sm" onClick={() => setReloadKey((value) => value + 1)}>
+                  <Button variant="outline" size="sm" onClick={reload}>
                     Retry
                   </Button>
                 </div>
@@ -359,7 +253,10 @@ export function SettingsPage({ busy = false, workspaces, preferences, onSavePref
                       <ProvidersSection scope={{ draft, busy, update, commit, updateAndCommit }} />
                     )}
                     {item.id === "models" && (
-                      <ModelsSection scope={{ draft, busy, update, commit, updateAndCommit }} />
+                      <ModelsSection
+                        scope={{ draft, busy, update, commit, updateAndCommit }}
+                        onAddProvider={() => onSectionChange("providers")}
+                      />
                     )}
                     {item.id === "advanced" && (
                       <AdvancedSection scope={{ draft, busy, update, commit, updateAndCommit }} configPath={configPath} />
@@ -403,126 +300,4 @@ function SaveIndicator({ state }: { state: SaveState }) {
     );
   }
   return <span className="shrink-0 text-caption text-text-faint">Changes save automatically</span>;
-}
-
-function fromSettings(settings: AppSettings): CoreDraft {
-  return {
-    provider: settings.provider,
-    model: settings.model,
-    providers: settings.providers.map((provider) => ({
-      id: provider.id,
-      name: provider.name,
-      baseUrl: provider.baseUrl,
-      apiKey: "",
-      apiKeyEnv: provider.apiKeyEnv,
-      apiKeySet: provider.apiKeySet,
-      clearKey: false,
-      ready: provider.ready,
-      models: provider.models.map((model) => ({
-        id: model.id,
-        name: model.name,
-        contextWindow: String(model.contextWindow),
-        enabled: model.enabled !== false,
-      })),
-    })),
-    maxSteps: String(settings.maxSteps),
-    contextWindow: String(settings.contextWindow),
-    compactKeep: String(settings.compactKeep),
-    systemPrompt: settings.systemPrompt,
-    shell: (settings.shell ?? []).join(" "),
-    permission: settings.permission.map((rule) => ({ ...rule })),
-  };
-}
-
-function toPayload(draft: CoreDraft): { payload?: SettingsInput; error?: string } {
-  const model = draft.model.trim();
-  if (!model) return { error: "Model is required." };
-  const maxSteps = Number(draft.maxSteps);
-  if (!Number.isInteger(maxSteps) || maxSteps < 1) return { error: "Max steps must be at least 1." };
-  const contextWindow = Number(draft.contextWindow);
-  if (!Number.isInteger(contextWindow) || contextWindow < 0) {
-    return { error: "Context window cannot be negative." };
-  }
-  const compactKeep = Number(draft.compactKeep);
-  if (!Number.isInteger(compactKeep) || compactKeep < 1) {
-    return { error: "Compact keep must be at least 1." };
-  }
-  const permission = draft.permission.map((rule) => ({
-    action: rule.action.trim(),
-    resource: rule.resource.trim(),
-    effect: rule.effect,
-  }));
-  for (const rule of permission) {
-    if (!rule.action || !rule.resource) {
-      return { error: "Every permission rule needs an action and a resource." };
-    }
-  }
-  try {
-    if (draft.providers.length === 0) return { error: "At least one provider is required." };
-
-    const seenProvider = new Set<string>();
-  const providers = draft.providers.map((provider) => {
-    const id = provider.id.trim();
-    if (!id) throw new Error("Every provider needs an id.");
-    if (seenProvider.has(id)) throw new Error(`Provider ${id} is duplicated.`);
-    seenProvider.add(id);
-    const baseUrl = provider.baseUrl.trim();
-    if (!/^https?:\/\/[^\s/]+/i.test(baseUrl)) {
-      throw new Error(`Provider ${id} needs an absolute http(s) base URL.`);
-    }
-    const seenModel = new Set<string>();
-    const models = provider.models.map((entry) => {
-      const modelID = entry.id.trim();
-      if (!modelID) throw new Error(`Provider ${id} has a model without an id.`);
-      if (seenModel.has(modelID)) throw new Error(`Provider ${id} has duplicate model ${modelID}.`);
-      seenModel.add(modelID);
-      const window = Number(entry.contextWindow);
-      if (!Number.isInteger(window) || window < 0) {
-        throw new Error(`Model ${modelID} needs a non-negative context window.`);
-      }
-      return {
-        id: modelID,
-        name: entry.name.trim() || modelID,
-        contextWindow: window,
-        enabled: entry.enabled !== false,
-      };
-    });
-    return {
-      id,
-      name: provider.name.trim() || id,
-      baseUrl,
-      apiKey: provider.apiKey.trim(),
-      apiKeyEnv: provider.apiKeyEnv.trim(),
-      clearKey: provider.clearKey,
-      models,
-    };
-  });
-
-  const selected = providers.find((provider) => provider.id === draft.provider);
-  if (!selected) return { error: "Choose a default provider." };
-  if (!selected.models.some((entry) => entry.id === model)) {
-    return { error: `Provider ${selected.name} has no model ${model}.` };
-  }
-
-  return {
-      payload: {
-        provider: selected.id,
-        model,
-        providers,
-        maxSteps,
-        contextWindow,
-        compactKeep,
-        systemPrompt: draft.systemPrompt,
-        shell: draft.shell.trim() === "" ? [] : draft.shell.trim().split(/\s+/),
-        permission,
-      },
-    };
-  } catch (error) {
-    return { error: messageOf(error) };
-  }
-}
-
-function serialize(draft: CoreDraft): string {
-  const result = toPayload(draft);
-  return result.payload ? JSON.stringify(result.payload) : "";
 }

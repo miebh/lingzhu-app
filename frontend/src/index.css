@@ -37,6 +37,8 @@
   --container-composer: 780px;
   --container-dialog: 400px;
   --container-dialog-wide: 560px;
+  --container-dialog-model: 480px;
+  --container-dialog-manage: 640px;
   --container-settings: 720px;
   --container-settings-nav: 240px;
   --container-sidebar: 280px;
@@ -48,6 +50,8 @@
   --spacing-control-xs: 24px;
   --spacing-control-sm: 28px;
   --spacing-control-md: 32px;
+  --spacing-dialog-body: 480px;
+  --spacing-dialog-connect: 512px;
   --spacing-composer-text: 336px;
 
   /* Window chrome: one title-bar height and one caption-button width. */

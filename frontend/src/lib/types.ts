@@ -85,6 +85,13 @@ export interface ModelSettings {
   enabled: boolean;
 }
 
+/** Picker visibility for one model; saved without restarting a core. */
+export interface ModelVisibility {
+  provider: string;
+  model: string;
+  enabled: boolean;
+}
+
 /** Settings payload; an empty apiKey keeps the stored key unless clearKey is set. */
 export interface SettingsInput {
   provider: string;
