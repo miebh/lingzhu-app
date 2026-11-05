@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api } from "../../lib/api";
-import type { ProviderPreset } from "../../lib/types";
+import type { MagpieGateway, ProviderPreset } from "../../lib/types";
 import { ProviderDialog } from "./ProviderDialog";
 import { ProviderLogo } from "./ProviderLogo";
 import type { ProviderDraft } from "./types";
@@ -24,6 +24,7 @@ interface Props {
  */
 export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenChange, onSave }: Props) {
   const [presets, setPresets] = useState<ProviderPreset[]>();
+  const [magpie, setMagpie] = useState<MagpieGateway>();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ProviderDraft>();
 
@@ -31,12 +32,20 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
     if (!open) return;
     let alive = true;
     setPresets(undefined);
+    setMagpie(undefined);
     setQuery("");
     setSelected(undefined);
-    api
-      .presets()
-      .then((value) => {
-        if (alive) setPresets(value);
+    Promise.all([api.presets(), api.magpie().catch(() => undefined)])
+      .then(([value, gateway]) => {
+        if (!alive) return;
+        setMagpie(gateway);
+        // A running gateway knows its real port; the preset's stored one may
+        // predate a settings change.
+        setPresets(
+          gateway?.available
+            ? value.map((preset) => (preset.id === "magpie" ? { ...preset, baseUrl: gateway.url } : preset))
+            : value,
+        );
       })
       .catch(() => {
         if (alive) setPresets([]);
@@ -78,12 +87,13 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
       id: preset.id,
       name: preset.name,
       baseUrl: preset.baseUrl,
-      apiKey: "",
+      apiKey: preset.defaultApiKey ?? "",
       apiKeyEnv: preset.apiKeyEnv,
       apiKeySet: false,
       clearKey: false,
       ready: false,
-      models: preset.models.map((model) => ({
+      dynamicModels: preset.dynamicModels,
+      models: (preset.models ?? []).map((model) => ({
         id: model.id,
         name: model.name,
         contextWindow: String(model.contextWindow),
@@ -182,7 +192,11 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
                   />
                   <span className="min-w-0 flex-1 truncate text-body text-text-base">{preset.name}</span>
                   <span className="hidden shrink-0 text-caption text-text-faint sm:block">
-                    {preset.models.length} models
+                    {preset.dynamicModels
+                      ? magpie?.available
+                        ? `Gateway ${magpie.version || "running"}`
+                        : "Discover models"
+                      : `${preset.models?.length ?? 0} models`}
                   </span>
                   {connected ? (
                     <Badge variant="secondary">Connected</Badge>

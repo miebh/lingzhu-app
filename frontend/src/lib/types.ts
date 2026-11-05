@@ -128,7 +128,18 @@ export interface ProviderPreset {
   name: string;
   baseUrl: string;
   apiKeyEnv: string;
+  /** Key the endpoint accepts as-is, such as a local gateway's app id. */
+  defaultApiKey?: string;
+  /** The catalog changes per machine, so models come from GET /models. */
+  dynamicModels?: boolean;
   models: PresetModel[];
+}
+
+/** The local magpie gateway and whether it is answering. */
+export interface MagpieGateway {
+  url: string;
+  available: boolean;
+  version: string;
 }
 
 export interface PresetModel {

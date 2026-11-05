@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Check, CircleAlert, Ellipsis, LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, CircleAlert, Ellipsis, LoaderCircle, Pencil, Plus, Unplug } from "lucide-react";
+import { ConfirmDialog } from "@/components/Dialogs";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,6 +39,7 @@ export function ProvidersSection({ scope }: Props) {
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [tests, setTests] = useState<Record<string, TestState>>({});
   const [dialog, setDialog] = useState<DialogState>({ open: false });
+  const [disconnecting, setDisconnecting] = useState<ProviderDraft>();
 
   useEffect(() => {
     let alive = true;
@@ -105,12 +107,13 @@ export function ProvidersSection({ scope }: Props) {
         id: preset.id,
         name: preset.name,
         baseUrl: preset.baseUrl,
-        apiKey: "",
+        apiKey: preset.defaultApiKey ?? "",
         apiKeyEnv: preset.apiKeyEnv,
         apiKeySet: false,
         clearKey: false,
         ready: false,
-        models: preset.models.map((model) => ({
+        dynamicModels: preset.dynamicModels,
+        models: (preset.models ?? []).map((model) => ({
           id: model.id,
           name: model.name,
           contextWindow: String(model.contextWindow),
@@ -209,9 +212,13 @@ export function ProvidersSection({ scope }: Props) {
                         Test
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem destructive disabled={!canRemove} onSelect={() => removeProvider(provider.id)}>
-                        <Trash2 />
-                        Remove
+                      <DropdownMenuItem
+                        destructive
+                        disabled={!canRemove}
+                        onSelect={() => setDisconnecting(provider)}
+                      >
+                        <Unplug />
+                        Disconnect
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -254,7 +261,8 @@ export function ProvidersSection({ scope }: Props) {
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-body text-text-base">{preset.name}</span>
                 <span className="truncate font-mono text-caption text-text-faint" title={preset.baseUrl}>
-                  {preset.apiKeyEnv} · {preset.models.length} models
+                  {preset.apiKeyEnv} ·{" "}
+                  {preset.dynamicModels ? "models from endpoint" : `${preset.models?.length ?? 0} models`}
                 </span>
               </div>
               <Button type="button" variant="outline" size="xs" onClick={() => openPreset(preset)} className="shrink-0">
@@ -283,6 +291,25 @@ export function ProvidersSection({ scope }: Props) {
         busy={scope.busy}
         onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}
         onSave={saveProvider}
+      />
+
+      <ConfirmDialog
+        open={disconnecting !== undefined}
+        title={`Disconnect ${disconnecting?.name || disconnecting?.id || "provider"}?`}
+        description={
+          disconnecting?.id === draft.provider
+            ? "This removes the provider and its saved key, then switches to another provider and model."
+            : "This removes the provider and its saved key from the shared config."
+        }
+        confirmLabel="Disconnect"
+        destructive
+        onOpenChange={(open) => {
+          if (!open) setDisconnecting(undefined);
+        }}
+        onConfirm={() => {
+          if (disconnecting) removeProvider(disconnecting.id);
+          setDisconnecting(undefined);
+        }}
       />
     </div>
   );

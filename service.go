@@ -486,13 +486,17 @@ func (s *CoreService) Delete(workspace, sessionID string) error {
 	return client.Delete(s.ctx, sessionID)
 }
 
-// Settings returns the editable subset of the shared config file.
+// Settings returns the editable subset of the shared config file. Providers
+// pointing at the local magpie gateway get its current model labels without
+// writing the file, so existing configs follow the gateway's catalog.
 func (s *CoreService) Settings() (AppSettings, error) {
 	file, err := s.readConfigFile()
 	if err != nil {
 		return AppSettings{}, err
 	}
-	return buildAppSettings(s.configFilePath(), file), nil
+	settings := buildAppSettings(s.configFilePath(), file)
+	enrichMagpieModels(&settings, file)
+	return settings, nil
 }
 
 // SaveSettings validates and writes the shared config file, then restarts the

@@ -6,9 +6,11 @@ import type {
   AppSettings,
   ContextInfo,
   CoreEvent,
+  MagpieGateway,
   Message,
   ModelVisibility,
   PermissionRequest,
+  PresetModel,
   ProviderPreset,
   SessionInfo,
   SettingsInput,
@@ -47,6 +49,9 @@ export const api = {
   testProvider: (providerID: string, baseUrl: string, apiKey: string, apiKeyEnv: string): Promise<string> =>
     call.TestProvider(providerID, baseUrl, apiKey, apiKeyEnv),
   presets: (): Promise<ProviderPreset[]> => call.ProviderPresets(),
+  providerModels: (providerID: string, baseUrl: string, apiKey: string, apiKeyEnv: string): Promise<PresetModel[]> =>
+    call.ProviderModels(providerID, baseUrl, apiKey, apiKeyEnv),
+  magpie: (): Promise<MagpieGateway> => call.Magpie(),
 
   preferences: (): Promise<AppPreferences> => call.Preferences(),
   savePreferences: (input: AppPreferences): Promise<void> => call.SavePreferences(input),

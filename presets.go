@@ -4,11 +4,17 @@ package main
 // endpoint, environment variable and model list are editable after adding;
 // presets only remove the manual setup step.
 type ProviderPreset struct {
-	ID        string        `json:"id"`
-	Name      string        `json:"name"`
-	BaseURL   string        `json:"baseUrl"`
-	APIKeyEnv string        `json:"apiKeyEnv"`
-	Models    []PresetModel `json:"models"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	BaseURL   string `json:"baseUrl"`
+	APIKeyEnv string `json:"apiKeyEnv"`
+	// DefaultAPIKey prefills a key the endpoint accepts as-is, such as a
+	// local gateway's app id. It stays editable and never leaves the host.
+	DefaultAPIKey string `json:"defaultApiKey,omitempty"`
+	// DynamicModels marks a preset whose catalog changes per machine, so the
+	// client fetches it from the endpoint instead of shipping a stale list.
+	DynamicModels bool          `json:"dynamicModels,omitempty"`
+	Models        []PresetModel `json:"models"`
 }
 
 // PresetModel is one model prefilled by a provider preset.
@@ -131,6 +137,16 @@ func providerPresets() []ProviderPreset {
 				{ID: "deepseek-ai/DeepSeek-V3", Name: "DeepSeek V3", ContextWindow: 128_000},
 				{ID: "Qwen/Qwen3-32B", Name: "Qwen3 32B", ContextWindow: 128_000},
 			},
+		},
+		{
+			ID:            "magpie",
+			Name:          "Magpie",
+			BaseURL:       magpieGatewayURL() + "/v1",
+			APIKeyEnv:     "MAGPIE_API_KEY",
+			DefaultAPIKey: "magpie-" + magpieAppID,
+			DynamicModels: true,
+			// Keep the list non-nil so JSON encodes [] rather than null.
+			Models: []PresetModel{},
 		},
 	}
 }

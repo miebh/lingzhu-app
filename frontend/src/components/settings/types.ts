@@ -32,6 +32,8 @@ export interface ProviderDraft {
   apiKeySet: boolean;
   clearKey: boolean;
   ready: boolean;
+  /** Preset whose model list is fetched from the endpoint. */
+  dynamicModels?: boolean;
   models: ModelDraft[];
 }
 

@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, Plus, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { api } from "../../lib/api";
+import { messageOf } from "../../lib/errors";
 import { ProviderLogo } from "./ProviderLogo";
 import type { ProviderDraft } from "./types";
 
@@ -41,6 +43,40 @@ export function ProviderDialog({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [newModel, setNewModel] = useState("");
   const [error, setError] = useState<string>();
+  const [fetchingModels, setFetchingModels] = useState(false);
+
+  /** Replaces the model list with the endpoint's current catalog. */
+  const loadModels = async (source: ProviderDraft) => {
+    setFetchingModels(true);
+    setError(undefined);
+    try {
+      const models = await api.providerModels(source.id, source.baseUrl, source.apiKey, source.apiKeyEnv);
+      if (models.length === 0) {
+        setError("The endpoint returned no models.");
+        return;
+      }
+      setDraft((current) => {
+        if (!current) return current;
+        const previous = new Map(current.models.map((model) => [model.id, model]));
+        return {
+          ...current,
+          models: models.map((model) => {
+            const existing = previous.get(model.id);
+            return {
+              id: model.id,
+              name: model.name || existing?.name || model.id,
+              contextWindow: existing?.contextWindow ?? String(model.contextWindow || 0),
+              enabled: existing?.enabled ?? true,
+            };
+          }),
+        };
+      });
+    } catch (fetchError) {
+      setError(messageOf(fetchError));
+    } finally {
+      setFetchingModels(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -48,6 +84,10 @@ export function ProviderDialog({
     setAdvancedOpen(advanced || !initial?.id);
     setNewModel("");
     setError(undefined);
+    setFetchingModels(false);
+    if (initial?.dynamicModels && initial.models.length === 0) {
+      void loadModels(initial);
+    }
   }, [open, initial, advanced]);
 
   if (!open || !draft) return null;
@@ -171,6 +211,11 @@ export function ProviderDialog({
               className="select-text"
             />
             {draft.clearKey && <span className="text-caption text-state-fg-warning">Key will be removed on save.</span>}
+            {draft.id === "magpie" && (
+              <span className="text-caption text-text-faint">
+                The local gateway accepts any key; magpie-lingzhu attributes usage to Lingzhu.
+              </span>
+            )}
           </label>
 
           <button
@@ -232,6 +277,17 @@ export function ProviderDialog({
                   <span className="text-meta text-text-muted">Models</span>
                   <span className="text-caption text-text-faint">{draft.models.length}</span>
                   <span className="flex-1" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => void loadModels(draft)}
+                    disabled={fetchingModels || !draft.baseUrl.trim()}
+                    className="text-text-faint hover:text-text-base"
+                  >
+                    <RefreshCw className={fetchingModels ? "animate-spin" : undefined} />
+                    {fetchingModels ? "Fetching" : "Refresh"}
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -324,7 +380,7 @@ export function ProviderDialog({
           >
             Cancel
           </Button>
-          <Button type="button" size={connect ? "sm" : "default"} onClick={submit} disabled={busy}>
+          <Button type="button" size={connect ? "sm" : "default"} onClick={submit} disabled={busy || fetchingModels}>
             {editing ? "Save" : "Connect"}
           </Button>
         </div>

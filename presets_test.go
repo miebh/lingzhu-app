@@ -18,7 +18,10 @@ func TestProviderPresetsAreWellFormed(t *testing.T) {
 		if preset.APIKeyEnv == "" {
 			t.Fatalf("preset %s needs an environment variable", preset.ID)
 		}
-		if len(preset.Models) == 0 {
+		if preset.Models == nil {
+			t.Fatalf("preset %s must encode an empty list, not null", preset.ID)
+		}
+		if len(preset.Models) == 0 && !preset.DynamicModels {
 			t.Fatalf("preset %s has no models", preset.ID)
 		}
 		models := map[string]bool{}
