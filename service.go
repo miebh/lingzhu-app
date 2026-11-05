@@ -93,6 +93,8 @@ type AppPreferences struct {
 	DefaultWorkspace string                `json:"defaultWorkspace"`
 	AutoApprove      bool                  `json:"autoApprove"`
 	DefaultModel     ModelSelection        `json:"defaultModel"`
+	FavoriteModels   []ModelSelection      `json:"favoriteModels"`
+	RecentModels     []ModelSelection      `json:"recentModels"`
 	Appearance       AppearancePreferences `json:"appearance"`
 }
 
@@ -186,6 +188,7 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 	for _, item := range list {
 		s.open(item.Path)
 	}
+	s.startCatalogFetch()
 	return nil
 }
 
@@ -496,6 +499,7 @@ func (s *CoreService) Settings() (AppSettings, error) {
 	}
 	settings := buildAppSettings(s.configFilePath(), file)
 	enrichMagpieModels(&settings, file)
+	enrichCatalogModels(&settings)
 	return settings, nil
 }
 
@@ -553,7 +557,7 @@ func (s *CoreService) SaveModelVisibility(entries []ModelVisibility) error {
 	// A legacy config has no providers block. Promote it first so visibility
 	// has somewhere to live; the running core never reads this flag, so the
 	// migration does not need a restart.
-	if providers, ok := file["providers"].(map[string]any); !ok || len(providers) == 0 {
+	if _, ok := file["providers"]; !ok {
 		settings := buildAppSettings("", file)
 		input := settingsInputFromSettings(settings)
 		applyModelVisibilityInput(&input, entries)
@@ -577,6 +581,8 @@ func (s *CoreService) Preferences() AppPreferences {
 		DefaultWorkspace: prefs.DefaultWorkspace,
 		AutoApprove:      prefs.AutoApprove,
 		DefaultModel:     ModelSelection{Provider: prefs.DefaultModel.Provider, Model: prefs.DefaultModel.Model},
+		FavoriteModels:   appSelections(prefs.Favorites),
+		RecentModels:     appSelections(prefs.Recent),
 		Appearance: AppearancePreferences{
 			FontFamily:    prefs.Appearance.FontFamily,
 			Density:       prefs.Appearance.Density,
@@ -599,6 +605,8 @@ func (s *CoreService) SavePreferences(input AppPreferences) error {
 			Provider: input.DefaultModel.Provider,
 			Model:    input.DefaultModel.Model,
 		},
+		Favorites: prefSelections(input.FavoriteModels),
+		Recent:    prefSelections(input.RecentModels),
 		Appearance: preferences.Appearance{
 			FontFamily:    input.Appearance.FontFamily,
 			Density:       input.Appearance.Density,
@@ -761,6 +769,25 @@ func intSetting(file map[string]any, key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func appSelections(items []preferences.Selection) []ModelSelection {
+	out := make([]ModelSelection, 0, len(items))
+	for _, item := range items {
+		out = append(out, ModelSelection{Provider: item.Provider, Model: item.Model})
+	}
+	return out
+}
+
+func prefSelections(items []ModelSelection) []preferences.Selection {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]preferences.Selection, 0, len(items))
+	for _, item := range items {
+		out = append(out, preferences.Selection{Provider: item.Provider, Model: item.Model})
+	}
+	return out
 }
 
 // NewSessionID returns an ID the core accepts, used before the first message.

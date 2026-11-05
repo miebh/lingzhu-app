@@ -49,6 +49,7 @@ export const api = {
   testProvider: (providerID: string, baseUrl: string, apiKey: string, apiKeyEnv: string): Promise<string> =>
     call.TestProvider(providerID, baseUrl, apiKey, apiKeyEnv),
   presets: (): Promise<ProviderPreset[]> => call.ProviderPresets(),
+  refreshCatalog: (): Promise<void> => call.RefreshCatalog(),
   providerModels: (providerID: string, baseUrl: string, apiKey: string, apiKeyEnv: string): Promise<PresetModel[]> =>
     call.ProviderModels(providerID, baseUrl, apiKey, apiKeyEnv),
   magpie: (): Promise<MagpieGateway> => call.Magpie(),

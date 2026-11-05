@@ -122,11 +122,16 @@ func fetchProviderModelsWithin(baseURL, key string, timeout time.Duration) ([]Pr
 	}
 	var payload struct {
 		Data []struct {
-			ID            string  `json:"id"`
-			Name          string  `json:"name"`
-			DisplayName   string  `json:"display_name"`
-			MagpieLabel   string  `json:"magpie_label"`
-			ContextWindow float64 `json:"context_window"`
+			ID              string                   `json:"id"`
+			Name            string                   `json:"name"`
+			DisplayName     string                   `json:"display_name"`
+			MagpieLabel     string                   `json:"magpie_label"`
+			ContextWindow   float64                  `json:"context_window"`
+			MaxOutputTokens float64                  `json:"max_output_tokens"`
+			ToolCall        *bool                    `json:"tool_call"`
+			Reasoning       bool                     `json:"reasoning"`
+			Cost            *ModelCostSettings       `json:"cost"`
+			Modalities      *ModelModalitiesSettings `json:"modalities"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -153,10 +158,24 @@ func fetchProviderModelsWithin(baseURL, key string, timeout time.Duration) ([]Pr
 		if name == "" {
 			name = modelID
 		}
+		attachment := false
+		if item.Modalities != nil {
+			for _, kind := range item.Modalities.Input {
+				if kind == "image" {
+					attachment = true
+				}
+			}
+		}
 		models = append(models, PresetModel{
-			ID:            modelID,
-			Name:          name,
-			ContextWindow: int(item.ContextWindow),
+			ID:              modelID,
+			Name:            name,
+			ContextWindow:   int(item.ContextWindow),
+			MaxOutputTokens: int(item.MaxOutputTokens),
+			ToolCall:        item.ToolCall,
+			Reasoning:       item.Reasoning,
+			Attachment:      attachment,
+			Cost:            item.Cost,
+			Modalities:      item.Modalities,
 		})
 	}
 	return models, nil
@@ -238,6 +257,24 @@ func enrichProviderModels(settings *AppSettings, file map[string]any, gateway st
 			}
 			if model.ContextWindow > 0 {
 				provider.Models[j].ContextWindow = model.ContextWindow
+			}
+			if model.MaxOutputTokens > 0 {
+				provider.Models[j].MaxOutputTokens = model.MaxOutputTokens
+			}
+			if model.ToolCall != nil {
+				provider.Models[j].ToolCall = model.ToolCall
+			}
+			if model.Reasoning {
+				provider.Models[j].Reasoning = true
+			}
+			if model.Attachment {
+				provider.Models[j].Attachment = true
+			}
+			if model.Cost != nil {
+				provider.Models[j].Cost = model.Cost
+			}
+			if model.Modalities != nil {
+				provider.Models[j].Modalities = model.Modalities
 			}
 		}
 	}

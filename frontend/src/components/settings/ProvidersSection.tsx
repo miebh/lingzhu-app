@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Check, CircleAlert, Ellipsis, LoaderCircle, Pencil, Plus, Unplug } from "lucide-react";
+import { Check, CircleAlert, Ellipsis, LoaderCircle, Pencil, Plus, RefreshCw, Search, Unplug } from "lucide-react";
 import { ConfirmDialog } from "@/components/Dialogs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +12,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
+import { notify } from "../../store/notify";
 import { ProviderDialog } from "./ProviderDialog";
 import { ProviderLogo } from "./ProviderLogo";
 import { SettingsSection } from "./primitives";
-import type { CoreSettingsScope, ProviderDraft } from "./types";
+import { modelDraftFromPreset, type CoreSettingsScope, type ProviderDraft } from "./types";
 import type { ProviderPreset } from "../../lib/types";
 
 interface Props {
@@ -27,6 +29,7 @@ interface DialogState {
   open: boolean;
   initial?: ProviderDraft;
   editingID?: string;
+  autoRefresh?: boolean;
 }
 
 /**
@@ -38,6 +41,8 @@ export function ProvidersSection({ scope }: Props) {
   const draft = scope.draft;
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [tests, setTests] = useState<Record<string, TestState>>({});
+  const [presetQuery, setPresetQuery] = useState("");
+  const [catalogBusy, setCatalogBusy] = useState(false);
   const [dialog, setDialog] = useState<DialogState>({ open: false });
   const [disconnecting, setDisconnecting] = useState<ProviderDraft>();
 
@@ -80,7 +85,10 @@ export function ProvidersSection({ scope }: Props) {
 
   const removeProvider = (id: string) => {
     const providers = draft.providers.filter((provider) => provider.id !== id);
-    if (providers.length === 0) return;
+    if (providers.length === 0) {
+      scope.updateAndCommit({ providers, provider: "", model: "" });
+      return;
+    }
     if (draft.provider === id) {
       const fallback = fallbackSelection(providers);
       if (!fallback) return;
@@ -100,6 +108,18 @@ export function ProvidersSection({ scope }: Props) {
     }
   };
 
+  const refreshCatalog = async () => {
+    setCatalogBusy(true);
+    try {
+      await api.refreshCatalog();
+      setPresets(await api.presets());
+    } catch (error) {
+      notify(messageOf(error));
+    } finally {
+      setCatalogBusy(false);
+    }
+  };
+
   const openPreset = (preset: ProviderPreset) => {
     setDialog({
       open: true,
@@ -113,12 +133,7 @@ export function ProvidersSection({ scope }: Props) {
         clearKey: false,
         ready: false,
         dynamicModels: preset.dynamicModels,
-        models: (preset.models ?? []).map((model) => ({
-          id: model.id,
-          name: model.name,
-          contextWindow: String(model.contextWindow),
-          enabled: true,
-        })),
+        models: (preset.models ?? []).map(modelDraftFromPreset),
       },
     });
   };
@@ -144,7 +159,21 @@ export function ProvidersSection({ scope }: Props) {
     setDialog({ open: true, initial: provider, editingID: provider.id });
   };
 
-  const availablePresets = presets.filter((preset) => !draft.providers.some((provider) => provider.id === preset.id));
+  const syncModels = (provider: ProviderDraft) => {
+    setDialog({ open: true, initial: provider, editingID: provider.id, autoRefresh: true });
+  };
+
+  const term = presetQuery.trim().toLowerCase();
+  const availablePresets = presets.filter((preset) => {
+    if (draft.providers.some((provider) => provider.id === preset.id)) return false;
+    if (!term) return true;
+    return (
+      preset.name.toLowerCase().includes(term) ||
+      preset.id.toLowerCase().includes(term) ||
+      preset.baseUrl.toLowerCase().includes(term) ||
+      preset.apiKeyEnv.toLowerCase().includes(term)
+    );
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -154,10 +183,7 @@ export function ProvidersSection({ scope }: Props) {
       >
         <div className="flex flex-col">
           {draft.providers.map((provider) => {
-            const canRemove =
-              draft.providers.length > 1 &&
-              (provider.id !== draft.provider ||
-                draft.providers.some((item) => item.id !== provider.id && item.models.length > 0));
+            const canRemove = draft.providers.length > 0;
             const result = tests[provider.id];
             return (
               <div key={provider.id} className="border-b-[0.5px] border-border-base last:border-0">
@@ -211,6 +237,10 @@ export function ProvidersSection({ scope }: Props) {
                         {result?.tone === "busy" ? <LoaderCircle className="animate-spin" /> : <CircleAlert />}
                         Test
                       </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => syncModels(provider)}>
+                        <RefreshCw />
+                        Sync models
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         destructive
@@ -249,8 +279,19 @@ export function ProvidersSection({ scope }: Props) {
 
       <SettingsSection
         title="Presets"
-        description="Mainstream endpoints with models prefilled. Connect asks only for the key."
+        description="Built-in endpoints plus the public models.dev catalog. Connect asks only for the key."
       >
+        <div className="relative border-b-[0.5px] border-border-base py-2">
+          <Search className="pointer-events-none absolute top-1/2 left-2 size-3 -translate-y-1/2 text-text-faint" />
+          <Input
+            size="sm"
+            value={presetQuery}
+            aria-label="Search provider presets"
+            placeholder="Search providers"
+            onChange={(event) => setPresetQuery(event.target.value)}
+            className="pl-6"
+          />
+        </div>
         <div className="flex flex-col">
           {availablePresets.map((preset) => (
             <div
@@ -261,7 +302,7 @@ export function ProvidersSection({ scope }: Props) {
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-body text-text-base">{preset.name}</span>
                 <span className="truncate font-mono text-caption text-text-faint" title={preset.baseUrl}>
-                  {preset.apiKeyEnv} ·{" "}
+                  {preset.apiKeyEnv || (preset.defaultApiKey ? "key optional" : "no key")} ·{" "}
                   {preset.dynamicModels ? "models from endpoint" : `${preset.models?.length ?? 0} models`}
                 </span>
               </div>
@@ -271,11 +312,23 @@ export function ProvidersSection({ scope }: Props) {
             </div>
           ))}
           {presets.length > 0 && availablePresets.length === 0 && (
-            <span className="py-3 text-meta text-text-faint">Every preset is already connected.</span>
+            <span className="py-3 text-meta text-text-faint">
+              {term ? "No matching providers." : "Every preset is already connected."}
+            </span>
           )}
           {presets.length === 0 && <span className="py-3 text-meta text-text-faint">Loading presets…</span>}
         </div>
-        <div className="border-t-[0.5px] border-border-base py-3">
+        <div className="flex items-center justify-between gap-3 border-t-[0.5px] border-border-base py-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void refreshCatalog()}
+            disabled={catalogBusy}
+          >
+            <RefreshCw className={catalogBusy ? "animate-spin" : undefined} />
+            {catalogBusy ? "Refreshing" : "Refresh catalog"}
+          </Button>
           <Button type="button" variant="ghost" size="sm" onClick={openCustom}>
             <Plus />
             Custom endpoint
@@ -287,6 +340,7 @@ export function ProvidersSection({ scope }: Props) {
         open={dialog.open}
         initial={dialog.initial}
         editingID={dialog.editingID}
+        autoRefresh={dialog.autoRefresh}
         existingIDs={draft.providers.map((provider) => provider.id)}
         busy={scope.busy}
         onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}

@@ -46,15 +46,39 @@ type ProviderSettings struct {
 	APIKeySet bool            `json:"apiKeySet"`
 	APIKeyEnv string          `json:"apiKeyEnv"`
 	Ready     bool            `json:"ready"`
+	Blacklist []string        `json:"blacklist"`
+	Whitelist []string        `json:"whitelist"`
 	Models    []ModelSettings `json:"models"`
 }
 
 // ModelSettings is one model in a provider.
 type ModelSettings struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	ContextWindow int    `json:"contextWindow"`
-	Enabled       bool   `json:"enabled"`
+	ID              string                    `json:"id"`
+	Name            string                    `json:"name"`
+	ContextWindow   int                       `json:"contextWindow"`
+	MaxOutputTokens int                       `json:"maxOutputTokens,omitempty"`
+	Enabled         bool                      `json:"enabled"`
+	ToolCall        *bool                     `json:"toolCall,omitempty"`
+	Reasoning       bool                      `json:"reasoning"`
+	Attachment      bool                      `json:"attachment"`
+	Cost            *ModelCostSettings        `json:"cost,omitempty"`
+	Modalities      *ModelModalitiesSettings  `json:"modalities,omitempty"`
+	Options         map[string]any            `json:"options,omitempty"`
+	Variants        map[string]map[string]any `json:"variants,omitempty"`
+}
+
+// ModelCostSettings is a model's price per million tokens.
+type ModelCostSettings struct {
+	Input      float64 `json:"input,omitempty"`
+	Output     float64 `json:"output,omitempty"`
+	CacheRead  float64 `json:"cache_read,omitempty"`
+	CacheWrite float64 `json:"cache_write,omitempty"`
+}
+
+// ModelModalitiesSettings are the media kinds a model takes and returns.
+type ModelModalitiesSettings struct {
+	Input  []string `json:"input,omitempty"`
+	Output []string `json:"output,omitempty"`
 }
 
 // SettingsInput is the editable core config. An empty APIKey keeps the stored
@@ -79,15 +103,25 @@ type ProviderInput struct {
 	APIKey    string       `json:"apiKey"`
 	APIKeyEnv string       `json:"apiKeyEnv"`
 	ClearKey  bool         `json:"clearKey"`
+	Blacklist []string     `json:"blacklist"`
+	Whitelist []string     `json:"whitelist"`
 	Models    []ModelInput `json:"models"`
 }
 
 // ModelInput is one model being saved.
 type ModelInput struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	ContextWindow int    `json:"contextWindow"`
-	Enabled       bool   `json:"enabled"`
+	ID              string                    `json:"id"`
+	Name            string                    `json:"name"`
+	ContextWindow   int                       `json:"contextWindow"`
+	MaxOutputTokens int                       `json:"maxOutputTokens,omitempty"`
+	Enabled         bool                      `json:"enabled"`
+	ToolCall        *bool                     `json:"toolCall,omitempty"`
+	Reasoning       bool                      `json:"reasoning"`
+	Attachment      bool                      `json:"attachment"`
+	Cost            *ModelCostSettings        `json:"cost,omitempty"`
+	Modalities      *ModelModalitiesSettings  `json:"modalities,omitempty"`
+	Options         map[string]any            `json:"options,omitempty"`
+	Variants        map[string]map[string]any `json:"variants,omitempty"`
 }
 
 // ModelVisibility is one model's picker visibility. The core never reads this
@@ -140,9 +174,13 @@ func buildAppSettings(configPath string, file map[string]any) AppSettings {
 func readProviderSettings(file map[string]any) ([]ProviderSettings, string, string) {
 	topModel := strings.TrimSpace(stringSetting(file, "model"))
 	fallbackWindow := intSetting(file, "context_window", defaultContextWindow)
-	raw, _ := file["providers"].(map[string]any)
-	if len(raw) == 0 {
+	rawValue, exists := file["providers"]
+	if !exists {
 		return legacyProvider(file, topModel, fallbackWindow), "default", topModel
+	}
+	raw, _ := rawValue.(map[string]any)
+	if len(raw) == 0 {
+		return []ProviderSettings{}, "", ""
 	}
 
 	ids := make([]string, 0, len(raw))
@@ -183,10 +221,18 @@ func readProviderSettings(file map[string]any) ([]ProviderSettings, string, stri
 					enabled = value
 				}
 				models = append(models, ModelSettings{
-					ID:            modelID,
-					Name:          modelName,
-					ContextWindow: intSetting(model, "context_window", fallbackWindow),
-					Enabled:       enabled,
+					ID:              modelID,
+					Name:            modelName,
+					ContextWindow:   intSetting(model, "context_window", fallbackWindow),
+					MaxOutputTokens: intSetting(model, "max_output_tokens", 0),
+					Enabled:         enabled,
+					ToolCall:        boolSetting(model, "tool_call"),
+					Reasoning:       boolValue(model, "reasoning"),
+					Attachment:      boolValue(model, "attachment"),
+					Cost:            costSetting(model["cost"]),
+					Modalities:      modalitiesSetting(model["modalities"]),
+					Options:         mapSetting(model, "options"),
+					Variants:        variantsSetting(model),
 				})
 			}
 		}
@@ -197,6 +243,8 @@ func readProviderSettings(file map[string]any) ([]ProviderSettings, string, stri
 			APIKeySet: keySet,
 			APIKeyEnv: env,
 			Ready:     baseURL != "" && keySet,
+			Blacklist: stringList(entry, "blacklist"),
+			Whitelist: stringList(entry, "whitelist"),
 			Models:    models,
 		})
 	}
@@ -241,9 +289,6 @@ func legacyProvider(file map[string]any, model string, fallbackWindow int) []Pro
 
 func validateSettingsInput(input SettingsInput) error {
 	model := strings.TrimSpace(input.Model)
-	if model == "" {
-		return errors.New("model is required")
-	}
 	if input.MaxSteps < 1 {
 		return errors.New("max steps must be at least 1")
 	}
@@ -262,7 +307,15 @@ func validateSettingsInput(input SettingsInput) error {
 		}
 	}
 	if len(input.Providers) == 0 {
-		return errors.New("at least one provider is required")
+		// Disconnecting the last provider leaves no model configured; the
+		// core still starts and a prompt reports that no provider is set.
+		if model != "" || strings.TrimSpace(input.Provider) != "" {
+			return errors.New("no providers configured")
+		}
+		return nil
+	}
+	if model == "" {
+		return errors.New("model is required")
 	}
 	seen := map[string]bool{}
 	inputs := map[string]ProviderInput{}
@@ -343,6 +396,8 @@ func applySettingsInput(file map[string]any, input SettingsInput) {
 				entry["api_key"] = legacy
 			}
 		}
+		writeStringList(entry, "blacklist", provider.Blacklist)
+		writeStringList(entry, "whitelist", provider.Whitelist)
 		models := make([]any, 0, len(provider.Models))
 		for _, item := range provider.Models {
 			modelID := strings.TrimSpace(item.ID)
@@ -350,12 +405,37 @@ func applySettingsInput(file map[string]any, input SettingsInput) {
 			if name == "" {
 				name = modelID
 			}
-			models = append(models, map[string]any{
+			model := map[string]any{
 				"id":             modelID,
 				"name":           name,
 				"context_window": item.ContextWindow,
 				"enabled":        item.Enabled,
-			})
+			}
+			if item.MaxOutputTokens > 0 {
+				model["max_output_tokens"] = item.MaxOutputTokens
+			}
+			if item.ToolCall != nil {
+				model["tool_call"] = *item.ToolCall
+			}
+			if item.Reasoning {
+				model["reasoning"] = true
+			}
+			if item.Attachment {
+				model["attachment"] = true
+			}
+			if item.Cost != nil {
+				model["cost"] = item.Cost
+			}
+			if item.Modalities != nil {
+				model["modalities"] = item.Modalities
+			}
+			if len(item.Options) > 0 {
+				model["options"] = item.Options
+			}
+			if len(item.Variants) > 0 {
+				model["variants"] = item.Variants
+			}
+			models = append(models, model)
 		}
 		entry["models"] = models
 		next[id] = entry
@@ -421,13 +501,23 @@ func settingsInputFromSettings(settings AppSettings) SettingsInput {
 			Name:      provider.Name,
 			BaseURL:   provider.BaseURL,
 			APIKeyEnv: provider.APIKeyEnv,
+			Blacklist: provider.Blacklist,
+			Whitelist: provider.Whitelist,
 		}
 		for _, model := range provider.Models {
 			entry.Models = append(entry.Models, ModelInput{
-				ID:            model.ID,
-				Name:          model.Name,
-				ContextWindow: model.ContextWindow,
-				Enabled:       model.Enabled,
+				ID:              model.ID,
+				Name:            model.Name,
+				ContextWindow:   model.ContextWindow,
+				MaxOutputTokens: model.MaxOutputTokens,
+				Enabled:         model.Enabled,
+				ToolCall:        model.ToolCall,
+				Reasoning:       model.Reasoning,
+				Attachment:      model.Attachment,
+				Cost:            model.Cost,
+				Modalities:      model.Modalities,
+				Options:         model.Options,
+				Variants:        model.Variants,
 			})
 		}
 		input.Providers = append(input.Providers, entry)
@@ -594,4 +684,99 @@ func snippet(body []byte) string {
 		text = text[:300] + "…"
 	}
 	return text
+}
+
+func stringList(file map[string]any, key string) []string {
+	raw, _ := file[key].([]any)
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		text, _ := item.(string)
+		if text = strings.TrimSpace(text); text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+func writeStringList(entry map[string]any, key string, values []string) {
+	list := make([]any, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			list = append(list, value)
+		}
+	}
+	if len(list) == 0 {
+		delete(entry, key)
+		return
+	}
+	entry[key] = list
+}
+
+func boolValue(file map[string]any, key string) bool {
+	value, _ := file[key].(bool)
+	return value
+}
+
+func boolSetting(file map[string]any, key string) *bool {
+	value, ok := file[key].(bool)
+	if !ok {
+		return nil
+	}
+	return &value
+}
+
+func costSetting(raw any) *ModelCostSettings {
+	entry, ok := raw.(map[string]any)
+	if !ok || len(entry) == 0 {
+		return nil
+	}
+	return &ModelCostSettings{
+		Input:      floatValue(entry, "input"),
+		Output:     floatValue(entry, "output"),
+		CacheRead:  floatValue(entry, "cache_read"),
+		CacheWrite: floatValue(entry, "cache_write"),
+	}
+}
+
+func floatValue(file map[string]any, key string) float64 {
+	value, _ := file[key].(float64)
+	return value
+}
+
+func modalitiesSetting(raw any) *ModelModalitiesSettings {
+	entry, ok := raw.(map[string]any)
+	if !ok || len(entry) == 0 {
+		return nil
+	}
+	input := stringList(entry, "input")
+	output := stringList(entry, "output")
+	if len(input) == 0 && len(output) == 0 {
+		return nil
+	}
+	return &ModelModalitiesSettings{Input: input, Output: output}
+}
+
+func mapSetting(file map[string]any, key string) map[string]any {
+	value, _ := file[key].(map[string]any)
+	if len(value) == 0 {
+		return nil
+	}
+	return value
+}
+
+func variantsSetting(file map[string]any) map[string]map[string]any {
+	raw, _ := file["variants"].(map[string]any)
+	out := map[string]map[string]any{}
+	for name, item := range raw {
+		name = strings.TrimSpace(name)
+		variant, ok := item.(map[string]any)
+		if name == "" || !ok {
+			continue
+		}
+		out[name] = variant
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

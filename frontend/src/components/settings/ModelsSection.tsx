@@ -14,7 +14,7 @@ import {
 import { ProviderDialog } from "./ProviderDialog";
 import { ProviderLogo } from "./ProviderLogo";
 import { SettingsSection } from "./primitives";
-import type { CoreSettingsScope, ProviderDraft } from "./types";
+import type { CoreSettingsScope, ModelDraft, ProviderDraft } from "./types";
 
 /**
  * Models page: grouped catalog with the default selection at the top. Each
@@ -208,6 +208,7 @@ export function ModelsSection({
                         <div key={`${group.provider.id}:${model.id}`} className="flex items-center gap-2">
                           <button
                             type="button"
+                            title={modelMetaTitle(model)}
                             disabled={!group.provider.ready || model.enabled === false}
                             onClick={() => scope.updateAndCommit({ provider: group.provider.id, model: model.id })}
                             className="interactive flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
@@ -229,8 +230,9 @@ export function ModelsSection({
                             <span className="hidden min-w-0 max-w-48 truncate font-mono text-caption text-text-faint sm:block">
                               {model.id}
                             </span>
-                            <span className="w-12 shrink-0 text-right text-caption tabular-nums text-text-faint">
+                            <span className="w-20 shrink-0 text-right text-caption tabular-nums text-text-faint">
                               {windowLabel(Number(model.contextWindow))}
+                              {model.maxOutputTokens ? ` / ${windowLabel(Number(model.maxOutputTokens))}` : ""}
                             </span>
                           </button>
                           <Switch
@@ -276,6 +278,17 @@ export function ModelsSection({
       />
     </div>
   );
+}
+
+function modelMetaTitle(model: ModelDraft): string {
+  const parts: string[] = [];
+  if (model.inputCost || model.outputCost) {
+    parts.push(`$${model.inputCost || "0"} in / $${model.outputCost || "0"} out per M tokens`);
+  }
+  if (model.reasoning) parts.push("reasoning");
+  if (model.attachment) parts.push("vision");
+  if (model.toolCall === false) parts.push("no tools");
+  return parts.join(" · ");
 }
 
 function windowLabel(value: number): string {

@@ -75,6 +75,8 @@ export interface ProviderSettings {
   apiKeySet: boolean;
   apiKeyEnv: string;
   ready: boolean;
+  blacklist: string[];
+  whitelist: string[];
   models: ModelSettings[];
 }
 
@@ -82,7 +84,27 @@ export interface ModelSettings {
   id: string;
   name: string;
   contextWindow: number;
+  maxOutputTokens?: number;
   enabled: boolean;
+  toolCall?: boolean;
+  reasoning?: boolean;
+  attachment?: boolean;
+  cost?: ModelCost;
+  modalities?: ModelModalities;
+  options?: Record<string, unknown>;
+  variants?: Record<string, Record<string, unknown>>;
+}
+
+export interface ModelCost {
+  input?: number;
+  output?: number;
+  cache_read?: number;
+  cache_write?: number;
+}
+
+export interface ModelModalities {
+  input?: string[];
+  output?: string[];
 }
 
 /** Picker visibility for one model; saved without restarting a core. */
@@ -112,6 +134,8 @@ export interface ProviderInput {
   apiKey: string;
   apiKeyEnv: string;
   clearKey: boolean;
+  blacklist: string[];
+  whitelist: string[];
   models: ModelInput[];
 }
 
@@ -119,7 +143,15 @@ export interface ModelInput {
   id: string;
   name: string;
   contextWindow: number;
+  maxOutputTokens?: number;
   enabled: boolean;
+  toolCall?: boolean;
+  reasoning?: boolean;
+  attachment?: boolean;
+  cost?: ModelCost;
+  modalities?: ModelModalities;
+  options?: Record<string, unknown>;
+  variants?: Record<string, Record<string, unknown>>;
 }
 
 /** Built-in starting point for a mainstream provider. */
@@ -146,6 +178,12 @@ export interface PresetModel {
   id: string;
   name: string;
   contextWindow: number;
+  maxOutputTokens?: number;
+  toolCall?: boolean;
+  reasoning?: boolean;
+  attachment?: boolean;
+  cost?: ModelCost;
+  modalities?: ModelModalities;
 }
 
 /** Local preferences; applied immediately and never restart a core. */
@@ -154,6 +192,8 @@ export interface AppPreferences {
   autoApprove: boolean;
   /** The last model picked anywhere in the app; used by new sessions. */
   defaultModel: ModelSelection;
+  favoriteModels: ModelSelection[];
+  recentModels: ModelSelection[];
   appearance: AppearancePreferences;
 }
 

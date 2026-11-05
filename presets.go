@@ -17,19 +17,22 @@ type ProviderPreset struct {
 	Models        []PresetModel `json:"models"`
 }
 
-// PresetModel is one model prefilled by a provider preset.
+// PresetModel is one model prefilled by a provider preset or discovered
+// through an endpoint's model list.
 type PresetModel struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	ContextWindow int    `json:"contextWindow"`
+	ID              string                   `json:"id"`
+	Name            string                   `json:"name"`
+	ContextWindow   int                      `json:"contextWindow"`
+	MaxOutputTokens int                      `json:"maxOutputTokens,omitempty"`
+	ToolCall        *bool                    `json:"toolCall,omitempty"`
+	Reasoning       bool                     `json:"reasoning,omitempty"`
+	Attachment      bool                     `json:"attachment,omitempty"`
+	Cost            *ModelCostSettings       `json:"cost,omitempty"`
+	Modalities      *ModelModalitiesSettings `json:"modalities,omitempty"`
 }
 
-// ProviderPresets lists the built-in presets. Model ids are stable aliases
+// providerPresets lists the built-in presets. Model ids are stable aliases
 // where possible; every field stays editable because catalogs change.
-func (s *CoreService) ProviderPresets() []ProviderPreset {
-	return providerPresets()
-}
-
 func providerPresets() []ProviderPreset {
 	return []ProviderPreset{
 		{

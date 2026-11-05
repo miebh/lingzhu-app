@@ -5,6 +5,8 @@ export const defaultPreferences: AppPreferences = {
   defaultWorkspace: "",
   autoApprove: false,
   defaultModel: { provider: "", model: "" },
+  favoriteModels: [],
+  recentModels: [],
   appearance: {
     fontFamily: "",
     density: "comfortable",

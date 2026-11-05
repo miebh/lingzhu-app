@@ -44,7 +44,11 @@ func TestFetchProviderModels(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": []any{
-				map[string]any{"id": "deepseek/deepseek-chat", "display_name": "DeepSeek Chat", "magpie_label": "DeepSeek Chat · DeepSeek", "context_window": 128000},
+				map[string]any{
+					"id": "deepseek/deepseek-chat", "display_name": "DeepSeek Chat", "magpie_label": "DeepSeek Chat · DeepSeek",
+					"context_window": 128000, "max_output_tokens": 8192, "tool_call": true, "reasoning": true,
+					"modalities": map[string]any{"input": []any{"text", "image"}, "output": []any{"text"}},
+				},
 				map[string]any{"id": "relay/glm-5", "display_name": "GLM-5"},
 				map[string]any{"id": "claude/claude-sonnet-5"},
 				map[string]any{"id": "deepseek/deepseek-chat"},
@@ -63,6 +67,9 @@ func TestFetchProviderModels(t *testing.T) {
 	if models[0].ID != "deepseek/deepseek-chat" || models[0].Name != "DeepSeek Chat · DeepSeek" || models[0].ContextWindow != 128000 {
 		t.Fatalf("first model = %+v", models[0])
 	}
+	if models[0].MaxOutputTokens != 8192 || !models[0].Attachment || !models[0].Reasoning || models[0].ToolCall == nil || !*models[0].ToolCall {
+		t.Fatalf("first model metadata = %+v", models[0])
+	}
 	if models[1].ID != "relay/glm-5" || models[1].Name != "GLM-5" {
 		t.Fatalf("second model = %+v", models[1])
 	}
@@ -75,7 +82,11 @@ func TestEnrichProviderModelsUsesGatewayLabels(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": []any{
-				map[string]any{"id": "trae-cn/deepseek-chat", "display_name": "DeepSeek Chat", "magpie_label": "DeepSeek Chat · Trae CN", "context_window": 1000},
+				map[string]any{
+					"id": "trae-cn/deepseek-chat", "display_name": "DeepSeek Chat", "magpie_label": "DeepSeek Chat · Trae CN",
+					"context_window": 1000, "max_output_tokens": 8192, "tool_call": false, "reasoning": true,
+					"modalities": map[string]any{"input": []any{"text", "image"}, "output": []any{"text"}},
+				},
 				map[string]any{"id": "relay/glm-5", "display_name": "GLM-5", "magpie_label": "GLM-5 · Relay"},
 			},
 		})
@@ -95,7 +106,8 @@ func TestEnrichProviderModelsUsesGatewayLabels(t *testing.T) {
 	}}
 
 	enrichProviderModels(&settings, file, server.URL+"/v1")
-	if model := settings.Providers[0].Models[0]; model.Name != "DeepSeek Chat · Trae CN" || model.ContextWindow != 1000 {
+	if model := settings.Providers[0].Models[0]; model.Name != "DeepSeek Chat · Trae CN" || model.ContextWindow != 1000 ||
+		model.MaxOutputTokens != 8192 || model.ToolCall == nil || *model.ToolCall || !model.Reasoning || !model.Attachment {
 		t.Fatalf("plain model = %+v", model)
 	}
 	if model := settings.Providers[0].Models[1]; model.Name != "My GLM" {

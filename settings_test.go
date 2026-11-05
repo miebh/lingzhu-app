@@ -33,6 +33,19 @@ func TestBuildAppSettingsProjectsLegacyConfig(t *testing.T) {
 	}
 }
 
+func TestExplicitEmptyProvidersStayEmpty(t *testing.T) {
+	file := map[string]any{"providers": map[string]any{}, "provider": "", "model": ""}
+	settings := buildAppSettings("config.json", file)
+	if len(settings.Providers) != 0 || settings.Provider != "" || settings.Model != "" {
+		t.Fatalf("settings = %+v", settings)
+	}
+	if err := validateSettingsInput(SettingsInput{
+		MaxSteps: 1, ContextWindow: 0, CompactKeep: 1,
+	}); err != nil {
+		t.Fatalf("empty provider input rejected: %v", err)
+	}
+}
+
 func TestBuildAppSettingsReadsProviderBlock(t *testing.T) {
 	t.Setenv("TEST_PROVIDER_KEY", "from-env")
 	file := map[string]any{

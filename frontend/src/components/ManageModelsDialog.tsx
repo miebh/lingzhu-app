@@ -59,13 +59,18 @@ export function ManageModelsDialog({ open, busy, initialConnect = false, onOpenC
   const groups = useMemo(() => {
     return (draft?.providers ?? [])
       .map((provider) => {
+        const blocked = new Set(splitList(provider.blacklist));
+        const allowed = new Set(splitList(provider.whitelist));
+        const visible = provider.models.filter(
+          (model) => !blocked.has(model.id) && (allowed.size === 0 || allowed.has(model.id)),
+        );
         const providerHit =
           !!needle &&
           (provider.name.toLowerCase().includes(needle) || provider.id.toLowerCase().includes(needle));
         const models =
           !needle || providerHit
-            ? provider.models
-            : provider.models.filter(
+            ? visible
+            : visible.filter(
                 (model) =>
                   model.id.toLowerCase().includes(needle) || model.name.toLowerCase().includes(needle),
               );
@@ -127,6 +132,27 @@ export function ManageModelsDialog({ open, busy, initialConnect = false, onOpenC
             },
       ),
     );
+  };
+
+  const disconnectProvider = (id: string) => {
+    if (!draft || draft.providers.length === 0) return;
+    const providers = draft.providers.filter((provider) => provider.id !== id);
+    if (providers.length === 0) {
+      updateAndCommit({ providers, provider: "", model: "" });
+      return;
+    }
+    let selection: Partial<CoreDraft> = {};
+    if (draft.provider === id) {
+      const candidates = providers.flatMap((provider) =>
+        provider.models
+          .filter((model) => model.enabled !== false)
+          .map((model) => ({ provider: provider.id, model: model.id, ready: provider.ready })),
+      );
+      const next = candidates.find((item) => item.ready) ?? candidates[0];
+      if (!next) return;
+      selection = { provider: next.provider, model: next.model };
+    }
+    updateAndCommit({ providers, ...selection });
   };
 
   const addProvider = (provider: ProviderDraft) => {
@@ -332,11 +358,20 @@ export function ManageModelsDialog({ open, busy, initialConnect = false, onOpenC
 
       <ConnectProviderDialog
         open={connectOpen}
-        existingIDs={draft?.providers.map((provider) => provider.id) ?? []}
+        existing={draft?.providers ?? []}
         busy={busy}
+        canDisconnect={(draft?.providers.length ?? 0) > 0}
         onOpenChange={setConnectOpen}
         onSave={addProvider}
+        onDisconnect={disconnectProvider}
       />
     </>
   );
+}
+
+function splitList(text: string | undefined): string[] {
+  return (text ?? "")
+    .split(/[\n,]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
 }

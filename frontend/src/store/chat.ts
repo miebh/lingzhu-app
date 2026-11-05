@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api } from "../lib/api";
 import { applyEvent, nextEntryKey } from "../lib/chat-events";
 import { messageOf } from "../lib/errors";
+import { splitModelID } from "../lib/models";
 import {
   blankChat,
   chatKey,
@@ -266,12 +267,14 @@ export const useChatStore = create<ChatStore>((set, get) => {
         const preferred = usePreferencesStore.getState().preferences.defaultModel;
         const catalog = useCatalogStore.getState().catalog;
         const providers = catalog?.providers ?? [];
+        const preferredBase = splitModelID(preferred.model).model;
         const usable =
           preferred.provider &&
           preferred.model &&
           providers.some(
             (provider) =>
-              provider.id === preferred.provider && provider.models.some((entry) => entry.id === preferred.model),
+              provider.id === preferred.provider &&
+              provider.models.some((entry) => entry.id === preferredBase),
           )
             ? preferred
             : undefined;

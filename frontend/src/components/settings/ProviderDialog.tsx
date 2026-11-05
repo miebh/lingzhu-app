@@ -3,6 +3,8 @@ import { ChevronDown, Plus, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
 import { ProviderLogo } from "./ProviderLogo";
@@ -18,6 +20,8 @@ interface Props {
   busy?: boolean;
   /** Open the Advanced block immediately, for callers that edit the catalog. */
   advanced?: boolean;
+  /** Fetch the model list as soon as the dialog opens. */
+  autoRefresh?: boolean;
   /** Match the connect flow's wide, base-surface dialog. */
   presentation?: "default" | "connect";
   onOpenChange: (open: boolean) => void;
@@ -35,6 +39,7 @@ export function ProviderDialog({
   existingIDs,
   busy = false,
   advanced = false,
+  autoRefresh = false,
   presentation = "default",
   onOpenChange,
   onSave,
@@ -65,8 +70,25 @@ export function ProviderDialog({
             return {
               id: model.id,
               name: model.name || existing?.name || model.id,
-              contextWindow: existing?.contextWindow ?? String(model.contextWindow || 0),
+              contextWindow: String(model.contextWindow || existing?.contextWindow || 0),
+              maxOutputTokens: model.maxOutputTokens ? String(model.maxOutputTokens) : existing?.maxOutputTokens ?? "",
               enabled: existing?.enabled ?? true,
+              toolCall: model.toolCall === false ? false : existing?.toolCall,
+              reasoning: model.reasoning ? true : existing?.reasoning,
+              attachment: model.attachment ? true : existing?.attachment,
+              inputCost: model.cost?.input ? String(model.cost.input) : existing?.inputCost ?? "",
+              outputCost: model.cost?.output ? String(model.cost.output) : existing?.outputCost ?? "",
+              cacheReadCost: model.cost?.cache_read
+                ? String(model.cost.cache_read)
+                : existing?.cacheReadCost ?? "",
+              cacheWriteCost: model.cost?.cache_write
+                ? String(model.cost.cache_write)
+                : existing?.cacheWriteCost ?? "",
+              modalities: model.modalities
+                ? JSON.stringify(model.modalities, null, 2)
+                : existing?.modalities ?? "",
+              options: existing?.options ?? "",
+              variants: existing?.variants ?? "",
             };
           }),
         };
@@ -85,10 +107,10 @@ export function ProviderDialog({
     setNewModel("");
     setError(undefined);
     setFetchingModels(false);
-    if (initial?.dynamicModels && initial.models.length === 0) {
+    if (initial && (autoRefresh || (initial.dynamicModels && initial.models.length === 0))) {
       void loadModels(initial);
     }
-  }, [open, initial, advanced]);
+  }, [open, initial, advanced, autoRefresh]);
 
   if (!open || !draft) return null;
 
@@ -114,7 +136,7 @@ export function ProviderDialog({
     }
     setError(undefined);
     setNewModel("");
-    update({ models: [...draft.models, { id, name: id, contextWindow: "128000", enabled: true }] });
+    update({ models: [...draft.models, { id, name: id, contextWindow: "128000", enabled: true, options: "", variants: "" }] });
   };
 
   const submit = () => {
@@ -270,6 +292,26 @@ export function ProviderDialog({
                     className="select-text font-mono"
                   />
                 </Field>
+                <Field label="Hidden models (blacklist)">
+                  <Input
+                    size="sm"
+                    value={draft.blacklist ?? ""}
+                    aria-label="Provider model blacklist"
+                    placeholder="model-a, model-b"
+                    onChange={(event) => update({ blacklist: event.target.value })}
+                    className="select-text font-mono"
+                  />
+                </Field>
+                <Field label="Only these models (whitelist)">
+                  <Input
+                    size="sm"
+                    value={draft.whitelist ?? ""}
+                    aria-label="Provider model whitelist"
+                    placeholder="model-a, model-b"
+                    onChange={(event) => update({ whitelist: event.target.value })}
+                    className="select-text font-mono"
+                  />
+                </Field>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -337,6 +379,125 @@ export function ProviderDialog({
                       onChange={(event) => updateModel(index, { name: event.target.value })}
                       className="select-text"
                     />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Field label="Max output tokens">
+                        <Input
+                          size="sm"
+                          inputMode="numeric"
+                          value={model.maxOutputTokens ?? ""}
+                          aria-label={`Model ${index + 1} max output tokens`}
+                          placeholder="8192"
+                          onChange={(event) => updateModel(index, { maxOutputTokens: event.target.value })}
+                          className="select-text text-right"
+                        />
+                      </Field>
+                      <Field label="Input $/M tokens">
+                        <Input
+                          size="sm"
+                          inputMode="decimal"
+                          value={model.inputCost ?? ""}
+                          aria-label={`Model ${index + 1} input cost`}
+                          placeholder="0"
+                          onChange={(event) => updateModel(index, { inputCost: event.target.value })}
+                          className="select-text text-right"
+                        />
+                      </Field>
+                      <Field label="Output $/M tokens">
+                        <Input
+                          size="sm"
+                          inputMode="decimal"
+                          value={model.outputCost ?? ""}
+                          aria-label={`Model ${index + 1} output cost`}
+                          placeholder="0"
+                          onChange={(event) => updateModel(index, { outputCost: event.target.value })}
+                          className="select-text text-right"
+                        />
+                      </Field>
+                      <Field label="Cache read $/M">
+                        <Input
+                          size="sm"
+                          inputMode="decimal"
+                          value={model.cacheReadCost ?? ""}
+                          aria-label={`Model ${index + 1} cache read cost`}
+                          placeholder="0"
+                          onChange={(event) => updateModel(index, { cacheReadCost: event.target.value })}
+                          className="select-text text-right"
+                        />
+                      </Field>
+                      <Field label="Cache write $/M">
+                        <Input
+                          size="sm"
+                          inputMode="decimal"
+                          value={model.cacheWriteCost ?? ""}
+                          aria-label={`Model ${index + 1} cache write cost`}
+                          placeholder="0"
+                          onChange={(event) => updateModel(index, { cacheWriteCost: event.target.value })}
+                          className="select-text text-right"
+                        />
+                      </Field>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="flex items-center gap-2 text-caption text-text-muted">
+                        Tools
+                        <Switch
+                          aria-label={`Model ${index + 1} supports tools`}
+                          checked={model.toolCall !== false}
+                          onCheckedChange={(checked) =>
+                            updateModel(index, { toolCall: checked ? undefined : false })
+                          }
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-caption text-text-muted">
+                        Reasoning
+                        <Switch
+                          aria-label={`Model ${index + 1} returns reasoning`}
+                          checked={model.reasoning === true}
+                          onCheckedChange={(checked) =>
+                            updateModel(index, { reasoning: checked ? true : undefined })
+                          }
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-caption text-text-muted">
+                        Vision
+                        <Switch
+                          aria-label={`Model ${index + 1} takes images`}
+                          checked={model.attachment === true}
+                          onCheckedChange={(checked) =>
+                            updateModel(index, { attachment: checked ? true : undefined })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-caption text-text-faint">Modalities (JSON)</span>
+                      <Textarea
+                        value={model.modalities ?? ""}
+                        aria-label={`Model ${index + 1} modalities`}
+                        placeholder='{"input":["text","image"],"output":["text"]}'
+                        onChange={(event) => updateModel(index, { modalities: event.target.value })}
+                        className="min-h-16 font-mono text-caption select-text"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-caption text-text-faint">Request options (JSON)</span>
+                      <Textarea
+                        value={model.options ?? ""}
+                        aria-label={`Model ${index + 1} options`}
+                        placeholder='{"reasoningEffort":"high","textVerbosity":"low"}'
+                        onChange={(event) => updateModel(index, { options: event.target.value })}
+                        className="min-h-16 font-mono text-caption select-text"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-caption text-text-faint">Variants (JSON)</span>
+                      <Textarea
+                        value={model.variants ?? ""}
+                        aria-label={`Model ${index + 1} variants`}
+                        placeholder='{"high":{"reasoningEffort":"high"},"low":{"reasoningEffort":"low"}}'
+                        onChange={(event) => updateModel(index, { variants: event.target.value })}
+                        className="min-h-16 font-mono text-caption select-text"
+                      />
+                    </label>
                   </div>
                 ))}
                 <div className="flex items-center gap-2">

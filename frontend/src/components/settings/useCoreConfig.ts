@@ -196,11 +196,24 @@ export function fromSettings(settings: AppSettings): CoreDraft {
       apiKeySet: provider.apiKeySet,
       clearKey: false,
       ready: provider.ready,
+      blacklist: (provider.blacklist ?? []).join(", "),
+      whitelist: (provider.whitelist ?? []).join(", "),
       models: provider.models.map((model) => ({
         id: model.id,
         name: model.name,
         contextWindow: String(model.contextWindow),
+        maxOutputTokens: model.maxOutputTokens ? String(model.maxOutputTokens) : "",
         enabled: model.enabled !== false,
+        toolCall: model.toolCall === false ? false : undefined,
+        reasoning: model.reasoning ? true : undefined,
+        attachment: model.attachment ? true : undefined,
+        inputCost: model.cost?.input ? String(model.cost.input) : "",
+        outputCost: model.cost?.output ? String(model.cost.output) : "",
+        cacheReadCost: model.cost?.cache_read ? String(model.cost.cache_read) : "",
+        cacheWriteCost: model.cost?.cache_write ? String(model.cost.cache_write) : "",
+        modalities: model.modalities ? JSON.stringify(model.modalities, null, 2) : "",
+        options: model.options ? JSON.stringify(model.options, null, 2) : "",
+        variants: model.variants ? JSON.stringify(model.variants, null, 2) : "",
       })),
     })),
     maxSteps: String(settings.maxSteps),
@@ -214,7 +227,6 @@ export function fromSettings(settings: AppSettings): CoreDraft {
 
 export function toPayload(draft: CoreDraft): { payload?: SettingsInput; error?: string } {
   const model = draft.model.trim();
-  if (!model) return { error: "Model is required." };
   const maxSteps = Number(draft.maxSteps);
   if (!Number.isInteger(maxSteps) || maxSteps < 1) return { error: "Max steps must be at least 1." };
   const contextWindow = Number(draft.contextWindow);
@@ -235,9 +247,24 @@ export function toPayload(draft: CoreDraft): { payload?: SettingsInput; error?: 
       return { error: "Every permission rule needs an action and a resource." };
     }
   }
+  if (draft.providers.length === 0) {
+    if (draft.provider.trim() || model) return { error: "No providers configured." };
+    return {
+      payload: {
+        provider: "",
+        model: "",
+        providers: [],
+        maxSteps,
+        contextWindow,
+        compactKeep,
+        systemPrompt: draft.systemPrompt,
+        shell: draft.shell.trim() === "" ? [] : draft.shell.trim().split(/\s+/),
+        permission,
+      },
+    };
+  }
+  if (!model) return { error: "Model is required." };
   try {
-    if (draft.providers.length === 0) return { error: "At least one provider is required." };
-
     const seenProvider = new Set<string>();
     const providers = draft.providers.map((provider) => {
       const id = provider.id.trim();
@@ -262,7 +289,15 @@ export function toPayload(draft: CoreDraft): { payload?: SettingsInput; error?: 
           id: modelID,
           name: entry.name.trim() || modelID,
           contextWindow: window,
+          maxOutputTokens: optionalNumber(entry.maxOutputTokens, `Model ${modelID} max output tokens`, true),
           enabled: entry.enabled !== false,
+          toolCall: entry.toolCall === false ? false : undefined,
+          reasoning: entry.reasoning === true ? true : undefined,
+          attachment: entry.attachment === true ? true : undefined,
+          cost: costFromDraft(entry, modelID),
+          modalities: parseModalitiesText(entry.modalities, `Model ${modelID} modalities`),
+          options: parseObjectText(entry.options, `Model ${modelID} options`),
+          variants: parseVariantsText(entry.variants, `Model ${modelID} variants`),
         };
       });
       return {
@@ -272,6 +307,8 @@ export function toPayload(draft: CoreDraft): { payload?: SettingsInput; error?: 
         apiKey: provider.apiKey.trim(),
         apiKeyEnv: provider.apiKeyEnv.trim(),
         clearKey: provider.clearKey,
+        blacklist: splitList(provider.blacklist),
+        whitelist: splitList(provider.whitelist),
         models,
       };
     });
@@ -303,4 +340,74 @@ export function toPayload(draft: CoreDraft): { payload?: SettingsInput; error?: 
 function serialize(draft: CoreDraft): string {
   const result = toPayload(draft);
   return result.payload ? JSON.stringify(result.payload) : "";
+}
+
+function optionalNumber(text: string | undefined, label: string, integer = false): number | undefined {
+  const raw = (text ?? "").trim();
+  if (!raw) return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || (integer && !Number.isInteger(value))) {
+    throw new Error(`${label} must be a non-negative ${integer ? "integer" : "number"}.`);
+  }
+  return value;
+}
+
+function costFromDraft(entry: { inputCost?: string; outputCost?: string; cacheReadCost?: string; cacheWriteCost?: string }, modelID: string) {
+  const input = optionalNumber(entry.inputCost, `Model ${modelID} input cost`);
+  const output = optionalNumber(entry.outputCost, `Model ${modelID} output cost`);
+  const cacheRead = optionalNumber(entry.cacheReadCost, `Model ${modelID} cache read cost`);
+  const cacheWrite = optionalNumber(entry.cacheWriteCost, `Model ${modelID} cache write cost`);
+  if (input === undefined && output === undefined && cacheRead === undefined && cacheWrite === undefined) {
+    return undefined;
+  }
+  return { input, output, cache_read: cacheRead, cache_write: cacheWrite };
+}
+
+function parseModalitiesText(text: string | undefined, label: string) {
+  const value = parseObjectText(text, label);
+  if (!value) return undefined;
+  const input = Array.isArray(value.input) ? value.input.filter((item): item is string => typeof item === "string") : [];
+  const output = Array.isArray(value.output)
+    ? value.output.filter((item): item is string => typeof item === "string")
+    : [];
+  if (input.length === 0 && output.length === 0) return undefined;
+  return { input, output };
+}
+
+function splitList(text: string | undefined): string[] {
+  return (text ?? "")
+    .split(/[\n,]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function parseObjectText(text: string | undefined, label: string): Record<string, unknown> | undefined {
+  const raw = (text ?? "").trim();
+  if (!raw) return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Error(`${label} must be valid JSON.`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseVariantsText(
+  text: string | undefined,
+  label: string,
+): Record<string, Record<string, unknown>> | undefined {
+  const value = parseObjectText(text, label);
+  if (!value) return undefined;
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const [name, variant] of Object.entries(value)) {
+    if (!variant || typeof variant !== "object" || Array.isArray(variant)) {
+      throw new Error(`Variant ${name} in ${label} must be a JSON object.`);
+    }
+    out[name] = variant as Record<string, unknown>;
+  }
+  return out;
 }

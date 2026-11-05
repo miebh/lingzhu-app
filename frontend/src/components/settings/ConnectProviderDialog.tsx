@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Plus, Search, X } from "lucide-react";
+import { ChevronRight, Plus, Search, Unplug, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/Dialogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -8,25 +9,37 @@ import { api } from "../../lib/api";
 import type { MagpieGateway, ProviderPreset } from "../../lib/types";
 import { ProviderDialog } from "./ProviderDialog";
 import { ProviderLogo } from "./ProviderLogo";
-import type { ProviderDraft } from "./types";
+import { modelDraftFromPreset, type ProviderDraft } from "./types";
 
 interface Props {
   open: boolean;
-  existingIDs: string[];
+  /** Configured providers, listed first so they can be disconnected here. */
+  existing: ProviderDraft[];
   busy?: boolean;
+  canDisconnect?: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (provider: ProviderDraft) => void;
+  onDisconnect?: (providerID: string) => void;
 }
 
 /**
  * Provider picker that mirrors the reference connect flow: choose a preset (or
  * a custom endpoint), then enter the key in the provider dialog.
  */
-export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenChange, onSave }: Props) {
+export function ConnectProviderDialog({
+  open,
+  existing,
+  busy = false,
+  canDisconnect = false,
+  onOpenChange,
+  onSave,
+  onDisconnect,
+}: Props) {
   const [presets, setPresets] = useState<ProviderPreset[]>();
   const [magpie, setMagpie] = useState<MagpieGateway>();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ProviderDraft>();
+  const [disconnecting, setDisconnecting] = useState<ProviderDraft>();
 
   useEffect(() => {
     if (!open) return;
@@ -35,6 +48,7 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
     setMagpie(undefined);
     setQuery("");
     setSelected(undefined);
+    setDisconnecting(undefined);
     Promise.all([api.presets(), api.magpie().catch(() => undefined)])
       .then(([value, gateway]) => {
         if (!alive) return;
@@ -55,17 +69,33 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
     };
   }, [open]);
 
+  const existingIDs = useMemo(() => existing.map((provider) => provider.id), [existing]);
+  const existingSet = useMemo(() => new Set(existingIDs), [existingIDs]);
+
+  const connected = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return existing.filter(
+      (provider) =>
+        !term ||
+        provider.name.toLowerCase().includes(term) ||
+        provider.id.toLowerCase().includes(term) ||
+        provider.baseUrl.toLowerCase().includes(term) ||
+        provider.apiKeyEnv.toLowerCase().includes(term),
+    );
+  }, [existing, query]);
+
   const available = useMemo(() => {
     const term = query.trim().toLowerCase();
     return (presets ?? []).filter(
       (preset) =>
-        !term ||
-        preset.name.toLowerCase().includes(term) ||
-        preset.id.toLowerCase().includes(term) ||
-        preset.baseUrl.toLowerCase().includes(term) ||
-        preset.apiKeyEnv.toLowerCase().includes(term),
+        !existingSet.has(preset.id) &&
+        (!term ||
+          preset.name.toLowerCase().includes(term) ||
+          preset.id.toLowerCase().includes(term) ||
+          preset.baseUrl.toLowerCase().includes(term) ||
+          preset.apiKeyEnv.toLowerCase().includes(term)),
     );
-  }, [presets, query]);
+  }, [existingSet, presets, query]);
 
   const close = () => onOpenChange(false);
 
@@ -93,12 +123,7 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
       clearKey: false,
       ready: false,
       dynamicModels: preset.dynamicModels,
-      models: (preset.models ?? []).map((model) => ({
-        id: model.id,
-        name: model.name,
-        contextWindow: String(model.contextWindow),
-        enabled: true,
-      })),
+      models: (preset.models ?? []).map(modelDraftFromPreset),
     });
 
   const save = (provider: ProviderDraft) => {
@@ -164,48 +189,84 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
               <ChevronRight className="size-3.5 shrink-0 text-text-faint" />
             </button>
 
+            {connected.length > 0 && (
+              <>
+                <div className="mt-2 flex h-control-sm items-center px-2 text-meta text-text-faint">Connected</div>
+                {connected.map((provider) => (
+                  <div
+                    key={provider.id}
+                    className="flex h-control-md w-full min-w-0 items-center gap-2 rounded-md px-2"
+                  >
+                    <ProviderLogo
+                      id={provider.id}
+                      name={provider.name}
+                      className="size-4 shrink-0 text-text-muted"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-body text-text-base">
+                      {provider.name || provider.id}
+                    </span>
+                    <span
+                      className="hidden shrink-0 font-mono text-caption text-text-faint sm:block"
+                      title={provider.baseUrl}
+                    >
+                      {provider.baseUrl}
+                    </span>
+                    {onDisconnect && canDisconnect ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        disabled={busy}
+                        onClick={() => setDisconnecting(provider)}
+                        className="shrink-0 text-text-faint hover:text-state-fg-danger"
+                      >
+                        <Unplug />
+                        Disconnect
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="shrink-0">
+                        Connected
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+
             <div className="mt-2 flex h-control-sm items-center px-2 text-meta text-text-faint">Providers</div>
 
             {presets === undefined && (
               <div className="grid min-h-32 place-items-center text-meta text-text-faint">Loading providers…</div>
             )}
-            {presets !== undefined && available.length === 0 && (
+            {presets !== undefined && available.length === 0 && connected.length === 0 && (
               <div className="grid min-h-32 place-items-center text-meta text-text-faint">
                 {query.trim() ? "No matching providers" : "No presets available"}
               </div>
             )}
-            {available.map((preset) => {
-              const connected = existingIDs.includes(preset.id);
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  disabled={connected}
-                  title={preset.baseUrl}
-                  onClick={() => choosePreset(preset)}
-                  className="interactive flex h-control-md w-full min-w-0 items-center gap-2 rounded-md px-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <ProviderLogo
-                    id={preset.id}
-                    name={preset.name}
-                    className="size-4 shrink-0 text-text-muted"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-body text-text-base">{preset.name}</span>
-                  <span className="hidden shrink-0 text-caption text-text-faint sm:block">
-                    {preset.dynamicModels
-                      ? magpie?.available
-                        ? `Gateway ${magpie.version || "running"}`
-                        : "Discover models"
-                      : `${preset.models?.length ?? 0} models`}
-                  </span>
-                  {connected ? (
-                    <Badge variant="secondary">Connected</Badge>
-                  ) : (
-                    <ChevronRight className="size-3.5 shrink-0 text-text-faint" />
-                  )}
-                </button>
-              );
-            })}
+            {available.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                title={preset.baseUrl}
+                onClick={() => choosePreset(preset)}
+                className="interactive flex h-control-md w-full min-w-0 items-center gap-2 rounded-md px-2 text-left"
+              >
+                <ProviderLogo
+                  id={preset.id}
+                  name={preset.name}
+                  className="size-4 shrink-0 text-text-muted"
+                />
+                <span className="min-w-0 flex-1 truncate text-body text-text-base">{preset.name}</span>
+                <span className="hidden shrink-0 text-caption text-text-faint sm:block">
+                  {preset.dynamicModels
+                    ? magpie?.available
+                      ? `Gateway ${magpie.version || "running"}`
+                      : "Discover models"
+                    : `${preset.models?.length ?? 0} models`}
+                </span>
+                <ChevronRight className="size-3.5 shrink-0 text-text-faint" />
+              </button>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
@@ -224,6 +285,21 @@ export function ConnectProviderDialog({ open, existingIDs, busy = false, onOpenC
           onSave={save}
         />
       )}
+
+      <ConfirmDialog
+        open={disconnecting !== undefined}
+        title={`Disconnect ${disconnecting?.name || disconnecting?.id || "provider"}?`}
+        description="This removes the provider and its saved key. The session keeps its current model until another provider is selected."
+        confirmLabel="Disconnect"
+        destructive
+        onOpenChange={(next) => {
+          if (!next) setDisconnecting(undefined);
+        }}
+        onConfirm={() => {
+          if (disconnecting) onDisconnect?.(disconnecting.id);
+          setDisconnecting(undefined);
+        }}
+      />
     </>
   );
 }

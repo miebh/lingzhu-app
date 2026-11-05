@@ -42,10 +42,12 @@ type Selection struct {
 
 // Preferences is the persisted app-local settings document.
 type Preferences struct {
-	DefaultWorkspace string     `json:"defaultWorkspace"`
-	AutoApprove      bool       `json:"autoApprove"`
-	DefaultModel     Selection  `json:"defaultModel"`
-	Appearance       Appearance `json:"appearance"`
+	DefaultWorkspace string      `json:"defaultWorkspace"`
+	AutoApprove      bool        `json:"autoApprove"`
+	DefaultModel     Selection   `json:"defaultModel"`
+	Favorites        []Selection `json:"favoriteModels"`
+	Recent           []Selection `json:"recentModels"`
+	Appearance       Appearance  `json:"appearance"`
 }
 
 // Default is the preference set used when no row exists or the row is
@@ -173,6 +175,8 @@ func Normalize(prefs Preferences) Preferences {
 	if prefs.DefaultModel.Provider == "" || prefs.DefaultModel.Model == "" {
 		prefs.DefaultModel = Selection{}
 	}
+	prefs.Favorites = normalizeSelections(prefs.Favorites, 50)
+	prefs.Recent = normalizeSelections(prefs.Recent, 8)
 	prefs.Appearance.FontFamily = strings.TrimSpace(prefs.Appearance.FontFamily)
 	if len(prefs.Appearance.FontFamily) > 256 {
 		prefs.Appearance.FontFamily = prefs.Appearance.FontFamily[:256]
@@ -193,6 +197,27 @@ func Normalize(prefs Preferences) Preferences {
 		prefs.Appearance.ReduceMotion = defaults.Appearance.ReduceMotion
 	}
 	return prefs
+}
+
+func normalizeSelections(items []Selection, limit int) []Selection {
+	out := make([]Selection, 0, len(items))
+	seen := map[Selection]bool{}
+	for _, item := range items {
+		item.Provider = strings.TrimSpace(item.Provider)
+		item.Model = strings.TrimSpace(item.Model)
+		if item.Provider == "" || item.Model == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		out = append(out, item)
+		if len(out) == limit {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func metaHas(db *sql.DB, key string) (bool, error) {
