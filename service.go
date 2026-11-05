@@ -21,7 +21,9 @@ import (
 
 	"lingzhu-app/internal/appdb"
 	"lingzhu-app/internal/core"
+	"lingzhu-app/internal/global"
 	"lingzhu-app/internal/preferences"
+	"lingzhu-app/internal/version"
 	"lingzhu-app/internal/workspaces"
 )
 
@@ -566,9 +568,11 @@ func (s *CoreService) SavePreferences(input AppPreferences) error {
 
 // Info returns the read-only diagnostics shown on the About page.
 func (s *CoreService) Info() AppInfo {
-	version := "dev"
-	if build, ok := debug.ReadBuildInfo(); ok && build.Main.Version != "" && build.Main.Version != "(devel)" {
-		version = build.Main.Version
+	buildVersion := version.Version
+	if buildVersion == "0.1.0-dev" {
+		if build, ok := debug.ReadBuildInfo(); ok && build.Main.Version != "" && build.Main.Version != "(devel)" {
+			buildVersion = build.Main.Version
+		}
 	}
 	databasePath := s.appDBPath
 	if databasePath == "" {
@@ -581,7 +585,7 @@ func (s *CoreService) Info() AppInfo {
 		}
 	}
 	return AppInfo{
-		Version:      version,
+		Version:      buildVersion,
 		Built:        built,
 		ConfigPath:   s.configFilePath(),
 		DatabasePath: databasePath,
@@ -593,22 +597,10 @@ func (s *CoreService) Info() AppInfo {
 
 // localAppDir is the per-user directory that holds the app database, matching
 // the path package appdb writes to.
-func localAppDir() string {
-	base, err := os.UserConfigDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	return filepath.Join(base, "lingzhu", "app")
-}
+func localAppDir() string { return global.AppData() }
 
 // localCacheDir holds the core log, matching internal/core's log location.
-func localCacheDir() string {
-	base, err := os.UserCacheDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	return filepath.Join(base, "lingzhu", "app")
-}
+func localCacheDir() string { return global.Log() }
 
 // restartWorkspaces stops and starts every core this app owns. Reused cores
 // keep running and are reported so the UI can ask the user to restart them.
@@ -649,18 +641,16 @@ func (s *CoreService) restartWorkspaces() []string {
 	return reused
 }
 
-// configFilePath returns the file the settings dialog edits. When startup found
-// no config, the file next to the executable becomes the one new cores load.
+// configFilePath returns the file the settings dialog edits. Without a
+// discovered config, the user config file is the one new cores load, so a
+// machine-wide install never writes into the install directory.
 func (s *CoreService) configFilePath() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.configPath != "" {
 		return s.configPath
 	}
-	if exe, err := os.Executable(); err == nil {
-		return filepath.Join(filepath.Dir(exe), "config.json")
-	}
-	return "config.json"
+	return filepath.Join(global.Config(), "config.json")
 }
 
 func (s *CoreService) readConfigFile() (map[string]any, error) {
@@ -936,23 +926,22 @@ func slugify(name string) string {
 	return slug
 }
 
-// discoverConfig looks for a core config from the app's working directory
-// upwards, so launching from build/ still finds the repository configuration.
+// discoverConfig returns the core config the app should edit: LINGZHU_CONFIG,
+// then a project lingzhu.json beside the working directory, then the user
+// config file. It never looks for a build directory.
 func discoverConfig() string {
 	if path := os.Getenv("LINGZHU_CONFIG"); path != "" {
 		return path
 	}
 	dir, err := os.Getwd()
 	if err != nil {
-		return ""
+		return filepath.Join(global.Config(), "config.json")
 	}
 	for depth := 0; depth < 5; depth++ {
-		for _, candidate := range []string{"config.json", filepath.Join("build", "config.json")} {
-			path := filepath.Join(dir, candidate)
-			if _, err := os.Stat(path); err == nil {
-				abs, _ := filepath.Abs(path)
-				return abs
-			}
+		path := filepath.Join(dir, "lingzhu.json")
+		if _, err := os.Stat(path); err == nil {
+			abs, _ := filepath.Abs(path)
+			return abs
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -960,22 +949,25 @@ func discoverConfig() string {
 		}
 		dir = parent
 	}
-	return ""
+	return filepath.Join(global.Config(), "config.json")
 }
 
-// discoverWorkdir treats the parent of a build/ config as the project root.
+// discoverWorkdir treats the directory holding a project config as the project
+// root; the user config file has no project, so the working directory wins.
 func discoverWorkdir(configPath string) string {
 	if configPath == "" {
 		return ""
 	}
 	dir := filepath.Dir(configPath)
-	if filepath.Base(dir) == "build" {
-		return filepath.Dir(dir)
+	if strings.EqualFold(dir, global.Config()) {
+		return ""
 	}
 	return dir
 }
 
-// resolveBaseData mirrors the core's data_dir resolution.
+// resolveBaseData mirrors the core's data_dir resolution: an explicit data_dir
+// in the config resolves next to the config file, otherwise the user data
+// directory is used.
 func resolveBaseData(configPath string) string {
 	if configPath != "" {
 		if data, err := os.ReadFile(configPath); err == nil {
@@ -986,11 +978,6 @@ func resolveBaseData(configPath string) string {
 				return filepath.Join(filepath.Dir(configPath), file.DataDir)
 			}
 		}
-		return filepath.Join(filepath.Dir(configPath), "data")
 	}
-	base, err := os.UserConfigDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	return filepath.Join(base, "lingzhu", "app", "data")
+	return global.Data()
 }

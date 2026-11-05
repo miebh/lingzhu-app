@@ -42,7 +42,6 @@ tasks:
     summary: Builds the application natively on Linux
     internal: true
     deps:
-      - task: common:go:mod:tidy
       - task: common:build:frontend
         vars:
           BUILD_FLAGS:
@@ -59,7 +58,7 @@ tasks:
     cmds:
       - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o {{.OUTPUT}}'
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -X lingzhu-app/internal/version.Version={{.VERSION}}"{{end}}'
       DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
       OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
     env:
@@ -103,6 +102,7 @@ tasks:
     summary: Packages the application for Linux
     deps:
       - task: build
+      - task: common:build:core
     cmds:
       - task: create:appimage
       - task: create:deb
@@ -110,15 +110,17 @@ tasks:
       - task: create:aur
 
   create:appimage:
-    summary: Creates an AppImage
+    summary: Creates an AppImage that includes the core sidecar
     dir: build/linux/appimage
     deps:
       - task: build
+      - task: common:build:core
       - task: generate:dotdesktop
     cmds:
       - cp "{{.APP_BINARY}}" "{{.APP_NAME}}"
       - cp ../../appicon.png "{{.APP_NAME}}.png"
       - wails3 generate appimage -binary "{{.APP_NAME}}" -icon {{.ICON}} -desktopfile {{.DESKTOP_FILE}} -outputdir {{.OUTPUT_DIR}} -builddir {{.ROOT_DIR}}/build/linux/appimage/build
+      - bash bundle-core.sh "{{.OUTPUT_DIR}}/{{.APP_NAME}}-*.AppImage" "{{.ROOT_DIR}}/{{.CORE_BIN}}" "{{.OUTPUT_DIR}}"
     vars:
       APP_NAME: '{{.APP_NAME}}'
       APP_BINARY: '../../../bin/{{.APP_NAME}}'

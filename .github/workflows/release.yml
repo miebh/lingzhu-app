@@ -1,0 +1,234 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example 0.2.0
+        required: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Authenticode certificate for the Windows artifacts. When the secret is
+  # absent the release still builds, but the binaries and installer stay
+  # unsigned.
+  WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+  WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+  TIMESTAMP_SERVER: http://timestamp.digicert.com
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lingzhu-app
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/lingzhu
+          path: lingzhu
+      - id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: plan
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lingzhu-app
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/lingzhu
+          path: lingzhu
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: lingzhu-app/go.mod
+          cache: true
+          cache-dependency-path: |
+            lingzhu/go.sum
+            lingzhu-app/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: lingzhu-app/frontend/package-lock.json
+
+      - name: Install Linux desktop dependencies
+        if: matrix.goos == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
+
+      - name: Install frontend dependencies
+        working-directory: lingzhu-app/frontend
+        run: npm ci
+
+      - name: Build the app and its core
+        working-directory: lingzhu-app
+        run: wails3 task build VERSION=${{ needs.plan.outputs.version }} CORE_GOOS=${{ matrix.goos }} CORE_GOARCH=${{ matrix.goarch }}
+
+      - name: Stage the signing certificate
+        if: matrix.goos == 'windows' && env.WINDOWS_CERTIFICATE_BASE64 != ''
+        shell: bash
+        run: |
+          echo "$WINDOWS_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.pfx"
+
+      - name: Sign the Windows binaries
+        if: matrix.goos == 'windows' && env.WINDOWS_CERTIFICATE_BASE64 != ''
+        working-directory: lingzhu-app
+        env:
+          SIGN_CERTIFICATE: ${{ runner.temp }}/signing.pfx
+          SIGN_CERTIFICATE_PASSWORD: ${{ env.WINDOWS_CERTIFICATE_PASSWORD }}
+          TIMESTAMP_SERVER: ${{ env.TIMESTAMP_SERVER }}
+        run: |
+          wails3 task windows:sign:app
+          wails3 task windows:stage:core
+          wails3 task windows:sign:core
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          version="${{ needs.plan.outputs.version }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            cp "lingzhu-app/bin/lingzhu-app.exe" "dist/lingzhu-app_${version}_${{ matrix.goos }}_${{ matrix.goarch }}.exe"
+            cp "lingzhu/bin/lingzhu.exe" "dist/lingzhu_${version}_${{ matrix.goos }}_${{ matrix.goarch }}.exe"
+          else
+            cp "lingzhu-app/bin/lingzhu-app" "dist/lingzhu-app_${version}_${{ matrix.goos }}_${{ matrix.goarch }}"
+            cp "lingzhu/bin/lingzhu" "dist/lingzhu_${version}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lingzhu-app-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  package:windows:
+    name: package (NSIS installer and MSIX)
+    needs: [plan, build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lingzhu-app
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/lingzhu
+          path: lingzhu
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: lingzhu-app/go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: lingzhu-app/frontend/package-lock.json
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
+      - name: Install frontend dependencies
+        working-directory: lingzhu-app/frontend
+        run: npm ci
+
+      - name: Stage the signing certificate
+        if: env.WINDOWS_CERTIFICATE_BASE64 != ''
+        shell: bash
+        run: |
+          echo "$WINDOWS_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.pfx"
+
+      - name: Build the signed installer and MSIX
+        if: env.WINDOWS_CERTIFICATE_BASE64 != ''
+        working-directory: lingzhu-app
+        env:
+          SIGN_CERTIFICATE: ${{ runner.temp }}/signing.pfx
+          SIGN_CERTIFICATE_PASSWORD: ${{ env.WINDOWS_CERTIFICATE_PASSWORD }}
+          TIMESTAMP_SERVER: ${{ env.TIMESTAMP_SERVER }}
+        run: wails3 task windows:package:signed VERSION=${{ needs.plan.outputs.version }} INSTALL_SCOPE=user
+
+      - name: Build the unsigned installer and MSIX
+        if: env.WINDOWS_CERTIFICATE_BASE64 == ''
+        working-directory: lingzhu-app
+        run: |
+          wails3 task package VERSION=${{ needs.plan.outputs.version }} INSTALL_SCOPE=user
+          wails3 task windows:create:msix:package VERSION=${{ needs.plan.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lingzhu-app-packages
+          path: |
+            lingzhu-app/bin/*installer.exe
+            lingzhu-app/bin/*.msix
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    needs: [plan, build, package:windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/*
+          if-no-files-found: error

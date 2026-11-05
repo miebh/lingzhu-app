@@ -2,13 +2,23 @@ version: '3'
 
 tasks:
   go:mod:tidy:
-    summary: Runs `go mod tidy`
+    summary: Verifies that go.mod and go.sum are tidy without rewriting them
     internal: true
-    # Universal/multi-arch builds invoke this concurrently from parallel deps;
-    # two `go mod tidy` processes racing on go.mod can corrupt it (#4637).
-    run: once
     cmds:
-      - go mod tidy
+      - go mod tidy -diff
+
+  build:core:
+    summary: Builds the core binary the app launches as a sidecar
+    desc: |
+      Honors CORE_GOOS/CORE_GOARCH so a cross-compiled desktop build ships a
+      core for the same platform. Defaults to the host.
+    run: once
+    dir: "{{.CORE_DIR}}"
+    cmds:
+      - go build -trimpath -buildvcs=false -ldflags="-w -s -X lingzhu/internal/version.Version={{.VERSION}}" -o "bin/lingzhu{{.CORE_EXT}}" ./cmd/lingzhu
+    env:
+      GOOS: '{{.CORE_OS}}'
+      GOARCH: '{{.CORE_GOARCH | default ARCH}}'
 
   install:frontend:deps:
     summary: Install frontend dependencies
@@ -176,8 +186,6 @@ tasks:
   generate:bindings:
     summary: Generates bindings for the frontend
     run: once
-    deps:
-      - task: go:mod:tidy
     sources:
       - "**/*.[jt]s"
       - exclude: frontend/**/*

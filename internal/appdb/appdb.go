@@ -8,15 +8,13 @@ import (
 	"path/filepath"
 
 	_ "modernc.org/sqlite"
+
+	"lingzhu-app/internal/global"
 )
 
-// Open opens the database under the user config directory and returns its path.
+// Open opens the database under the per-user app directory and returns its path.
 func Open() (*sql.DB, string, error) {
-	base, err := os.UserConfigDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	return OpenAt(filepath.Join(base, "lingzhu", "app"))
+	return OpenAt(global.AppData())
 }
 
 // OpenAt opens (and creates) the database in dir. Tests use it directly.

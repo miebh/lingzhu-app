@@ -11,47 +11,53 @@ already running) and talks to it over HTTP + SSE. Only a core the app started is
 - Go 1.26+
 - Node 20+ and npm
 - Wails v3 CLI: `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0`
-- A built core: from the repository root, `go build -o build/lingzhu.exe ./cmd/lingzhu` (inside `lingzhu/`)
 
 ## Run
 
 ```sh
-# from the repository root; builds the core once
-cd lingzhu && go build -o ../build/lingzhu.exe ./cmd/lingzhu
+# from this directory; builds the core into ../lingzhu/bin and the app into bin/
+wails3 task build    # production binaries
+wails3 task dev      # hot reload against the core in ../lingzhu/bin
 
-cd ../lingzhu-app
-wails3 dev          # hot reload
-wails3 build        # production binary at ../build/lingzhu-app.exe
+wails3 task package  # per-user installer that ships both binaries
 ```
 
-All artifacts live in the repository `build/` directory, next to the core and `config.json`:
+All artifacts are build output and stay out of the repository:
 
 ```text
-build/lingzhu.exe        core server
-build/lingzhu-app.exe    desktop client
-build/config.json        core configuration
-build/data/              session logs
+lingzhu/bin/lingzhu.exe          core server
+lingzhu-app/bin/lingzhu-app.exe  desktop client
+.dev/                            development data, state and logs (`task dev`)
 ```
 
-Because the app sits beside the core, it finds both the binary and the config without any
-environment variables: the config makes its parent directory (the repository root) the agent
-working directory.
+Runtime state lives in the user profile, never in the source tree:
 
-At startup the app looks for the core binary next to itself, in `../build/`, and on `PATH`, and for a
-config by walking up from the working directory (`config.json` or `build/config.json`). A discovered
-`build/config.json` makes its parent directory the agent working directory.
+```text
+%APPDATA%/lingzhu/config.json       core configuration
+%APPDATA%/lingzhu/app/app.db        app preferences and workspaces
+%LOCALAPPDATA%/lingzhu/data         session databases, one lock per directory
+%LOCALAPPDATA%/lingzhu/cache/log    core.log, rotated at 5MB
+```
+
+A release install puts both binaries in one directory, so the app finds the core beside itself
+without any environment variable. At startup the app looks for the core next to itself, at
+`LINGZHU_CORE`, and on `PATH`, and for a config at `LINGZHU_CONFIG`, then a project `lingzhu.json`
+found by walking up from the working directory, then the user config file. A project config makes
+its directory the agent working directory; the user config leaves it at the process directory.
 
 ## Environment
 
 | Variable | Meaning |
 |---|---|
 | `LINGZHU_CORE` | Path to the core binary |
+| `LINGZHU_HOME` | Redirect data, state, cache and tmp under one directory (development) |
 | `LINGZHU_ADDR` | Core address, default `127.0.0.1:8787` |
 | `LINGZHU_WORKDIR` | Agent working directory |
 | `LINGZHU_DATA_DIR` | Session data directory |
 | `LINGZHU_CONFIG` | Core config file |
+| `LINGZHU_CONFIG_DIR` | Directory holding the user config file |
 
-Core stdout and stderr go to `%LOCALAPPDATA%\lingzhu\app\core.log` on Windows
+Core stdout and stderr go to `%LOCALAPPDATA%\lingzhu\cache\log\core.log` on Windows
 (`~/Library/Caches` / `~/.cache` elsewhere).
 
 ## Layout
@@ -60,6 +66,11 @@ Core stdout and stderr go to `%LOCALAPPDATA%\lingzhu\app\core.log` on Windows
 main.go              Wails app, window, service registration
 service.go           Bridge: core lifecycle, session API, event forwarding
 internal/core        HTTP/SSE client and sidecar process management
+internal/global      Per-user config, data, state, cache and log roots
+internal/appdb       App SQLite database (preferences, workspaces)
+internal/version     Version injected by -ldflags from ../lingzhu/VERSION
+tools/syncversion    Stamps the version into packaging metadata
+tools/msix           Packages the app and its core sidecar into one MSIX
 frontend/src         React UI (App, Sidebar, Messages, Composer, PermissionCard)
 frontend/src/store           Zustand stores per domain and app bootstrap
 frontend/src/components      Markdown, ContextMeter, Dialogs, Toast

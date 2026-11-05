@@ -93,6 +93,12 @@ Section
     
     !insertmacro wails.files
 
+    # The core runs as a sidecar: the app finds it in its own directory, so both
+    # binaries ship together and no environment variable is needed.
+    !ifdef ARG_WAILS_CORE_BINARY
+        File "/oname=lingzhu.exe" "${ARG_WAILS_CORE_BINARY}"
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 

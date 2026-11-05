@@ -34,7 +34,6 @@ tasks:
     summary: Builds the application using native Go cross-compilation
     internal: true
     deps:
-      - task: common:go:mod:tidy
       - task: common:build:frontend
         vars:
           BUILD_FLAGS:
@@ -57,7 +56,7 @@ tasks:
       - cmd: rm -f *.syso
         platforms: [linux, darwin]
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui"{{end}}'
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui -X lingzhu-app/internal/version.Version={{.VERSION}}"{{end}}'
     env:
       GOOS: windows
       CGO_ENABLED: '{{.CGO_ENABLED | default "0"}}'
@@ -96,13 +95,16 @@ tasks:
 
   package:
     summary: Packages the application
+    desc: |
+      Defaults to a per-user install so the app can write settings without
+      elevation. Pass INSTALL_SCOPE=machine for a machine-wide install.
     cmds:
       - task: '{{if eq (.FORMAT | default "nsis") "msix"}}create:msix:package{{else}}create:nsis:installer{{end}}'
         vars:
-          INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+          INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "user"}}'
     vars:
       FORMAT: '{{.FORMAT | default "nsis"}}'
-      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "user"}}'
 
   generate:syso:
     summary: Generates Windows `.syso` file
@@ -112,48 +114,95 @@ tasks:
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
 
+  stage:core:
+    summary: Stages the core beside the app binary
+    desc: |
+      Copies the built core to bin/lingzhu.exe so the packaging scripts can
+      include it. NSIS cannot expand ".." in a File directive, and a release
+      install keeps both binaries together. This never rebuilds anything, so a
+      core signed in place at bin/lingzhu.exe keeps its signature as long as the
+      task is not rerun after signing.
+    cmds:
+      - cmd: powershell -NoProfile -Command "Copy-Item -Force '{{.ROOT_DIR}}/{{.CORE_BIN}}' '{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe'"
+        platforms: [windows]
+      - cmd: cp "{{.ROOT_DIR}}/{{.CORE_BIN}}" "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"
+        platforms: [linux, darwin]
+
   create:nsis:installer:
     summary: Creates an NSIS installer
+    desc: |
+      Installs the app and the core sidecar into one directory, so the app finds
+      the core beside itself without any environment variable. The installer
+      defaults to a per-user install because a machine-wide install directory is
+      not writable by the app's settings page.
+
+      Builds the binaries first, then packs them. Use `create:nsis:pack` when
+      the binaries are already built and signed.
     dir: build/windows/nsis
-    deps:
+    cmds:
       - task: build
+      - task: common:build:core
+      - task: stage:core
+      - task: create:nsis:pack
+        vars:
+          INSTALL_SCOPE: '{{.INSTALL_SCOPE}}'
+
+  create:nsis:pack:
+    summary: Packs the already built binaries into an NSIS installer
+    desc: |
+      Does not build or overwrite the binaries, so a signed executable stays
+      signed. The core must already be staged at bin/lingzhu.exe.
+    dir: build/windows/nsis
     preconditions:
       - sh: '[ "{{.INSTALL_SCOPE}}" = "user" ] || [ "{{.INSTALL_SCOPE}}" = "machine" ]'
         msg: "INSTALL_SCOPE must be 'user' or 'machine', got '{{.INSTALL_SCOPE}}'"
+      - sh: 'test -f "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"'
+        msg: "stage the core at bin/lingzhu.exe first (task common:build:core)"
     cmds:
       # Create the Microsoft WebView2 bootstrapper if it doesn't exist
       - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
       - |
         {{if eq OS "windows"}}
-        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" project.nsi
+        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" -DARG_WAILS_CORE_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\lingzhu.exe" project.nsi
         {{else}}
-        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" project.nsi
+        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" -DARG_WAILS_CORE_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe" project.nsi
         {{end}}
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
       ARG_FLAG: '{{if eq .ARCH "amd64"}}AMD64{{else}}ARM64{{end}}'
-      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "user"}}'
 
   create:msix:package:
-    summary: Creates an MSIX package
-    deps:
-      - task: build
+    summary: Creates an MSIX package that ships the app and its core sidecar
+    desc: |
+      Builds the binaries first, then packs them. Use `create:msix:pack` when
+      the binaries are already built and signed.
     cmds:
-      - |-
-        wails3 tool msix \
-          --config "{{.ROOT_DIR}}/build/config.yml" \
-          --name "{{.APP_NAME}}.exe" \
-          --executable "{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" \
-          --arch "{{.ARCH}}" \
-          --out "{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}.msix" \
-          {{if .CERT_PATH}}--cert "{{.CERT_PATH}}"{{end}} \
-          {{if .PUBLISHER}}--publisher "{{.PUBLISHER}}"{{end}} \
-          {{if eq .USE_MSIX_TOOL "true"}}--use-msix-tool{{else}}--use-makeappx{{end}}
+      - task: build
+      - task: common:build:core
+      - task: stage:core
+      - task: create:msix:pack
+
+  create:msix:pack:
+    summary: Packs the already built binaries into an MSIX package
+    desc: |
+      Does not build or overwrite the binaries, so a signed executable stays
+      signed. The core must already be staged at bin/lingzhu.exe.
+    preconditions:
+      - sh: 'test -f "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"'
+        msg: "stage the core at bin/lingzhu.exe first (task common:build:core)"
+    cmds:
+      - >-
+        go run ./tools/msix
+        --config "{{.ROOT_DIR}}/build/config.yml"
+        --app "{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe"
+        --core "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"
+        --arch "{{.ARCH}}"
+        --out "{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}.msix"
+        {{if .PUBLISHER}}--publisher "{{.PUBLISHER}}"{{end}}
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
-      CERT_PATH: '{{.CERT_PATH | default ""}}'
       PUBLISHER: '{{.PUBLISHER | default ""}}'
-      USE_MSIX_TOOL: '{{.USE_MSIX_TOOL | default "false"}}'
 
   install:msix:tools:
     summary: Installs tools required for MSIX packaging
@@ -164,32 +213,89 @@ tasks:
     cmds:
       - '{{.BIN_DIR}}/{{.APP_NAME}}.exe'
 
-  sign:
-    summary: Signs the Windows executable
+  sign:app:
+    summary: Signs the app executable that is already built
     desc: |
-      Signs the .exe with an Authenticode certificate.
+      Signs bin/<app>.exe in place. It never rebuilds, so a signed binary keeps
+      its signature; build first with `task build`.
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'
+    cmds:
+      # Certificate vars are optional: if unset, `wails3 tool sign` falls back to
+      # the certificate configured globally via `wails3 setup`.
+      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}.exe" {{if .SIGN_CERTIFICATE}}--certificate "{{.SIGN_CERTIFICATE}}"{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint "{{.SIGN_THUMBPRINT}}"{{end}} {{if .TIMESTAMP_SERVER}}--timestamp "{{.TIMESTAMP_SERVER}}"{{end}} {{if .SIGN_CERTIFICATE_PASSWORD}}--password "{{.SIGN_CERTIFICATE_PASSWORD}}"{{end}}
+
+  sign:
+    summary: Builds and signs the Windows executable
+    desc: |
+      Builds the app, then signs bin/<app>.exe with an Authenticode certificate.
       Set SIGN_CERTIFICATE or SIGN_THUMBPRINT to override the certificate
       configured globally via `wails3 setup` (~/.config/wails/defaults.yaml).
       Password is retrieved from system keychain (run: wails3 setup signing)
     deps:
       - task: build
     cmds:
-      # Certificate vars are optional: if unset, `wails3 tool sign` falls back to
-      # the certificate configured globally via `wails3 setup`.
-      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}.exe" {{if .SIGN_CERTIFICATE}}--certificate "{{.SIGN_CERTIFICATE}}"{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint "{{.SIGN_THUMBPRINT}}"{{end}} {{if .TIMESTAMP_SERVER}}--timestamp "{{.TIMESTAMP_SERVER}}"{{end}}
+      - task: sign:app
+  sign:core:
+    summary: Signs the staged core sidecar
+    desc: |
+      Signs bin/lingzhu.exe in place with the same certificate as the app, so
+      both binaries inside the installer carry a signature. Stage it first with
+      `task windows:stage:core`; this never rebuilds.
+    cmds:
+      - wails3 tool sign --input "{{.BIN_DIR}}/lingzhu.exe" {{if .SIGN_CERTIFICATE}}--certificate "{{.SIGN_CERTIFICATE}}"{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint "{{.SIGN_THUMBPRINT}}"{{end}} {{if .TIMESTAMP_SERVER}}--timestamp "{{.TIMESTAMP_SERVER}}"{{end}} {{if .SIGN_CERTIFICATE_PASSWORD}}--password "{{.SIGN_CERTIFICATE_PASSWORD}}"{{end}}
+
+  package:signed:
+    summary: Builds, signs both executables, then packs and signs the installers
+    desc: |
+      Release path, in strict order: build the app and its core once, stage the
+      core beside the app, sign both executables, pack the per-user NSIS
+      installer and the MSIX from the signed binaries, then sign both packages.
+      The pack and sign tasks never rebuild, so nothing overwrites a signature.
+      Steps run in cmds rather than deps because go-task runs deps concurrently.
+    vars:
+      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "user"}}'
+    cmds:
+      - task: build
+      - task: common:build:core
+      - task: stage:core
+      - task: sign:app
+      - task: sign:core
+      - task: create:nsis:pack
+        vars:
+          INSTALL_SCOPE: '{{.INSTALL_SCOPE}}'
+      - task: create:msix:pack
+      - task: sign:installer
+      - task: sign:msix
 
   sign:installer:
     summary: Signs the NSIS installer
     desc: |
-      Creates and signs the NSIS installer.
+      Signs the NSIS installer already written to bin/. Pack it first with
+      `create:nsis:pack`; this task never rebuilds or repacks.
       Set SIGN_CERTIFICATE or SIGN_THUMBPRINT to override the certificate
       configured globally via `wails3 setup` (~/.config/wails/defaults.yaml).
       Password is retrieved from system keychain (run: wails3 setup signing)
-    deps:
-      - task: create:nsis:installer
-        vars:
-          INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
     vars:
-      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+      ARCH: '{{.ARCH | default ARCH}}'
+      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "user"}}'
+    preconditions:
+      - sh: 'test -f "{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}-installer.exe"'
+        msg: "build the installer first: task windows:create:nsis:pack"
     cmds:
-      - wails3 tool sign --input "build/windows/nsis/{{.APP_NAME}}-installer.exe" {{if .SIGN_CERTIFICATE}}--certificate "{{.SIGN_CERTIFICATE}}"{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint "{{.SIGN_THUMBPRINT}}"{{end}} {{if .TIMESTAMP_SERVER}}--timestamp "{{.TIMESTAMP_SERVER}}"{{end}}
+      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}-installer.exe" {{if .SIGN_CERTIFICATE}}--certificate "{{.SIGN_CERTIFICATE}}"{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint "{{.SIGN_THUMBPRINT}}"{{end}} {{if .TIMESTAMP_SERVER}}--timestamp "{{.TIMESTAMP_SERVER}}"{{end}} {{if .SIGN_CERTIFICATE_PASSWORD}}--password "{{.SIGN_CERTIFICATE_PASSWORD}}"{{end}}
+
+  sign:msix:
+    summary: Signs the MSIX package
+    desc: |
+      Signs an existing MSIX package with an Authenticode certificate.
+      Set SIGN_CERTIFICATE or SIGN_THUMBPRINT to override the certificate
+      configured globally via `wails3 setup` (~/.config/wails/defaults.yaml).
+      Password is retrieved from system keychain (run: wails3 setup signing)
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'
+    preconditions:
+      - sh: 'test -f "{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}.msix"'
+        msg: "build the MSIX first: task windows:create:msix:pack"
+    cmds:
+      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}.msix" {{if .SIGN_CERTIFICATE}}--certificate "{{.SIGN_CERTIFICATE}}"{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint "{{.SIGN_THUMBPRINT}}"{{end}} {{if .TIMESTAMP_SERVER}}--timestamp "{{.TIMESTAMP_SERVER}}"{{end}} {{if .SIGN_CERTIFICATE_PASSWORD}}--password "{{.SIGN_CERTIFICATE_PASSWORD}}"{{end}}

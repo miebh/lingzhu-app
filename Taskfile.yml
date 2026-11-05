@@ -2,11 +2,19 @@ version: '3'
 
 vars:
   APP_NAME: "lingzhu-app"
-  BIN_DIR: "../build"
+  BIN_DIR: "bin"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  # The core is a separate module beside this one; both release binaries come
+  # from the same version file so one number describes the whole product.
+  CORE_DIR: "../lingzhu"
+  CORE_OS: '{{.CORE_GOOS | default OS}}'
+  CORE_EXT: '{{if eq .CORE_OS "windows"}}.exe{{end}}'
+  CORE_BIN: "{{.CORE_DIR}}/bin/lingzhu{{.CORE_EXT}}"
+  VERSION:
+    sh: read v < {{.CORE_DIR}}/VERSION 2>/dev/null; echo ${v:-0.1.0}
   # Target OS for build/package/run. Defaults to the host OS, and is overridden
-  # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation. The
+  # by `wails3 build GOOS=...` (or the GOOS var) for cross-compilation. The
   # tasks below dispatch to the matching platform Taskfile via this variable.
   GOOS: '{{.GOOS | default OS}}'
 
@@ -24,27 +32,77 @@ tasks:
     cmds:
       - wails3 generate bindings .
 
+  sync:version:
+    summary: Stamps the repository version into packaging metadata
+    cmds:
+      - go run ./tools/syncversion -version {{.VERSION}}
+
   build:
-    summary: Builds the application
-    deps: [bindings]
+    summary: Builds the app and its core into bin/
+    deps: [common:build:core, sync:version, bindings]
     cmds:
       - task: "{{.GOOS}}:build"
 
   package:
     summary: Packages a production build of the application
+    desc: |
+      The platform packaging tasks build the core sidecar themselves, so it is
+      compiled exactly once per package.
+    deps: [sync:version]
     cmds:
       - task: "{{.GOOS}}:package"
+        vars:
+          INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "user"}}'
 
   run:
-    summary: Runs the application
-    deps: [bindings]
+    summary: Runs the app, using the core built beside it
+    deps: [common:build:core, bindings]
     cmds:
       - task: "{{.GOOS}}:run"
+    env:
+      LINGZHU_CORE: "{{.ROOT_DIR}}/{{.CORE_BIN}}"
 
   dev:
-    summary: Runs the application in development mode
+    summary: Runs the app in development mode
+    desc: |
+      Starts the app against the core built by `common:build:core`. LINGZHU_HOME
+      keeps development data, logs and scratch files under .dev/ instead of the
+      user profile, so a dev run never touches real state.
+    deps: [common:build:core]
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+    env:
+      LINGZHU_CORE: "{{.ROOT_DIR}}/{{.CORE_BIN}}"
+      LINGZHU_HOME: "{{.ROOT_DIR}}/.dev"
+
+  check:
+    summary: Verifies the core and the frontend without writing module files
+    cmds:
+      - task: check:modules
+      - task: check:core
+      - task: check:frontend
+
+  check:modules:
+    summary: Verifies go.mod and go.sum are tidy in both modules
+    cmds:
+      - go -C {{.CORE_DIR}} mod tidy -diff
+      - go mod tidy -diff
+
+  check:core:
+    summary: Runs go vet and tests for both modules
+    cmds:
+      - go -C {{.CORE_DIR}} vet ./...
+      - go -C {{.CORE_DIR}} test ./...
+      - go vet ./...
+      - go test ./...
+
+  check:frontend:
+    summary: Type-checks and builds the frontend
+    cmds:
+      - task: common:install:frontend:deps
+      - task: common:build:frontend
+        vars:
+          DEV: "false"
 
   install:msix:tools:
     summary: Installs tools required for Windows MSIX packaging
@@ -75,3 +133,11 @@ tasks:
     summary: Builds and runs the Docker image
     cmds:
       - task: common:run:docker
+
+  clean:
+    summary: Removes build output and development data
+    cmds:
+      - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force '{{.BIN_DIR}}','{{.ROOT_DIR}}/.dev' -ErrorAction SilentlyContinue"
+        platforms: [windows]
+      - cmd: rm -rf {{.BIN_DIR}} {{.ROOT_DIR}}/.dev
+        platforms: [linux, darwin]

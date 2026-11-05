@@ -3,7 +3,7 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "lingzhu-app.exe"
+name: "lingzhu-app"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
@@ -17,12 +17,16 @@ license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/lingzhu-app.exe"
-    dst: "/usr/local/bin/lingzhu-app.exe"
+  - src: "./bin/lingzhu-app"
+    dst: "/usr/local/bin/lingzhu-app"
+  # The core is a sidecar installed beside the app, which is where the app
+  # looks for it.
+  - src: "./../lingzhu/bin/lingzhu"
+    dst: "/usr/local/bin/lingzhu"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/lingzhu-app.exe.png"
-  - src: "./build/linux/lingzhu-app.exe.desktop"
-    dst: "/usr/share/applications/lingzhu-app.exe.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/lingzhu-app.png"
+  - src: "./build/linux/lingzhu-app.desktop"
+    dst: "/usr/share/applications/lingzhu-app.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

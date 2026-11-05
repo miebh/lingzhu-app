@@ -2,15 +2,17 @@ package core
 
 import (
 	"context"
-	"strconv"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
+
+	"lingzhu-app/internal/global"
 )
 
 // DefaultAddr is where the core listens unless configuration says otherwise.
@@ -138,8 +140,9 @@ func probe(ctx context.Context, client *Client) error {
 	return client.Health(probeCtx)
 }
 
-// findBinary looks next to the app, in the repository build directory, on
-// PATH, and finally at an explicit override.
+// findBinary looks next to the app, on PATH, and finally at an explicit
+// override. A development run sets LINGZHU_CORE; a release install puts the
+// core beside the app, so no directory outside the install is searched.
 func findBinary(explicit string) (string, error) {
 	name := "lingzhu"
 	if runtime.GOOS == "windows" {
@@ -154,15 +157,7 @@ func findBinary(explicit string) (string, error) {
 	add(explicit)
 	add(os.Getenv("LINGZHU_CORE"))
 	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(exe)
-		add(filepath.Join(dir, name))
-		add(filepath.Join(dir, "..", "build", name))
-		add(filepath.Join(dir, "..", "..", "build", name))
-	}
-	if wd, err := os.Getwd(); err == nil {
-		add(filepath.Join(wd, name))
-		add(filepath.Join(wd, "build", name))
-		add(filepath.Join(wd, "..", "build", name))
+		add(filepath.Join(filepath.Dir(exe), name))
 	}
 	for _, candidate := range candidates {
 		abs, err := filepath.Abs(candidate)
@@ -176,19 +171,23 @@ func findBinary(explicit string) (string, error) {
 	if path, err := exec.LookPath("lingzhu"); err == nil {
 		return path, nil
 	}
-	return "", errors.New("lingzhu core not found; build it with `go build -o build/lingzhu.exe ./cmd/lingzhu` or set LINGZHU_CORE")
+	return "", errors.New("lingzhu core not found; install it beside the app or set LINGZHU_CORE")
 }
 
+// logRotationLimit keeps the log from growing without bound; the previous file
+// is kept as core.log.1.
+const logRotationLimit = 5 << 20
+
 func openLog() (string, *os.File, error) {
-	base, err := os.UserCacheDir()
-	if err != nil {
-		base = os.TempDir()
-	}
-	dir := filepath.Join(base, "lingzhu", "app")
+	dir := global.Log()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", nil, err
 	}
 	path := filepath.Join(dir, "core.log")
+	if info, err := os.Stat(path); err == nil && info.Size() >= logRotationLimit {
+		_ = os.Remove(path + ".1")
+		_ = os.Rename(path, path+".1")
+	}
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return "", nil, err
