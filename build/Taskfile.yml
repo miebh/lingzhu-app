@@ -210,6 +210,9 @@ tasks:
       - "windows/icon.ico"
     cmds:
       - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico -iconcomposerinput appicon.icon -macassetdir darwin
+      # 16px/24px are drawn from simplified geometry rather than downscaled,
+      # so the spiral does not smear into a blob on the taskbar.
+      - go run ../tools/iconframes -input appicon.png -out windows/icon.ico
 
   dev:frontend:
     summary: Runs the frontend in development mode
