@@ -1,5 +1,5 @@
 // Command syncversion stamps the release version into every packaging file:
-// the Wails project config, the Windows version resource, and the macOS/iOS
+// the Wails project config, the Windows version resource, and the macOS
 // plists. The app and core binaries get their version from -ldflags, so this
 // only keeps the packaging metadata in step with the same number.
 package main
@@ -32,7 +32,7 @@ func run(version string) error {
 	if err := syncInfoJSON("build/windows/info.json", version); err != nil {
 		return err
 	}
-	for _, path := range []string{"build/darwin/Info.plist", "build/ios/Info.plist"} {
+	for _, path := range []string{"build/darwin/Info.plist"} {
 		if err := syncPlist(path, version); err != nil {
 			return err
 		}
