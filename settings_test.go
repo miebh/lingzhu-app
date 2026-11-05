@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildAppSettingsProjectsLegacyConfig(t *testing.T) {
-	file := map[string]any{
+	file := document{
 		"model":          "legacy-model",
 		"base_url":       "https://example.test/v1",
 		"api_key":        "secret",
@@ -34,7 +34,7 @@ func TestBuildAppSettingsProjectsLegacyConfig(t *testing.T) {
 }
 
 func TestExplicitEmptyProvidersStayEmpty(t *testing.T) {
-	file := map[string]any{"providers": map[string]any{}, "provider": "", "model": ""}
+	file := document{"providers": map[string]any{}, "provider": "", "model": ""}
 	settings := buildAppSettings("config.json", file)
 	if len(settings.Providers) != 0 || settings.Provider != "" || settings.Model != "" {
 		t.Fatalf("settings = %+v", settings)
@@ -48,7 +48,7 @@ func TestExplicitEmptyProvidersStayEmpty(t *testing.T) {
 
 func TestBuildAppSettingsReadsProviderBlock(t *testing.T) {
 	t.Setenv("TEST_PROVIDER_KEY", "from-env")
-	file := map[string]any{
+	file := document{
 		"provider": "b",
 		"model":    "m2",
 		"providers": map[string]any{
@@ -85,7 +85,7 @@ func TestBuildAppSettingsReadsProviderBlock(t *testing.T) {
 }
 
 func TestApplySettingsMigratesLegacyKey(t *testing.T) {
-	file := map[string]any{
+	file := document{
 		"model":    "m",
 		"base_url": "https://old.test/v1",
 		"api_key":  "legacy-key",
@@ -109,8 +109,8 @@ func TestApplySettingsMigratesLegacyKey(t *testing.T) {
 	if _, ok := file["api_key"]; ok {
 		t.Fatal("legacy api_key should be removed")
 	}
-	providers := file["providers"].(map[string]any)
-	entry := providers["default"].(map[string]any)
+	providers, _ := asDocument(file["providers"])
+	entry, _ := asDocument(providers["default"])
 	if entry["api_key"] != "legacy-key" {
 		t.Fatalf("legacy key was not migrated: %+v", entry)
 	}
@@ -120,7 +120,7 @@ func TestApplySettingsMigratesLegacyKey(t *testing.T) {
 }
 
 func TestApplySettingsClearsKey(t *testing.T) {
-	file := map[string]any{
+	file := document{
 		"providers": map[string]any{
 			"p": map[string]any{"base_url": "https://p.test/v1", "api_key": "old"},
 		},
@@ -138,7 +138,8 @@ func TestApplySettingsClearsKey(t *testing.T) {
 			Models:   []ModelInput{{ID: "m", Enabled: true}},
 		}},
 	})
-	entry := file["providers"].(map[string]any)["p"].(map[string]any)
+	providers, _ := asDocument(file["providers"])
+	entry, _ := asDocument(providers["p"])
 	if _, ok := entry["api_key"]; ok {
 		t.Fatal("cleared key should be removed")
 	}
@@ -175,7 +176,7 @@ func TestTestProviderUsesSavedKeyAndReportsModels(t *testing.T) {
 	}))
 	defer server.Close()
 
-	file := map[string]any{
+	file := document{
 		"providers": map[string]any{
 			"p": map[string]any{"base_url": server.URL, "api_key": "stored"},
 		},
@@ -213,7 +214,7 @@ func TestTestProviderRejectsBadKey(t *testing.T) {
 }
 
 func TestModelVisibilityDefaultsTrueAndRoundTrips(t *testing.T) {
-	file := map[string]any{
+	file := document{
 		"provider": "p",
 		"model":    "m",
 		"providers": map[string]any{
@@ -241,15 +242,17 @@ func TestModelVisibilityDefaultsTrueAndRoundTrips(t *testing.T) {
 			Models:  []ModelInput{{ID: "m", Enabled: false}},
 		}},
 	})
-	entry := file["providers"].(map[string]any)["p"].(map[string]any)
-	model := entry["models"].([]any)[0].(map[string]any)
+	providers, _ := asDocument(file["providers"])
+	entry, _ := asDocument(providers["p"])
+	models, _ := entry["models"].([]any)
+	model, _ := asDocument(models[0])
 	if model["enabled"] != false {
 		t.Fatalf("visibility was not written: %+v", model)
 	}
 }
 
 func TestApplyModelVisibilityOnlyChangesFlag(t *testing.T) {
-	file := map[string]any{
+	file := document{
 		"provider": "p",
 		"model":    "m",
 		"providers": map[string]any{
@@ -269,13 +272,16 @@ func TestApplyModelVisibilityOnlyChangesFlag(t *testing.T) {
 	}) {
 		t.Fatal("want the file to change")
 	}
-	entry := file["providers"].(map[string]any)["p"].(map[string]any)
-	models := entry["models"].([]any)
-	if models[0].(map[string]any)["enabled"] != false {
-		t.Fatalf("visibility was not written: %+v", models[0])
+	providers, _ := asDocument(file["providers"])
+	entry, _ := asDocument(providers["p"])
+	models, _ := entry["models"].([]any)
+	first, _ := asDocument(models[0])
+	second, _ := asDocument(models[1])
+	if first["enabled"] != false {
+		t.Fatalf("visibility was not written: %+v", first)
 	}
-	if models[1].(map[string]any)["enabled"] != true {
-		t.Fatalf("unrelated model changed: %+v", models[1])
+	if second["enabled"] != true {
+		t.Fatalf("unrelated model changed: %+v", second)
 	}
 	if entry["api_key"] != "key" || entry["base_url"] != "https://p.test/v1" {
 		t.Fatalf("provider fields changed: %+v", entry)
@@ -298,7 +304,7 @@ func TestSaveModelVisibilityWritesConfigWithoutRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := map[string]any{}
+	file := document{}
 	if err := json.Unmarshal(data, &file); err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +312,8 @@ func TestSaveModelVisibilityWritesConfigWithoutRestart(t *testing.T) {
 	if settings.Providers[0].Models[0].Enabled {
 		t.Fatal("visibility was not persisted")
 	}
-	provider := file["providers"].(map[string]any)["p"].(map[string]any)
+	providers, _ := asDocument(file["providers"])
+	provider, _ := asDocument(providers["p"])
 	if provider["api_key"] != "key" {
 		t.Fatal("visibility write dropped the stored key")
 	}
@@ -326,11 +333,12 @@ func TestSaveModelVisibilityMigratesLegacyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := map[string]any{}
+	file := document{}
 	if err := json.Unmarshal(data, &file); err != nil {
 		t.Fatal(err)
 	}
-	provider, ok := file["providers"].(map[string]any)["default"].(map[string]any)
+	providers, _ := asDocument(file["providers"])
+	provider, ok := asDocument(providers["default"])
 	if !ok {
 		t.Fatalf("legacy config was not migrated: %+v", file)
 	}

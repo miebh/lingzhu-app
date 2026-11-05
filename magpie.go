@@ -217,11 +217,11 @@ func magpieCatalog(baseURL, key string) []PresetModel {
 // points at the local gateway, so an existing config follows magpie's labels
 // (provider names included) without being rewritten. Errors are ignored: a
 // gateway that is down leaves the stored projection untouched.
-func enrichMagpieModels(settings *AppSettings, file map[string]any) {
+func enrichMagpieModels(settings *AppSettings, file document) {
 	enrichProviderModels(settings, file, magpieGatewayURL()+"/v1")
 }
 
-func enrichProviderModels(settings *AppSettings, file map[string]any, gateway string) {
+func enrichProviderModels(settings *AppSettings, file document, gateway string) {
 	gateway = strings.TrimRight(gateway, "/")
 	for i := range settings.Providers {
 		provider := &settings.Providers[i]

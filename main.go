@@ -37,8 +37,8 @@ func main() {
 	})
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "Lingzhu",
-		Width: 1180,
+		Title:  "Lingzhu",
+		Width:  1180,
 		Height: 760,
 		// Windows and Linux draw their own title bar; macOS keeps the native
 		// hidden-inset title bar so the traffic lights stay in place.

@@ -1,16 +1,9 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
-	"time"
 )
 
 // defaultBaseURL matches the core's default OpenAI-compatible endpoint.
@@ -132,53 +125,43 @@ type ModelVisibility struct {
 	Enabled  bool   `json:"enabled"`
 }
 
-func buildAppSettings(configPath string, file map[string]any) AppSettings {
+func buildAppSettings(configPath string, file document) AppSettings {
 	providers, provider, model := readProviderSettings(file)
-	settings := AppSettings{
+	return AppSettings{
 		ConfigPath:    configPath,
 		Provider:      provider,
 		Model:         model,
 		Providers:     providers,
-		MaxSteps:      intSetting(file, "max_steps", defaultMaxSteps),
-		ContextWindow: intSetting(file, "context_window", defaultContextWindow),
-		CompactKeep:   intSetting(file, "compact_keep", defaultCompactKeep),
-		SystemPrompt:  stringSetting(file, "system_prompt"),
-		Shell:         []string{},
-		Permission:    []ConfigRule{},
+		MaxSteps:      file.int("max_steps", defaultMaxSteps),
+		ContextWindow: file.count("context_window", defaultContextWindow),
+		CompactKeep:   file.int("compact_keep", defaultCompactKeep),
+		SystemPrompt:  file.str("system_prompt"),
+		Shell:         file.strings("shell"),
+		Permission:    permissionRules(file),
 	}
-	if raw, ok := file["shell"].([]any); ok {
-		for _, item := range raw {
-			if part, ok := item.(string); ok {
-				settings.Shell = append(settings.Shell, part)
-			}
-		}
+}
+
+func permissionRules(file document) []ConfigRule {
+	out := make([]ConfigRule, 0)
+	for _, entry := range file.objects("permission") {
+		out = append(out, ConfigRule{
+			Action:   entry.str("action"),
+			Resource: entry.str("resource"),
+			Effect:   entry.str("effect"),
+		})
 	}
-	if raw, ok := file["permission"].([]any); ok {
-		for _, item := range raw {
-			entry, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			settings.Permission = append(settings.Permission, ConfigRule{
-				Action:   stringSetting(entry, "action"),
-				Resource: stringSetting(entry, "resource"),
-				Effect:   stringSetting(entry, "effect"),
-			})
-		}
-	}
-	return settings
+	return out
 }
 
 // readProviderSettings projects the providers block. Configs without one are
 // shown as a single legacy "default" provider so old files stay editable.
-func readProviderSettings(file map[string]any) ([]ProviderSettings, string, string) {
-	topModel := strings.TrimSpace(stringSetting(file, "model"))
-	fallbackWindow := intSetting(file, "context_window", defaultContextWindow)
-	rawValue, exists := file["providers"]
-	if !exists {
+func readProviderSettings(file document) ([]ProviderSettings, string, string) {
+	topModel := strings.TrimSpace(file.str("model"))
+	fallbackWindow := file.count("context_window", defaultContextWindow)
+	if _, exists := file["providers"]; !exists {
 		return legacyProvider(file, topModel, fallbackWindow), "default", topModel
 	}
-	raw, _ := rawValue.(map[string]any)
+	raw := file.object("providers")
 	if len(raw) == 0 {
 		return []ProviderSettings{}, "", ""
 	}
@@ -190,51 +173,45 @@ func readProviderSettings(file map[string]any) ([]ProviderSettings, string, stri
 	sort.Strings(ids)
 	providers := make([]ProviderSettings, 0, len(ids))
 	for _, id := range ids {
-		entry, ok := raw[id].(map[string]any)
+		entry, ok := asDocument(raw[id])
 		if !ok {
 			continue
 		}
-		name := stringSetting(entry, "name")
+		name := entry.str("name")
 		if name == "" {
 			name = id
 		}
-		baseURL := stringSetting(entry, "base_url")
-		env := stringSetting(entry, "api_key_env")
-		keySet := stringSetting(entry, "api_key") != "" || (env != "" && os.Getenv(env) != "")
-		models := []ModelSettings{}
-		if rawModels, ok := entry["models"].([]any); ok {
-			for _, item := range rawModels {
-				model, ok := item.(map[string]any)
-				if !ok {
-					continue
-				}
-				modelID := strings.TrimSpace(stringSetting(model, "id"))
-				if modelID == "" {
-					continue
-				}
-				modelName := stringSetting(model, "name")
-				if modelName == "" {
-					modelName = modelID
-				}
-				enabled := true
-				if value, ok := model["enabled"].(bool); ok {
-					enabled = value
-				}
-				models = append(models, ModelSettings{
-					ID:              modelID,
-					Name:            modelName,
-					ContextWindow:   intSetting(model, "context_window", fallbackWindow),
-					MaxOutputTokens: intSetting(model, "max_output_tokens", 0),
-					Enabled:         enabled,
-					ToolCall:        boolSetting(model, "tool_call"),
-					Reasoning:       boolValue(model, "reasoning"),
-					Attachment:      boolValue(model, "attachment"),
-					Cost:            costSetting(model["cost"]),
-					Modalities:      modalitiesSetting(model["modalities"]),
-					Options:         mapSetting(model, "options"),
-					Variants:        variantsSetting(model),
-				})
+		baseURL := entry.str("base_url")
+		env := entry.str("api_key_env")
+		keySet := entry.str("api_key") != "" || (env != "" && os.Getenv(env) != "")
+		models := make([]ModelSettings, 0)
+		for _, model := range entry.objects("models") {
+			modelID := strings.TrimSpace(model.str("id"))
+			if modelID == "" {
+				continue
 			}
+			modelName := model.str("name")
+			if modelName == "" {
+				modelName = modelID
+			}
+			enabled := true
+			if value, ok := model["enabled"].(bool); ok {
+				enabled = value
+			}
+			models = append(models, ModelSettings{
+				ID:              modelID,
+				Name:            modelName,
+				ContextWindow:   model.count("context_window", fallbackWindow),
+				MaxOutputTokens: model.int("max_output_tokens", 0),
+				Enabled:         enabled,
+				ToolCall:        model.boolPtr("tool_call"),
+				Reasoning:       model.boolean("reasoning"),
+				Attachment:      model.boolean("attachment"),
+				Cost:            costSetting(model["cost"]),
+				Modalities:      modalitiesSetting(model["modalities"]),
+				Options:         mapValue(model, "options"),
+				Variants:        variantsSetting(model),
+			})
 		}
 		providers = append(providers, ProviderSettings{
 			ID:        id,
@@ -243,8 +220,8 @@ func readProviderSettings(file map[string]any) ([]ProviderSettings, string, stri
 			APIKeySet: keySet,
 			APIKeyEnv: env,
 			Ready:     baseURL != "" && keySet,
-			Blacklist: stringList(entry, "blacklist"),
-			Whitelist: stringList(entry, "whitelist"),
+			Blacklist: entry.strings("blacklist"),
+			Whitelist: entry.strings("whitelist"),
 			Models:    models,
 		})
 	}
@@ -252,7 +229,7 @@ func readProviderSettings(file map[string]any) ([]ProviderSettings, string, stri
 		return legacyProvider(file, topModel, fallbackWindow), "default", topModel
 	}
 
-	selected := strings.TrimSpace(stringSetting(file, "provider"))
+	selected := strings.TrimSpace(file.str("provider"))
 	if !hasProvider(providers, selected) {
 		selected = providers[0].ID
 	}
@@ -267,13 +244,13 @@ func readProviderSettings(file map[string]any) ([]ProviderSettings, string, stri
 	return providers, selected, model
 }
 
-func legacyProvider(file map[string]any, model string, fallbackWindow int) []ProviderSettings {
-	baseURL := stringSetting(file, "base_url")
+func legacyProvider(file document, model string, fallbackWindow int) []ProviderSettings {
+	baseURL := file.str("base_url")
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
-	keySet := stringSetting(file, "api_key") != "" || os.Getenv("OPENAI_API_KEY") != ""
-	models := []ModelSettings{}
+	keySet := file.str("api_key") != "" || os.Getenv("OPENAI_API_KEY") != ""
+	models := make([]ModelSettings, 0)
 	if model != "" {
 		models = append(models, ModelSettings{ID: model, Name: model, ContextWindow: fallbackWindow, Enabled: true})
 	}
@@ -285,498 +262,4 @@ func legacyProvider(file map[string]any, model string, fallbackWindow int) []Pro
 		Ready:     keySet,
 		Models:    models,
 	}}
-}
-
-func validateSettingsInput(input SettingsInput) error {
-	model := strings.TrimSpace(input.Model)
-	if input.MaxSteps < 1 {
-		return errors.New("max steps must be at least 1")
-	}
-	if input.ContextWindow < 0 {
-		return errors.New("context window cannot be negative")
-	}
-	if input.CompactKeep < 1 {
-		return errors.New("compact keep must be at least 1")
-	}
-	for _, rule := range input.Permission {
-		if strings.TrimSpace(rule.Action) == "" || strings.TrimSpace(rule.Resource) == "" {
-			return errors.New("permission rules need an action and a resource")
-		}
-		if effect := strings.TrimSpace(rule.Effect); effect != "allow" && effect != "ask" && effect != "deny" {
-			return fmt.Errorf("unknown permission effect %q", effect)
-		}
-	}
-	if len(input.Providers) == 0 {
-		// Disconnecting the last provider leaves no model configured; the
-		// core still starts and a prompt reports that no provider is set.
-		if model != "" || strings.TrimSpace(input.Provider) != "" {
-			return errors.New("no providers configured")
-		}
-		return nil
-	}
-	if model == "" {
-		return errors.New("model is required")
-	}
-	seen := map[string]bool{}
-	inputs := map[string]ProviderInput{}
-	for _, provider := range input.Providers {
-		id := strings.TrimSpace(provider.ID)
-		if id == "" {
-			return errors.New("provider id is required")
-		}
-		if seen[id] {
-			return fmt.Errorf("duplicate provider %q", id)
-		}
-		seen[id] = true
-		inputs[id] = provider
-		if err := validHTTPURL(strings.TrimSpace(provider.BaseURL)); err != nil {
-			return fmt.Errorf("provider %s: %w", id, err)
-		}
-		modelSeen := map[string]bool{}
-		for _, item := range provider.Models {
-			modelID := strings.TrimSpace(item.ID)
-			if modelID == "" {
-				return fmt.Errorf("provider %s: model id is required", id)
-			}
-			if modelSeen[modelID] {
-				return fmt.Errorf("provider %s: duplicate model %q", id, modelID)
-			}
-			modelSeen[modelID] = true
-			if item.ContextWindow < 0 {
-				return fmt.Errorf("provider %s: model %s context window cannot be negative", id, modelID)
-			}
-		}
-	}
-	providerID := strings.TrimSpace(input.Provider)
-	selected, ok := inputs[providerID]
-	if !ok {
-		return fmt.Errorf("unknown provider %q", providerID)
-	}
-	for _, item := range selected.Models {
-		if strings.TrimSpace(item.ID) == model {
-			return nil
-		}
-	}
-	return fmt.Errorf("provider %s has no model %q", providerID, model)
-}
-
-func applySettingsInput(file map[string]any, input SettingsInput) {
-	model := strings.TrimSpace(input.Model)
-	providerID := strings.TrimSpace(input.Provider)
-
-	existing, _ := file["providers"].(map[string]any)
-	next := map[string]any{}
-	for _, provider := range input.Providers {
-		id := strings.TrimSpace(provider.ID)
-		entry := map[string]any{}
-		if old, ok := existing[id].(map[string]any); ok {
-			for key, value := range old {
-				entry[key] = value
-			}
-		}
-		name := strings.TrimSpace(provider.Name)
-		if name == "" {
-			name = id
-		}
-		entry["name"] = name
-		entry["base_url"] = strings.TrimRight(strings.TrimSpace(provider.BaseURL), "/")
-		if env := strings.TrimSpace(provider.APIKeyEnv); env != "" {
-			entry["api_key_env"] = env
-		} else {
-			delete(entry, "api_key_env")
-		}
-		// An empty key keeps the stored one; ClearKey removes it. A legacy
-		// top-level key migrates into the default provider on first save.
-		if provider.ClearKey {
-			delete(entry, "api_key")
-		} else if key := strings.TrimSpace(provider.APIKey); key != "" {
-			entry["api_key"] = key
-		} else if _, ok := entry["api_key"]; !ok && id == "default" {
-			if legacy := stringSetting(file, "api_key"); legacy != "" {
-				entry["api_key"] = legacy
-			}
-		}
-		writeStringList(entry, "blacklist", provider.Blacklist)
-		writeStringList(entry, "whitelist", provider.Whitelist)
-		models := make([]any, 0, len(provider.Models))
-		for _, item := range provider.Models {
-			modelID := strings.TrimSpace(item.ID)
-			name := strings.TrimSpace(item.Name)
-			if name == "" {
-				name = modelID
-			}
-			model := map[string]any{
-				"id":             modelID,
-				"name":           name,
-				"context_window": item.ContextWindow,
-				"enabled":        item.Enabled,
-			}
-			if item.MaxOutputTokens > 0 {
-				model["max_output_tokens"] = item.MaxOutputTokens
-			}
-			if item.ToolCall != nil {
-				model["tool_call"] = *item.ToolCall
-			}
-			if item.Reasoning {
-				model["reasoning"] = true
-			}
-			if item.Attachment {
-				model["attachment"] = true
-			}
-			if item.Cost != nil {
-				model["cost"] = item.Cost
-			}
-			if item.Modalities != nil {
-				model["modalities"] = item.Modalities
-			}
-			if len(item.Options) > 0 {
-				model["options"] = item.Options
-			}
-			if len(item.Variants) > 0 {
-				model["variants"] = item.Variants
-			}
-			models = append(models, model)
-		}
-		entry["models"] = models
-		next[id] = entry
-	}
-	file["providers"] = next
-	// The selected pair and the provider block are now the only source; drop
-	// the legacy duplicates so they cannot drift.
-	delete(file, "base_url")
-	delete(file, "api_key")
-	file["provider"] = providerID
-	file["model"] = model
-
-	file["max_steps"] = input.MaxSteps
-	file["context_window"] = input.ContextWindow
-	file["compact_keep"] = input.CompactKeep
-	if prompt := strings.TrimSpace(input.SystemPrompt); prompt == "" {
-		delete(file, "system_prompt")
-	} else {
-		file["system_prompt"] = input.SystemPrompt
-	}
-	shell := make([]string, 0, len(input.Shell))
-	for _, part := range input.Shell {
-		if part = strings.TrimSpace(part); part != "" {
-			shell = append(shell, part)
-		}
-	}
-	if len(shell) == 0 {
-		delete(file, "shell")
-	} else {
-		file["shell"] = shell
-	}
-	rules := make([]ConfigRule, 0, len(input.Permission))
-	for _, rule := range input.Permission {
-		rules = append(rules, ConfigRule{
-			Action:   strings.TrimSpace(rule.Action),
-			Resource: strings.TrimSpace(rule.Resource),
-			Effect:   strings.TrimSpace(rule.Effect),
-		})
-	}
-	if len(rules) == 0 {
-		delete(file, "permission")
-	} else {
-		file["permission"] = rules
-	}
-}
-
-// settingsInputFromSettings converts the read-only projection back into a save
-// payload. API keys stay in the file: an empty key means "keep the stored one".
-func settingsInputFromSettings(settings AppSettings) SettingsInput {
-	input := SettingsInput{
-		Provider:      settings.Provider,
-		Model:         settings.Model,
-		MaxSteps:      settings.MaxSteps,
-		ContextWindow: settings.ContextWindow,
-		CompactKeep:   settings.CompactKeep,
-		SystemPrompt:  settings.SystemPrompt,
-		Shell:         settings.Shell,
-		Permission:    settings.Permission,
-	}
-	for _, provider := range settings.Providers {
-		entry := ProviderInput{
-			ID:        provider.ID,
-			Name:      provider.Name,
-			BaseURL:   provider.BaseURL,
-			APIKeyEnv: provider.APIKeyEnv,
-			Blacklist: provider.Blacklist,
-			Whitelist: provider.Whitelist,
-		}
-		for _, model := range provider.Models {
-			entry.Models = append(entry.Models, ModelInput{
-				ID:              model.ID,
-				Name:            model.Name,
-				ContextWindow:   model.ContextWindow,
-				MaxOutputTokens: model.MaxOutputTokens,
-				Enabled:         model.Enabled,
-				ToolCall:        model.ToolCall,
-				Reasoning:       model.Reasoning,
-				Attachment:      model.Attachment,
-				Cost:            model.Cost,
-				Modalities:      model.Modalities,
-				Options:         model.Options,
-				Variants:        model.Variants,
-			})
-		}
-		input.Providers = append(input.Providers, entry)
-	}
-	return input
-}
-
-// applyModelVisibilityInput flips the flags on a save payload.
-func applyModelVisibilityInput(input *SettingsInput, entries []ModelVisibility) {
-	for i := range input.Providers {
-		for j := range input.Providers[i].Models {
-			for _, entry := range entries {
-				if entry.Provider == input.Providers[i].ID && entry.Model == input.Providers[i].Models[j].ID {
-					input.Providers[i].Models[j].Enabled = entry.Enabled
-				}
-			}
-		}
-	}
-}
-
-// applyModelVisibility flips the picker flag in place and reports whether the
-// file changed. Unknown providers or models are ignored.
-func applyModelVisibility(file map[string]any, entries []ModelVisibility) bool {
-	providers, _ := file["providers"].(map[string]any)
-	changed := false
-	for _, entry := range entries {
-		providerID := strings.TrimSpace(entry.Provider)
-		modelID := strings.TrimSpace(entry.Model)
-		if providerID == "" || modelID == "" {
-			continue
-		}
-		provider, ok := providers[providerID].(map[string]any)
-		if !ok {
-			continue
-		}
-		models, _ := provider["models"].([]any)
-		for _, item := range models {
-			model, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			if id, _ := model["id"].(string); strings.TrimSpace(id) != modelID {
-				continue
-			}
-			if current, ok := model["enabled"].(bool); ok && current == entry.Enabled {
-				continue
-			}
-			model["enabled"] = entry.Enabled
-			changed = true
-		}
-	}
-	return changed
-}
-
-// TestProvider checks that an endpoint answers. It uses the saved key when the
-// form has none, and never logs or returns the key.
-func (s *CoreService) TestProvider(providerID, baseURL, apiKey, apiKeyEnv string) (string, error) {
-	file, err := s.readConfigFile()
-	if err != nil {
-		return "", err
-	}
-	providers, _, _ := readProviderSettings(file)
-	id := strings.TrimSpace(providerID)
-	base := strings.TrimSpace(baseURL)
-	for _, provider := range providers {
-		if provider.ID != id {
-			continue
-		}
-		if base == "" {
-			base = provider.BaseURL
-		}
-		if apiKeyEnv == "" {
-			apiKeyEnv = provider.APIKeyEnv
-		}
-	}
-	if err := validHTTPURL(base); err != nil {
-		return "", err
-	}
-	key := strings.TrimSpace(apiKey)
-	if key == "" && strings.TrimSpace(apiKeyEnv) != "" {
-		key = os.Getenv(strings.TrimSpace(apiKeyEnv))
-	}
-	if key == "" {
-		key = savedProviderKey(file, id)
-	}
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(base, "/")+"/models", nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Accept", "application/json")
-	if key != "" {
-		req.Header.Set("Authorization", "Bearer "+key)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("connect: %w", err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	status := resp.StatusCode
-	if status == http.StatusUnauthorized || status == http.StatusForbidden {
-		return "", fmt.Errorf("provider %s: API key was rejected", resp.Status)
-	}
-	if status == http.StatusNotFound || status == http.StatusMethodNotAllowed {
-		return "Endpoint reachable; model listing is not supported", nil
-	}
-	if status < 200 || status >= 300 {
-		return "", fmt.Errorf("provider %s: %s", resp.Status, snippet(body))
-	}
-	var payload struct {
-		Data []json.RawMessage `json:"data"`
-	}
-	if json.Unmarshal(body, &payload) == nil && len(payload.Data) > 0 {
-		return fmt.Sprintf("Connected · %d models available", len(payload.Data)), nil
-	}
-	return "Connected", nil
-}
-
-func savedProviderKey(file map[string]any, id string) string {
-	if raw, ok := file["providers"].(map[string]any); ok {
-		if entry, ok := raw[id].(map[string]any); ok {
-			if key := stringSetting(entry, "api_key"); key != "" {
-				return key
-			}
-			if env := stringSetting(entry, "api_key_env"); env != "" {
-				return os.Getenv(env)
-			}
-		}
-	}
-	if id == "default" {
-		if key := stringSetting(file, "api_key"); key != "" {
-			return key
-		}
-		return os.Getenv("OPENAI_API_KEY")
-	}
-	return ""
-}
-
-func validHTTPURL(raw string) error {
-	if raw == "" {
-		return errors.New("base URL is required")
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return errors.New("base URL must be an absolute http(s) URL")
-	}
-	return nil
-}
-
-func hasProvider(providers []ProviderSettings, id string) bool {
-	for _, provider := range providers {
-		if provider.ID == id {
-			return true
-		}
-	}
-	return false
-}
-
-func snippet(body []byte) string {
-	text := strings.TrimSpace(string(body))
-	if len(text) > 300 {
-		text = text[:300] + "…"
-	}
-	return text
-}
-
-func stringList(file map[string]any, key string) []string {
-	raw, _ := file[key].([]any)
-	out := make([]string, 0, len(raw))
-	for _, item := range raw {
-		text, _ := item.(string)
-		if text = strings.TrimSpace(text); text != "" {
-			out = append(out, text)
-		}
-	}
-	return out
-}
-
-func writeStringList(entry map[string]any, key string, values []string) {
-	list := make([]any, 0, len(values))
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			list = append(list, value)
-		}
-	}
-	if len(list) == 0 {
-		delete(entry, key)
-		return
-	}
-	entry[key] = list
-}
-
-func boolValue(file map[string]any, key string) bool {
-	value, _ := file[key].(bool)
-	return value
-}
-
-func boolSetting(file map[string]any, key string) *bool {
-	value, ok := file[key].(bool)
-	if !ok {
-		return nil
-	}
-	return &value
-}
-
-func costSetting(raw any) *ModelCostSettings {
-	entry, ok := raw.(map[string]any)
-	if !ok || len(entry) == 0 {
-		return nil
-	}
-	return &ModelCostSettings{
-		Input:      floatValue(entry, "input"),
-		Output:     floatValue(entry, "output"),
-		CacheRead:  floatValue(entry, "cache_read"),
-		CacheWrite: floatValue(entry, "cache_write"),
-	}
-}
-
-func floatValue(file map[string]any, key string) float64 {
-	value, _ := file[key].(float64)
-	return value
-}
-
-func modalitiesSetting(raw any) *ModelModalitiesSettings {
-	entry, ok := raw.(map[string]any)
-	if !ok || len(entry) == 0 {
-		return nil
-	}
-	input := stringList(entry, "input")
-	output := stringList(entry, "output")
-	if len(input) == 0 && len(output) == 0 {
-		return nil
-	}
-	return &ModelModalitiesSettings{Input: input, Output: output}
-}
-
-func mapSetting(file map[string]any, key string) map[string]any {
-	value, _ := file[key].(map[string]any)
-	if len(value) == 0 {
-		return nil
-	}
-	return value
-}
-
-func variantsSetting(file map[string]any) map[string]map[string]any {
-	raw, _ := file["variants"].(map[string]any)
-	out := map[string]map[string]any{}
-	for name, item := range raw {
-		name = strings.TrimSpace(name)
-		variant, ok := item.(map[string]any)
-		if name == "" || !ok {
-			continue
-		}
-		out[name] = variant
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }
