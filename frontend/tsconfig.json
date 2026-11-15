@@ -6,13 +6,15 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
-    /* Path alias for shadcn components */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@lingzhu/ui/*": ["./packages/ui/src/*"],
+      "@lingzhu/session-ui/*": ["./packages/session-ui/src/*"],
+      "@lingzhu/devtools/*": ["./packages/devtools/src/*"],
+      "@lingzhu/app/*": ["./packages/app/src/*"],
+      "@lingzhu/bindings/*": ["./apps/desktop/bindings/*"],
+      "@/*": ["./packages/app/src/*"]
     },
 
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
@@ -20,12 +22,11 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": false,
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "bindings"],
+  "include": ["packages/*/src", "apps/desktop/src", "apps/desktop/bindings"]
 }

@@ -1,0 +1,22 @@
+/** One page in the settings center, addressable from other parts of the app. */
+export type SettingsSectionID =
+  | "general"
+  | "appearance"
+  | "experimental"
+  | "shortcuts"
+  | "notifications"
+  | "extensions"
+  | "projects"
+  | "worktrees"
+  | "workspaces"
+  | "servers"
+  | "skills"
+  | "plugins"
+  | "marketplace"
+  | "mcp"
+  | "usage"
+  | "providers"
+  | "models"
+  | "permissions"
+  | "advanced"
+  | "about";

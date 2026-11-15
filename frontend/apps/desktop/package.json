@@ -1,0 +1,22 @@
+{
+  "name": "@lingzhu/desktop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:dev": "tsc -p ../../tsconfig.json && vite build --minify false --mode development",
+    "build": "tsc -p ../../tsconfig.json && vite build --mode production",
+    "preview": "vite preview",
+    "test:ui": "node --test scripts/verify-surfaces.test.mjs",
+    "test:dom": "vitest run",
+    "build:parity": "vite build --config vite.parity.config.ts",
+    "test:parity": "vite build --config vite.parity.config.ts && node scripts/parity-browser.mjs"
+  },
+  "dependencies": {
+    "@lingzhu/app": "*",
+    "@lingzhu/devtools": "*",
+    "@lingzhu/session-ui": "*",
+    "@lingzhu/ui": "*"
+  }
+}

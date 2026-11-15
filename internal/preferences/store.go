@@ -23,15 +23,38 @@ const (
 	motionOn     = "on"
 	motionOff    = "off"
 
+	layoutHorizontal = "horizontal"
+	layoutVertical   = "vertical"
+	layoutInbox      = "inbox"
+
+	organizeProjects = "projects"
+	organizeList     = "list"
+
+	themeSystem = "system"
+	themeDark   = "dark"
+	themeLight  = "light"
+
+	languageEnglish = "en"
+	languageChinese = "zh"
+
 	migratedKey = "preferences.migrated"
 )
 
 // Appearance controls the client look without changing core configuration.
 type Appearance struct {
-	FontFamily    string `json:"fontFamily"`
-	Density       string `json:"density"`
-	TimelineWidth string `json:"timelineWidth"`
-	ReduceMotion  string `json:"reduceMotion"`
+	FontFamily      string         `json:"fontFamily"`
+	CodeFont        string         `json:"codeFont"`
+	TerminalFont    string         `json:"terminalFont"`
+	ThemeName       string         `json:"themeName"`
+	Density         string         `json:"density"`
+	Zoom            int            `json:"zoom"`
+	TimelineWidth   string         `json:"timelineWidth"`
+	ReduceMotion    string         `json:"reduceMotion"`
+	Theme           string         `json:"theme"`
+	Language        string         `json:"language"`
+	TabLayout       string         `json:"tabLayout"`
+	SidebarOrganize string         `json:"sidebarOrganize"`
+	TimelineDetail  TimelineDetail `json:"timelineDetail"`
 }
 
 // Selection names the last used provider and model.
@@ -40,25 +63,106 @@ type Selection struct {
 	Model    string `json:"model"`
 }
 
+// Notifications chooses which session events raise a notification.
+type Notifications struct {
+	Agent       bool `json:"agent"`
+	Permissions bool `json:"permissions"`
+	Questions   bool `json:"questions"`
+	Errors      bool `json:"errors"`
+}
+
 // Preferences is the persisted app-local settings document.
 type Preferences struct {
-	DefaultWorkspace string      `json:"defaultWorkspace"`
-	AutoApprove      bool        `json:"autoApprove"`
-	DefaultModel     Selection   `json:"defaultModel"`
-	Favorites        []Selection `json:"favoriteModels"`
-	Recent           []Selection `json:"recentModels"`
-	Appearance       Appearance  `json:"appearance"`
+	DefaultWorkspace       string                          `json:"defaultWorkspace"`
+	WorkspaceDestination   string                          `json:"workspaceDestination"`
+	AutoApprove            bool                            `json:"autoApprove"`
+	FollowUpBehavior       string                          `json:"followUpBehavior"`
+	ShowAgent              bool                            `json:"showAgent"`
+	ShowMessageAgent       bool                            `json:"showMessageAgent"`
+	Spellcheck             bool                            `json:"spellcheck"`
+	FoldUserMessages       bool                            `json:"foldUserMessages"`
+	ShowTurnDiffs          bool                            `json:"showTurnDiffs"`
+	BackgroundActivity     string                          `json:"backgroundActivity"`
+	PinchZoom              bool                            `json:"pinchZoom"`
+	NewIcons               bool                            `json:"newIcons"`
+	NewQuestionUI          bool                            `json:"newQuestionUI"`
+	Sounds                 Sounds                          `json:"sounds"`
+	DefaultModel           Selection                       `json:"defaultModel"`
+	ProjectNames           map[string]string               `json:"projectNames"`
+	ProjectIcons           map[string]string               `json:"projectIcons"`
+	ProjectColors          map[string]string               `json:"projectColors"`
+	ProjectWorktreeStartup map[string]string               `json:"projectWorktreeStartup"`
+	ProjectAutoApprove     map[string]bool                 `json:"projectAutoApprove"`
+	ProviderAccounts       map[string][]ProviderCredential `json:"providerAccounts"`
+	ActiveProviderAccounts map[string]string               `json:"activeProviderAccounts"`
+	Favorites              []Selection                     `json:"favoriteModels"`
+	Recent                 []Selection                     `json:"recentModels"`
+	Pinned                 []string                        `json:"pinnedSessions"`
+	Appearance             Appearance                      `json:"appearance"`
+	Notifications          Notifications                   `json:"notifications"`
+	Keybinds               map[string]string               `json:"keybinds"`
+}
+
+// Sounds chooses which session events play a short sound.
+type Sounds struct {
+	Agent       bool              `json:"agent"`
+	Permissions bool              `json:"permissions"`
+	Questions   bool              `json:"questions"`
+	Errors      bool              `json:"errors"`
+	Interface   bool              `json:"interface"`
+	Tones       map[string]string `json:"tones"`
+}
+
+// ProviderCredential is one named API-key credential for a provider.
+type ProviderCredential struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Key  string `json:"key"`
 }
 
 // Default is the preference set used when no row exists or the row is
 // unreadable.
 func Default() Preferences {
 	return Preferences{
+		WorkspaceDestination: "last-used",
+		FollowUpBehavior:     "steer",
+		ShowAgent:            true,
+		ShowMessageAgent:     false,
+		Spellcheck:           true,
+		FoldUserMessages:     true,
+		ShowTurnDiffs:        true,
+		BackgroundActivity:   "left",
+		PinchZoom:            true,
+		NewIcons:             false,
+		NewQuestionUI:        false,
+		Sounds: Sounds{
+			Agent:       true,
+			Permissions: true,
+			Questions:   true,
+			Errors:      true,
+			Interface:   true,
+			Tones:       map[string]string{},
+		},
 		Appearance: Appearance{
-			FontFamily:    "",
-			Density:       densityComfortable,
-			TimelineWidth: timelineComfortable,
-			ReduceMotion:  motionSystem,
+			FontFamily:      "",
+			CodeFont:        "",
+			TerminalFont:    "",
+			ThemeName:       "lingzhu",
+			Density:         densityComfortable,
+			Zoom:            100,
+			TimelineWidth:   timelineComfortable,
+			ReduceMotion:    motionSystem,
+			Theme:           themeSystem,
+			Language:        languageEnglish,
+			TabLayout:       layoutVertical,
+			SidebarOrganize: organizeList,
+			TimelineDetail:  defaultTimelineDetail(),
+		},
+		Notifications: Notifications{
+			Agent:       false,
+			Permissions: true,
+			Questions:   true,
+			Errors:      false,
 		},
 	}
 }
@@ -177,9 +281,63 @@ func Normalize(prefs Preferences) Preferences {
 	}
 	prefs.Favorites = normalizeSelections(prefs.Favorites, 50)
 	prefs.Recent = normalizeSelections(prefs.Recent, 8)
+	prefs.Pinned = normalizePinned(prefs.Pinned, 200)
+	if prefs.ProjectNames == nil {
+		prefs.ProjectNames = map[string]string{}
+	}
+	for path, name := range prefs.ProjectNames {
+		value := strings.TrimSpace(name)
+		if value == "" || strings.TrimSpace(path) == "" {
+			delete(prefs.ProjectNames, path)
+			continue
+		}
+		if len(value) > 128 {
+			value = value[:128]
+		}
+		prefs.ProjectNames[path] = value
+	}
+	if prefs.ProjectAutoApprove == nil {
+		prefs.ProjectAutoApprove = map[string]bool{}
+	}
+	prefs.ProjectIcons = normalizeStringMap(prefs.ProjectIcons, 64)
+	prefs.ProjectColors = normalizeStringMap(prefs.ProjectColors, 32)
+	prefs.ProjectWorktreeStartup = normalizeStringMap(prefs.ProjectWorktreeStartup, 512)
+	prefs.ProviderAccounts = normalizeCredentialMap(prefs.ProviderAccounts)
+	prefs.ActiveProviderAccounts = normalizeStringMap(prefs.ActiveProviderAccounts, 128)
+	prefs.Sounds.Tones = normalizeStringMap(prefs.Sounds.Tones, 32)
+	switch prefs.FollowUpBehavior {
+	case "queue", "steer":
+	default:
+		prefs.FollowUpBehavior = defaults.FollowUpBehavior
+	}
+	switch prefs.WorkspaceDestination {
+	case "local", "new":
+	default:
+		prefs.WorkspaceDestination = defaults.WorkspaceDestination
+	}
+	switch prefs.BackgroundActivity {
+	case "off", "center", "right":
+	default:
+		prefs.BackgroundActivity = defaults.BackgroundActivity
+	}
 	prefs.Appearance.FontFamily = strings.TrimSpace(prefs.Appearance.FontFamily)
+	if prefs.Appearance.Zoom < 80 || prefs.Appearance.Zoom > 150 {
+		prefs.Appearance.Zoom = defaults.Appearance.Zoom
+	}
 	if len(prefs.Appearance.FontFamily) > 256 {
 		prefs.Appearance.FontFamily = prefs.Appearance.FontFamily[:256]
+	}
+	prefs.Appearance.CodeFont = strings.TrimSpace(prefs.Appearance.CodeFont)
+	if len(prefs.Appearance.CodeFont) > 256 {
+		prefs.Appearance.CodeFont = prefs.Appearance.CodeFont[:256]
+	}
+	prefs.Appearance.TerminalFont = strings.TrimSpace(prefs.Appearance.TerminalFont)
+	if len(prefs.Appearance.TerminalFont) > 256 {
+		prefs.Appearance.TerminalFont = prefs.Appearance.TerminalFont[:256]
+	}
+	prefs.Appearance.ThemeName = strings.TrimSpace(prefs.Appearance.ThemeName)
+	if prefs.Appearance.ThemeName == "" {
+		prefs.Appearance.ThemeName = defaults.Appearance.ThemeName
 	}
 	switch prefs.Appearance.Density {
 	case densityCompact, densityComfortable:
@@ -196,7 +354,49 @@ func Normalize(prefs Preferences) Preferences {
 	default:
 		prefs.Appearance.ReduceMotion = defaults.Appearance.ReduceMotion
 	}
+	switch prefs.Appearance.Theme {
+	case themeSystem, themeDark, themeLight:
+	default:
+		prefs.Appearance.Theme = defaults.Appearance.Theme
+	}
+	switch prefs.Appearance.Language {
+	case languageEnglish, languageChinese:
+	default:
+		prefs.Appearance.Language = defaults.Appearance.Language
+	}
+	switch prefs.Appearance.TabLayout {
+	case layoutHorizontal, layoutVertical, layoutInbox:
+	default:
+		prefs.Appearance.TabLayout = defaults.Appearance.TabLayout
+	}
+	switch prefs.Appearance.SidebarOrganize {
+	case organizeProjects, organizeList:
+	default:
+		prefs.Appearance.SidebarOrganize = defaults.Appearance.SidebarOrganize
+	}
+	prefs.Appearance.TimelineDetail = normalizeTimelineDetail(
+		prefs.Appearance.TimelineDetail,
+		defaults.Appearance.TimelineDetail,
+	)
+	prefs.Keybinds = normalizeKeybinds(prefs.Keybinds)
 	return prefs
+}
+
+func normalizePinned(items []string, limit int) []string {
+	out := make([]string, 0, len(items))
+	seen := map[string]bool{}
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		out = append(out, item)
+		if len(out) == limit {
+			break
+		}
+	}
+	return out
 }
 
 func normalizeSelections(items []Selection, limit int) []Selection {
@@ -220,6 +420,28 @@ func normalizeSelections(items []Selection, limit int) []Selection {
 	return out
 }
 
+func normalizeKeybinds(items map[string]string) map[string]string {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(items))
+	for action, value := range items {
+		action = strings.TrimSpace(action)
+		value = strings.TrimSpace(value)
+		if action == "" || value == "" || len(value) > 64 {
+			continue
+		}
+		out[action] = value
+		if len(out) == 100 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func metaHas(db *sql.DB, key string) (bool, error) {
 	var value string
 	err := db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(&value)
@@ -227,4 +449,47 @@ func metaHas(db *sql.DB, key string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func normalizeStringMap(value map[string]string, limit int) map[string]string {
+	out := map[string]string{}
+	for path, item := range value {
+		key := strings.TrimSpace(path)
+		text := strings.TrimSpace(item)
+		if key == "" || text == "" {
+			continue
+		}
+		if len(text) > limit {
+			text = text[:limit]
+		}
+		out[key] = text
+	}
+	return out
+}
+
+func normalizeCredentialMap(value map[string][]ProviderCredential) map[string][]ProviderCredential {
+	out := map[string][]ProviderCredential{}
+	for provider, list := range value {
+		key := strings.TrimSpace(provider)
+		if key == "" {
+			continue
+		}
+		seen := map[string]bool{}
+		for _, credential := range list {
+			id := strings.TrimSpace(credential.ID)
+			if id == "" || seen[id] || len(out[key]) >= 20 {
+				continue
+			}
+			seen[id] = true
+			name := strings.TrimSpace(credential.Name)
+			if name == "" {
+				name = id
+			}
+			if len(name) > 128 {
+				name = name[:128]
+			}
+			out[key] = append(out[key], ProviderCredential{ID: id, Name: name, Key: credential.Key})
+		}
+	}
+	return out
 }

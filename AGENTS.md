@@ -58,3 +58,15 @@
 - 组件变体与状态必须由 `data-*` 驱动：`data-variant`、`data-size`、`data-state`、`data-selected`、`data-invalid`；不得用组合式类名。状态属性必须可注入，便于视觉测试强制 `hover`/`pressed`/`disabled`。
 - 涉及配色或间距的改动，提交说明必须列出所用令牌。引入字面量时，评审必须要求改用令牌，或先在正确层级新增令牌。
 - 缺少取值时，必须在唯一源文件中按正确层级（原语 → 语义）新增后再消费，禁止“临时内联”。
+
+## 7. 前端分层与状态
+
+- 工作区分层：`packages/ui` 基础控件、图标、主题令牌与共享 UI 纯函数；`packages/session-ui` 消息时间线、工具渲染、diff、shell/execute 卡片；`packages/app` 外壳、store、API、composer、settings、dialogs；`packages/devtools` 仅开发期使用的组件检查器（不进生产包）；`apps/desktop` 入口、Vite 配置、parity 与 Wails bindings。
+- 包内继续按职责分：`lib/` 纯函数与跨组件动作；`store/` zustand 外部状态与事件摄取；`app/` 组合层（domain hooks、dialogs、containers）；`components/` 展示组件。依赖只能自上而下：`apps/desktop → packages/app → packages/session-ui → packages/ui`；`packages/devtools` 是叶子包，不依赖任何业务包，只由 `apps/desktop` 在开发分支动态引入。
+- 跨包只走 `@lingzhu/ui/*`、`@lingzhu/session-ui/*`、`@lingzhu/app/*`、`@lingzhu/devtools/*` 与 `@lingzhu/bindings/*`，禁止跨包相对路径。`packages/app` 的 `components/` 与 `app/surfaces` 禁止直接 import `store/*`；数据经 domain hook 读取，动作经稳定函数调用。
+- 高频数据（chats、sessions、流式状态）必须用细粒度 selector 订阅，禁止把整张表或整对象放进 Context。
+- Provider 只承载作用域状态或渲染层组合（如对话框槽位），不得承载可从 store 派生的高频数据。
+- 组装层（`AppShell`、各 surface）不列参数列表；展示组件保留显式 props，测试与对照页直接渲染它们。
+- 对话框按 id 进 `store/dialogs.ts`，每个槽位用 `useDialogEntry(id)` 只订阅自己的载荷。
+- 文件按 feature 组织（如 `app/shell/`、`app/dialogs/`、`features/chat/`），禁止只为转发 props 的抽象层。
+- 新增 store 必须同日提供领域 hook；新增组件前先确认能否复用现有 domain hook。

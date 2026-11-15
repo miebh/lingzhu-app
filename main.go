@@ -7,6 +7,8 @@ import (
 	"runtime"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+
+	"lingzhu-app/internal/service"
 )
 
 // The frontend build output is embedded into the binary.
@@ -25,7 +27,7 @@ func main() {
 		Name:        "Lingzhu",
 		Description: "Desktop client for the lingzhu agent",
 		Services: []application.Service{
-			application.NewService(NewCoreService()),
+			application.NewService(service.NewCoreService()),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -42,10 +44,12 @@ func main() {
 		Height: 760,
 		// Windows and Linux draw their own title bar; macOS keeps the native
 		// hidden-inset title bar so the traffic lights stay in place.
-		Frameless:        runtime.GOOS != "darwin",
-		MinWidth:         900,
+		Frameless: runtime.GOOS != "darwin",
+		// The floor only has to hold the narrow layout: below 768px the shell
+		// folds the rail into a drawer and the transcript takes the whole row.
+		MinWidth:         640,
 		MinHeight:        600,
-		BackgroundColour: application.NewRGB(14, 15, 18),
+		BackgroundColour: application.NewRGB(8, 8, 8),
 		URL:              "/",
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 40,

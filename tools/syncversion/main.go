@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 )
 
 func main() {
@@ -110,7 +109,3 @@ func writeIfChanged(path, content string) error {
 	}
 	return os.WriteFile(path, []byte(content), 0o644)
 }
-
-// trimmed is unused by the tool but documents that a version file may carry a
-// trailing newline; the Taskfile trims it before passing it in.
-func trimmed(value string) string { return strings.TrimSpace(value) }

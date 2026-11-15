@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en" data-color-scheme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Lingzhu</title>
+    <script>
+      // Paint the system scheme before the bundle loads; preferences override it after hydration.
+      try {
+        document.documentElement.dataset.colorScheme = window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root" class="h-full"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

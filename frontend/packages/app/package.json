@@ -1,0 +1,14 @@
+{
+  "name": "@lingzhu/app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/App.tsx",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@lingzhu/session-ui": "*",
+    "@lingzhu/ui": "*"
+  }
+}

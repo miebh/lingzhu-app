@@ -1,10 +1,12 @@
 .task
 bin
 .dev
-frontend/dist
-frontend/node_modules
-frontend/bindings
+node_modules
+dist
+dist-parity
+bindings
 *.exe
 *.syso
+*.log
 build/linux/appimage/build
 build/windows/nsis/MicrosoftEdgeWebview2Setup.exe

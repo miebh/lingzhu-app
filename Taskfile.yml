@@ -28,7 +28,7 @@ tasks:
   bindings:
     summary: Generates frontend bindings from the Go services
     cmds:
-      - wails3 generate bindings .
+      - wails3 generate bindings -d frontend/apps/desktop/bindings .
 
   sync:version:
     summary: Stamps the repository version into packaging metadata

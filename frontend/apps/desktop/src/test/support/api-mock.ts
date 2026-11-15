@@ -1,0 +1,96 @@
+import { vi } from "vitest";
+
+/**
+ * The shared `api` stub for surface tests. Each test file registers it with
+ * `vi.mock("@/lib/api", () => import("./support/api-mock"))`, so the fixture
+ * shape lives here once and every surface sees the same data.
+ */
+export const api = {
+
+    context: vi.fn(async () => ({
+      messages: [
+        { role: "system", content: "You are a coding agent." },
+        { role: "user", content: "Fix the build" },
+        { role: "assistant", content: "On it", toolCalls: [{ name: "shell", arguments: "{}" }] },
+      ],
+      tokens: 1200,      provider: "p",
+      model: "m",
+      agent: "build",
+      running: false,
+    })),
+    exportBundle: vi.fn(async () => ({ info: { id: "s1" }, messages: [], events: [] })),
+    saveTextFile: vi.fn(async () => "C:/tmp/s1.json"),
+    searchFiles: vi.fn(async () => ({ files: [], truncated: false })),
+    fileContent: vi.fn(async () => ({ content: "", truncated: false, binary: false, size: 0 })),
+    backgroundJobs: vi.fn(async () => []),
+    jobOutput: vi.fn(async () => ({ job: {}, output: "", running: false })),
+    sessionSubagents: vi.fn(async () => []),
+    interrupt: vi.fn(async () => undefined),
+    cancelJob: vi.fn(async () => ({})),
+    sessionDiff: vi.fn(async () => ({ base: "", head: "", diffs: [] })),
+    files: vi.fn(async () => ({ entries: [] })),
+    skills: vi.fn(async () => [{ id: "demo", name: "Demo", description: "Demo skill" }]),
+    plugins: vi.fn(async () => [
+      {
+        name: "demo-plugin",
+        capabilities: { tools: true, commands: true, permissions: true, hooks: true, panels: true },
+        tools: [{ name: "run", effective: "demo_run" }],
+        commands: ["hello"],
+        panels: [{ id: "main", title: "Demo panel", html: "<p>panel-body</p>" }],
+      },
+    ]),
+    mcpStatus: vi.fn(async () => [
+      { name: "demo-mcp", tools: [{ name: "search", effective: "demo-mcp_search" }], resources: [] },
+    ]),
+    callMCPTool: vi.fn(async () => ({ content: [{ type: "text", text: "mcp-ok" }], isError: false })),
+    callPluginTool: vi.fn(async () => ({ output: "plugin-ok", content: [], isError: false })),
+    sessionTerminals: vi.fn(async () => [
+      {
+        id: "t1",
+        title: "Terminal",
+        sessionID: "s1",
+        status: "running",
+        pid: 1,
+        userTitle: null,
+        command: "",
+        args: [],
+        cwd: ".",
+        foregroundProcess: null,
+        size: { cols: 80, rows: 24 },
+        output: { head: 0, tail: 1 },
+      },
+    ]),
+    createSessionTerminal: vi.fn(async () => ({ id: "t2", title: "Terminal 2" })),
+    updatePersistentTerminal: vi.fn(async () => ({ id: "t1", title: "Terminal" })),
+    persistentTerminalOutput: vi.fn(async () => ({
+      chunks: [{ seq: 1, data: "hello" }],
+      next: 1,
+      status: "running",
+    })),
+    writePersistentTerminal: vi.fn(async () => undefined),
+    installPlugin: vi.fn(async () => []),
+    usage: vi.fn(async () => ({
+      sessionId: "s1",
+      calls: 0,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0,
+    })),
+    workspaceUsage: vi.fn(async () => ({
+      calls: 3,
+      input: 10,
+      output: 20,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 30,
+      sessions: [{ sessionId: "s1", title: "Session one", calls: 3, input: 10, output: 20, cacheRead: 0, cacheWrite: 0, total: 30 }],
+    })),
+    worktrees: vi.fn(async () => ({ repo: "", worktrees: [] })),
+    worktreeSessions: vi.fn(async () => ({})),
+    removeWorktree: vi.fn(async () => undefined),
+    project: vi.fn(async () => ({ directory: ".", name: "Project", sessions: 0, vcs: null })),
+    coreConfig: vi.fn(async () => ({ maxSteps: 16, shell: [] as string[] })),
+    updateCoreConfig: vi.fn(async () => undefined),
+};

@@ -70,14 +70,7 @@ func Cache() string {
 // Log is the directory holding process logs.
 func Log() string { return filepath.Join(Cache(), "log") }
 
-// Tmp is the directory holding scratch files that may be deleted at any time.
-func Tmp() string {
-	if p := Override(); p != "" {
-		return filepath.Join(p, "tmp")
-	}
-	return filepath.Join(os.TempDir(), app)
-}
-
+// localAppData is %LOCALAPPDATA% on Windows and the XDG cache root elsewhere.
 func localAppData() string {
 	if p := os.Getenv("LOCALAPPDATA"); p != "" {
 		return filepath.Join(p, app)

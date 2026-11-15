@@ -33,6 +33,12 @@ func TestGetMissingReturnsDefaults(t *testing.T) {
 	if got.Appearance.ReduceMotion != "system" || got.AutoApprove {
 		t.Fatalf("unexpected defaults: %+v", got)
 	}
+	if got.Appearance.SidebarOrganize != "list" ||
+		got.Appearance.TabLayout != "vertical" ||
+		got.Appearance.Language != "en" ||
+		got.Appearance.Theme != "system" {
+		t.Fatalf("unexpected appearance defaults: %+v", got.Appearance)
+	}
 }
 
 func TestGetCorruptReturnsDefaults(t *testing.T) {
@@ -77,6 +83,55 @@ func TestSaveNormalizesAndRoundTrips(t *testing.T) {
 	}
 	if got.Appearance.ReduceMotion != "system" {
 		t.Fatalf("invalid motion value was not normalized: %q", got.Appearance.ReduceMotion)
+	}
+}
+
+func TestTimelineDetailDefaultsToCompact(t *testing.T) {
+	got := Default().Appearance.TimelineDetail
+	if got.Shell.Placement != placementGrouped ||
+		got.Edit.Placement != placementGrouped ||
+		got.Thinking.Placement != placementGrouped ||
+		got.Tools.Placement != placementGrouped ||
+		got.Subagents.Placement != placementSeparate {
+		t.Fatalf("default timeline detail should be compact: %+v", got)
+	}
+}
+
+func TestTimelineDetailLegacyStringLoads(t *testing.T) {
+	var prefs Preferences
+	if err := json.Unmarshal([]byte(`{"appearance":{"timelineDetail":"compact"}}`), &prefs); err != nil {
+		t.Fatal(err)
+	}
+	prefs = Normalize(prefs)
+	if prefs.Appearance.TimelineDetail.Shell.Placement != placementGrouped ||
+		prefs.Appearance.TimelineDetail.Thinking.Placement != placementGrouped ||
+		prefs.Appearance.TimelineDetail.Subagents.Placement != placementSeparate {
+		t.Fatalf("legacy compact detail was not mapped: %+v", prefs.Appearance.TimelineDetail)
+	}
+
+	var summary Preferences
+	if err := json.Unmarshal([]byte(`{"appearance":{"timelineDetail":"summary"}}`), &summary); err != nil {
+		t.Fatal(err)
+	}
+	summary = Normalize(summary)
+	if summary.Appearance.TimelineDetail.Shell.Placement != placementGrouped ||
+		summary.Appearance.TimelineDetail.Tools.Placement != placementGrouped {
+		t.Fatalf("legacy summary detail was not mapped to compact: %+v", summary.Appearance.TimelineDetail)
+	}
+}
+
+func TestTimelineDetailObjectRoundTrips(t *testing.T) {
+	store, _ := openAt(t, t.TempDir())
+	want := defaultTimelineDetail()
+	want.Shell = TimelineCategoryDetail{Placement: placementHidden, Details: expansionExpanded}
+	want.Tools = TimelinePlacementDetail{Placement: placementSeparate}
+	if err := store.Save(Preferences{Appearance: Appearance{TimelineDetail: want}}); err != nil {
+		t.Fatal(err)
+	}
+	got := store.Get().Appearance.TimelineDetail
+	if got.Shell.Placement != placementHidden || got.Shell.Details != expansionExpanded ||
+		got.Tools.Placement != placementSeparate {
+		t.Fatalf("timeline detail did not round trip: %+v", got)
 	}
 }
 
@@ -135,5 +190,18 @@ func TestMigratesLegacyPreferencesOnce(t *testing.T) {
 	reopened, _ := openAt(t, dir)
 	if got := reopened.Get(); got.DefaultWorkspace != "D:/new" {
 		t.Fatalf("legacy file overwrote a newer value: %+v", got)
+	}
+}
+
+func TestShowMessageAgentDefaultsOff(t *testing.T) {
+	if Default().ShowMessageAgent {
+		t.Fatal("message agent labels must stay hidden by default")
+	}
+	var prefs Preferences
+	if err := json.Unmarshal([]byte(`{"showAgent":true}`), &prefs); err != nil {
+		t.Fatal(err)
+	}
+	if prefs.ShowMessageAgent {
+		t.Fatal("legacy preferences must not enable message agent labels")
 	}
 }

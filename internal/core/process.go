@@ -48,7 +48,13 @@ func Ensure(ctx context.Context, opts Options) (*Core, error) {
 	if addr == "" {
 		addr = DefaultAddr
 	}
-	client := New("http://" + addr)
+	// The token is shared through the data directory, so a core started by an
+	// earlier run is reachable and a core started here agrees with the client.
+	token, err := ensureToken(opts.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	client := New("http://" + addr).WithToken(token)
 	if probe(ctx, client) == nil {
 		return &Core{Client: client, Addr: addr}, nil
 	}
@@ -76,7 +82,10 @@ func Ensure(ctx context.Context, opts Options) (*Core, error) {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = opts.Workdir
-	cmd.Env = append(os.Environ(), "LINGZHU_PARENT_PID="+strconv.Itoa(os.Getpid()))
+	cmd.Env = append(os.Environ(),
+		"LINGZHU_PARENT_PID="+strconv.Itoa(os.Getpid()),
+		TokenEnv+"="+token,
+	)
 	hideChildWindow(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start core: %w", err)
