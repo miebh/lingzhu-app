@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import { notify } from "./notify";
 import { useCatalogStore } from "./catalog";
 import { useChatStore } from "./chat";
 import { usePreferencesStore } from "./preferences";
@@ -15,6 +16,28 @@ export function startApp() {
   started = true;
 
   api.onEvent((event) => useChatStore.getState().handleEvent(event));
+
+  // A core that crashes is restarted in the background; the notice tells the
+  // user why the app is briefly unavailable instead of failing silently.
+  api.onCoreStatus((status) => {
+    if (status.state === "restarting") {
+      notify(
+        status.attempt && status.attempt > 1
+          ? `Restarting the core (attempt ${status.attempt})...`
+          : "Restarting the core...",
+        "info",
+      );
+      return;
+    }
+    if (status.state === "failed") {
+      notify(`Core restart failed: ${status.error ?? "unknown error"}`);
+      return;
+    }
+    if (status.state === "ready") {
+      notify("Core is running again", "info");
+      void useWorkspaceStore.getState().refresh();
+    }
+  });
 
   void useCatalogStore.getState().reload();
 

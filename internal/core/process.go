@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"lingzhu-app/internal/global"
@@ -36,6 +37,10 @@ type Core struct {
 
 	cmd    *exec.Cmd
 	exited chan error
+	// done closes once the child process is gone, so both Stop and a supervisor
+	// can observe the exit without racing each other for the wait result.
+	done     chan struct{}
+	stopping atomic.Bool
 }
 
 // Ensure connects to a running core, starting one when none answers. It never
@@ -91,8 +96,11 @@ func Ensure(ctx context.Context, opts Options) (*Core, error) {
 		return nil, fmt.Errorf("start core: %w", err)
 	}
 
-	core := &Core{Client: client, Addr: addr, Owned: true, LogPath: logPath, cmd: cmd, exited: make(chan error, 1)}
-	go func() { core.exited <- cmd.Wait() }()
+	core := &Core{Client: client, Addr: addr, Owned: true, LogPath: logPath, cmd: cmd, exited: make(chan error, 1), done: make(chan struct{})}
+	go func() {
+		core.exited <- cmd.Wait()
+		close(core.done)
+	}()
 
 	if err := waitHealthy(ctx, core); err != nil {
 		_ = cmd.Process.Kill()
@@ -106,12 +114,14 @@ func (c *Core) Stop(ctx context.Context) error {
 	if !c.Owned || c.cmd == nil {
 		return nil
 	}
+	// A deliberate stop must not be mistaken for a crash by the supervisor.
+	c.stopping.Store(true)
 	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	err := c.Client.Shutdown(shutdownCtx)
 	cancel()
 	if err == nil {
 		select {
-		case <-c.exited:
+		case <-c.done:
 			return nil
 		case <-time.After(7 * time.Second):
 		}
@@ -120,10 +130,25 @@ func (c *Core) Stop(ctx context.Context) error {
 		_ = c.cmd.Process.Kill()
 	}
 	select {
-	case <-c.exited:
+	case <-c.done:
 	case <-time.After(2 * time.Second):
 	}
 	return nil
+}
+
+// Done closes when the child process has exited. A core this process did not
+// start has no child, so the channel never closes.
+func (c *Core) Done() <-chan struct{} {
+	if c == nil || c.done == nil {
+		return nil
+	}
+	return c.done
+}
+
+// Stopping reports whether this process asked the core to stop, so a supervisor
+// can tell an intended shutdown from a crash.
+func (c *Core) Stopping() bool {
+	return c != nil && c.stopping.Load()
 }
 
 func waitHealthy(ctx context.Context, core *Core) error {

@@ -26,6 +26,14 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "Lingzhu",
 		Description: "Desktop client for the lingzhu agent",
+		// One instance owns the data directory. A second launch forwards its
+		// arguments to the running window and exits, so a relaunch after an
+		// in-place update focuses the app instead of failing on the core's
+		// data-directory lock.
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID:               singleInstanceID,
+			OnSecondInstanceLaunch: onSecondInstance,
+		},
 		Services: []application.Service{
 			application.NewService(service.NewCoreService()),
 		},

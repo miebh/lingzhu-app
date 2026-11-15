@@ -14,6 +14,7 @@ import type {
   CoreConfig,
   CoreEvent,
   CoreHealth,
+  CoreStatus,
   CoreModel,
   CoreProvider,
   CoreShell,
@@ -200,6 +201,9 @@ export const api = {
   revealPath: (path: string): Promise<void> => call.RevealPath(path),
   saveBase64File: (name: string, encoded: string): Promise<string> => call.SaveBase64File(name, encoded),
   pickTextFile: (title: string): Promise<PickedFile> => call.ReadTextFile(title),
+
+  /** Chooses an installer executable for an in-place update. */
+  pickInstaller: (title: string): Promise<string> => call.PickInstaller(title),
   pickAttachmentFile: (title: string): Promise<PickedAttachment> => call.ReadAttachmentFile(title),
   forms: (workspace: string, sessionID: string): Promise<FormRecord[]> => call.Forms(workspace, sessionID),
   createForm: (workspace: string, sessionID: string, title: string, fields: FormField[]): Promise<FormRecord> =>
@@ -390,6 +394,14 @@ export const api = {
   onEvent(handler: (event: CoreEvent) => void): () => void {
     return Events.On("lingzhu:event", (payload: any) => handler(payload.data as CoreEvent));
   },
+
+  /** Core process lifecycle: restarting, ready or failed. */
+  onCoreStatus(handler: (status: CoreStatus) => void): () => void {
+    return Events.On("lingzhu:core", (payload: any) => handler(payload.data as CoreStatus));
+  },
+
+  /** Starts a downloaded installer and quits so it can replace the binaries. */
+  installUpdate: (path: string): Promise<void> => call.InstallUpdate(path),
 
   onSessionTail(handler: (event: SessionTailEvent) => void): () => void {
     return Events.On("lingzhu:tail", (payload: any) => handler(payload.data as SessionTailEvent));

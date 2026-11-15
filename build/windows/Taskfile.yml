@@ -152,6 +152,9 @@ tasks:
     desc: |
       Does not build or overwrite the binaries, so a signed executable stays
       signed. The core must already be staged at bin/lingzhu.exe.
+
+      makensis is not always on PATH (the NSIS installer does not add it), so
+      the task falls back to the standard install locations before giving up.
     dir: build/windows/nsis
     preconditions:
       - sh: '[ "{{.INSTALL_SCOPE}}" = "user" ] || [ "{{.INSTALL_SCOPE}}" = "machine" ]'
@@ -159,17 +162,17 @@ tasks:
       - sh: 'test -f "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"'
         msg: "stage the core at bin/lingzhu.exe first (task common:build:core)"
     cmds:
-      # Create the Microsoft WebView2 bootstrapper if it doesn't exist
       - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
-      - |
-        {{if eq OS "windows"}}
-        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" -DARG_WAILS_CORE_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\lingzhu.exe" project.nsi
-        {{else}}
-        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" -DARG_WAILS_CORE_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe" project.nsi
-        {{end}}
+      # tools/nsis finds makensis when the NSIS installer left it off PATH.
+      - >-
+        go run ../../../tools/nsis
+        --app "{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe"
+        --core "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"
+        --arch "{{.ARCH}}"
+        --scope "{{.INSTALL_SCOPE}}"
+        --script project.nsi
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
-      ARG_FLAG: '{{if eq .ARCH "amd64"}}AMD64{{else}}ARM64{{end}}'
       INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "user"}}'
 
   create:msix:package:

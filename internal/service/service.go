@@ -39,19 +39,27 @@ type CoreService struct {
 	// configMu serializes read-modify-write cycles on the shared config file.
 	configMu sync.Mutex
 	// coreMu guards the single child process every workspace shares.
-	coreMu  sync.Mutex
-	core    *core.Core
-	order   []string
-	spaces  map[string]*workspaceRuntime
-	streams map[string]*streamState
-	feeds   map[string]context.CancelFunc
-	tails   map[string]*tailState
+	coreMu sync.Mutex
+	// restartMu serializes a manual restart against the crash supervisor, so
+	// two replacements never race for the same data directory.
+	restartMu sync.Mutex
+	core      *core.Core
+	order     []string
+	spaces    map[string]*workspaceRuntime
+	streams   map[string]*streamState
+	feeds     map[string]context.CancelFunc
+	tails     map[string]*tailState
 	// placements caches which workspace owns a session, so the event stream
 	// does not resolve the same session on every event.
 	placementMu sync.Mutex
 	placements  map[string]string
 	// emitEvent is a test seam; production uses the Wails event emitter.
 	emitEvent func(EventEnvelope)
+	// emitCoreStatus is the lifecycle event seam, matching emitEvent.
+	emitCoreStatus func(CoreStatus)
+	// startCoreFn is the supervisor's attach seam, so a restart can be driven
+	// in a test without spawning a process.
+	startCoreFn func(*workspaceRuntime) error
 }
 
 // streamState is the active event stream of one session. done closes after the
@@ -253,7 +261,49 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 		s.open(item.Path)
 	}
 	s.startCatalogFetch()
+
+	// A build installed by a self-update has to prove it works: the installer's
+	// watchdog rolls back unless this app confirms. Only a reachable core counts
+	// as proof, so the check waits for one rather than trusting that the process
+	// merely started.
+	go s.confirmRunningBuild()
 	return nil
+}
+
+// confirmRunningBuild writes the update confirmation once the core answers.
+// The installer's watchdog waits a bounded time for it, so this must not block
+// startup: it polls in the background and gives up quietly if no core ever
+// comes up, which is the case the watchdog rolls back.
+func (s *CoreService) confirmRunningBuild() {
+	clearStaleUpdateState()
+	if !updatePending() {
+		return
+	}
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) {
+		if s.ctx.Err() != nil {
+			return
+		}
+		s.mu.Lock()
+		shared := s.core
+		s.mu.Unlock()
+		if shared != nil {
+			ctx, cancel := context.WithTimeout(s.ctx, 2*time.Second)
+			err := shared.Client.Health(ctx)
+			cancel()
+			if err == nil {
+				if err := confirmUpdate(); err != nil {
+					fmt.Printf("confirm update: %v\n", err)
+				}
+				return
+			}
+		}
+		select {
+		case <-time.After(time.Second):
+		case <-s.ctx.Done():
+			return
+		}
+	}
 }
 
 func (s *CoreService) ServiceShutdown() error {
@@ -487,6 +537,9 @@ func (s *CoreService) ensureCore() (*core.Core, error) {
 		})
 		if err == nil {
 			s.core = info
+			// A core that dies on its own must come back without the user
+			// having to press "Restart core".
+			s.superviseCore(info)
 			return s.core, nil
 		}
 		lastErr = err
@@ -553,6 +606,18 @@ func (s *CoreService) emit(event EventEnvelope) {
 	}
 	if app := application.Get(); app != nil {
 		app.Event.Emit(eventChannel, event)
+	}
+}
+
+// emitCore publishes a core lifecycle event through Wails unless a test seam
+// replaced the emitter.
+func (s *CoreService) emitCore(status CoreStatus) {
+	if s.emitCoreStatus != nil {
+		s.emitCoreStatus(status)
+		return
+	}
+	if app := application.Get(); app != nil {
+		app.Event.Emit(coreEventChannel, status)
 	}
 }
 

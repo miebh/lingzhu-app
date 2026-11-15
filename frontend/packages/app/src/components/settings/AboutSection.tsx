@@ -2,6 +2,9 @@ import { useState } from "react";
 import { LICENSE_TEXTS, NOTICES } from "./notices";
 import type { AppInfo } from "@lingzhu/ui/types";
 import { t } from "@lingzhu/ui/i18n";
+import { Button } from "@lingzhu/ui/button";
+import { api } from "../../lib/api";
+import { messageOf } from "../../lib/errors";
 
 interface Props {
   info?: AppInfo;
@@ -11,6 +14,30 @@ interface Props {
 /** Centered version, credits and notices, matching the reference About surface. */
 export function AboutSection({ info, error }: Props) {
   const [notices, setNotices] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [updateError, setUpdateError] = useState("");
+
+  // Picking an installer the user downloaded is the only way to update: the
+  // app has no server to ask for a build, and the installer itself decides
+  // whether it can replace the running binaries.
+  const installUpdate = async () => {
+    setUpdateError("");
+    let path: string;
+    try {
+      path = await api.pickInstaller("Choose a Lingzhu installer");
+    } catch (err) {
+      setUpdateError(messageOf(err));
+      return;
+    }
+    if (!path) return;
+    setInstalling(true);
+    try {
+      await api.installUpdate(path);
+    } catch (err) {
+      setUpdateError(messageOf(err));
+      setInstalling(false);
+    }
+  };
 
   if (error) {
     return (
@@ -56,6 +83,27 @@ export function AboutSection({ info, error }: Props) {
         >
           {t("thirdPartyNotices")}
         </button>
+      </div>
+
+      <div className="flex flex-col items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={installing}
+          onClick={() => void installUpdate()}
+        >
+          {installing ? "Installing..." : "Install update..."}
+        </Button>
+        <p className="max-w-[420px] text-caption leading-4 text-text-faint">
+          Choose a downloaded Lingzhu installer. The app closes, the installer replaces both binaries,
+          and the app starts again with your sessions intact.
+        </p>
+        {updateError && (
+          <p role="alert" className="text-caption leading-4 text-state-fg-danger">
+            {updateError}
+          </p>
+        )}
       </div>
 
       {notices && (

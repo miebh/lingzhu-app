@@ -1029,6 +1029,13 @@ export interface AgentCatalog {
 }
 
 /** Core health probe payload. */
+/** One core process lifecycle change, pushed on `lingzhu:core`. */
+export interface CoreStatus {
+  state: "restarting" | "ready" | "failed";
+  attempt?: number;
+  error?: string;
+}
+
 export interface CoreHealth {
   status: string;
   version?: string;

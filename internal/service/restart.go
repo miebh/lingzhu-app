@@ -23,6 +23,11 @@ func (s *CoreService) RestartCore(workspace string) error {
 // restartSharedCore stops the single core process and starts a replacement,
 // then reattaches every open workspace to it.
 func (s *CoreService) restartSharedCore() error {
+	// A manual restart and the crash supervisor must never run together: both
+	// stop a process and start a replacement on the same data directory.
+	s.restartMu.Lock()
+	defer s.restartMu.Unlock()
+
 	s.mu.Lock()
 	shared := s.core
 	paths := append([]string(nil), s.order...)

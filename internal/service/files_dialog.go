@@ -107,6 +107,25 @@ func decodeBase64Payload(encoded string) ([]byte, error) {
 	return data, nil
 }
 
+// PickInstaller opens a native dialog for an installer executable and returns
+// its path. The file is never read: an installer is a binary, and the updater
+// only needs to start it.
+func (s *CoreService) PickInstaller(title string) (string, error) {
+	app := application.Get()
+	if app == nil {
+		return "", errors.New("desktop application is not ready")
+	}
+	dialog := app.Dialog.OpenFile()
+	dialog.CanChooseFiles(true)
+	dialog.CanChooseDirectories(false)
+	dialog.AddFilter("Installer", "*.exe")
+	dialog.AddFilter("All files", "*.*")
+	if strings.TrimSpace(title) != "" {
+		dialog.SetTitle(title)
+	}
+	return dialog.PromptForSingleSelection()
+}
+
 // ReadTextFile opens a native open dialog and returns the chosen UTF-8 file.
 func (s *CoreService) ReadTextFile(title string) (PickedFile, error) {
 	app := application.Get()
