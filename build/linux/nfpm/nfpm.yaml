@@ -12,7 +12,7 @@ priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "Desktop client for the lingzhu agent"
 vendor: "Lingzhu"
-homepage: "https://github.com/0x132189/lingzhu-app"
+homepage: "https://github.com/miebh/lingzhu-app"
 license: "MIT"
 release: "1"
 
