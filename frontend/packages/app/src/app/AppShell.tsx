@@ -8,6 +8,7 @@ import { ShellTitleBar } from "./surfaces/ShellTitleBar";
 import { useAppNotifications } from "./useAppNotifications";
 import { useSeenSessions } from "./useSeenSessions";
 import { useSessionPrefetch } from "./useSessionPrefetch";
+import { useSessionTabsSync } from "./useSessionTabsSync";
 import { useShortcuts } from "./useShortcuts";
 import { chatKey } from "@lingzhu/ui/types";
 import { useChatStore } from "../store/chat";
@@ -52,6 +53,13 @@ function ShellBridges() {
     homeOpen: shell.view.homeOpen,
     workspaceList: shell.workspaceList,
     sessionsByWorkspace: shell.sessionsByWorkspace,
+  });
+  useSessionTabsSync({
+    activePath: shell.activePath,
+    activeId: shell.activeId,
+    sessionsByWorkspace: shell.sessionsByWorkspace,
+    loadingSessions: shell.loadingSessions,
+    workspaceList: shell.workspaceList,
   });
   useShortcuts({
     preferences: shell.preferences,

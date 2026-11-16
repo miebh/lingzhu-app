@@ -210,8 +210,6 @@ export function useShell() {
     activePath,
     activeId,
     sessionsByWorkspace,
-    loadingSessions,
-    workspaceList,
   });
 
   const sessionActions = useSessionActions({
