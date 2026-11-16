@@ -81,13 +81,15 @@ frontend/apps/desktop/bindings  Generated from Go; not committed, run `wails3 ge
 
 ## Notes
 
-- The UI uses a dark desktop design language: near-black surfaces, hairline borders, a warm
-  peach accent, 13–14px type, one-line expandable tool rows and a permission dock above the composer.
+- The UI uses a dark desktop design language by default: near-black surfaces, hairline borders, an
+  emerald accent, 13–14px type, one-line expandable tool rows and a permission dock above the composer.
 - `packages/ui/src/theme.css` is the single token source: OKLCH primitive scales feed semantic roles
   (`bg-*`, `fg-*`, `border-*`, `state-*`, overlays, `elevation-*`), and components only consume those
-  roles. The app uses one `data-color-scheme="dark"` block; spacing stays on the 4px ladder, control
-  heights are 24/28/32, reading width is measured in characters, focus is a 2px outline, hover/press are
-  translucent overlays, and variants/states are driven by `data-*` attributes.
+  roles. The app ships two `data-color-scheme` blocks: dark, and a light scheme built from white, gray
+  and emerald alone (near-white page, gray chrome and layer ladder, emerald accent for primary controls,
+  links, focus and selection). Spacing stays on the 4px ladder, control heights are 24/28/32, reading
+  width is measured in characters, focus is a 2px outline, hover/press are translucent overlays, and
+  variants/states are driven by `data-*` attributes.
 - The conversation uses an ordered session view: the transcript and composer share the
   `--container-session` width axis (744px); user turns are right-aligned bubbles capped at
   `min(82%, 64ch)`, assistant turns are borderless Markdown (14px / 160%), tool calls are 28px compact

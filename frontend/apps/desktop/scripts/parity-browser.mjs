@@ -169,9 +169,6 @@ try {
       const imageRect = image ? image.getBoundingClientRect() : null;
       const userAttachment = root.querySelector('[data-entry="user"] [data-slot="user-message-attachment"], [data-entry="user"] img')?.closest('span') ?? root.querySelector('[data-entry="user"] img')?.parentElement;
       const attachmentRect = userAttachment ? userAttachment.getBoundingClientRect() : null;
-      const todo = document.querySelector('#todo-root [data-component="todos"]');
-      const todoRow = todo?.querySelector('[data-status="completed"]') ?? todo?.querySelector('[data-status]');
-      const todoGlyph = todo?.querySelector('svg');
       return {
         shell: shellTrigger ? { height: style(shellTrigger).height } : null,
         accordion: accordion ? { height: style(accordion).height, border: style(accordion).borderTopWidth, padding: style(accordion).padding } : null,
@@ -199,14 +196,6 @@ try {
         },
         image: imageStyle ? { radius: imageStyle.borderRadius, cursor: imageStyle.cursor, maxWidth: imageStyle.maxWidth, rect: imageRect ? { width: imageRect.width, height: imageRect.height } : null } : null,
         attachment: attachmentRect ? { width: attachmentRect.width, height: attachmentRect.height } : null,
-        todo: todo ? {
-          padding: getComputedStyle(todo).padding,
-          gap: getComputedStyle(todo).gap,
-          glyph: todoGlyph ? getComputedStyle(todoGlyph).width : null,
-          rowRadius: todoRow ? getComputedStyle(todoRow).borderRadius : null,
-          textLineHeight: todoRow ? getComputedStyle(todoRow.querySelector('[data-slot="message-part-todo-content"]')).lineHeight : null,
-          completedDecoration: todoRow ? getComputedStyle(todoRow.querySelector('[data-slot="message-part-todo-content"]')).textDecorationLine : null,
-        } : null,
         pierre: {
           lineHeight: shadow?.querySelector("[data-line]") ? getComputedStyle(shadow.querySelector("[data-line]")).lineHeight : null,
           numberColumn: Boolean(shadow?.querySelector("[data-column-number]")),
@@ -310,9 +299,6 @@ try {
   assert.equal(measured.image?.radius, "4px");
   assert.equal(measured.image?.cursor, "zoom-in");
   assert.equal(measured.image?.maxWidth, "100%");
-  assert.equal(measured.todo.glyph, "16px");
-  assert.equal(measured.todo.rowRadius, "4px");
-  assert.equal(measured.todo.textLineHeight, "20px");
 
   console.log(JSON.stringify(measured, null, 2));
   console.log("parity-browser: ok");

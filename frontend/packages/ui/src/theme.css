@@ -43,8 +43,8 @@
   font-display: swap;
 }
 
-/* The app ships one scheme. The single root attribute is the only switch and
-   components never branch on the theme. */
+/* Two schemes ship: dark by default and a white/gray/emerald light scheme. The
+   single root attribute is the only switch and components never branch on it. */
 @custom-variant dark (&:where([data-color-scheme="dark"] *));
 
 @theme {
@@ -197,7 +197,7 @@
   --p-neutral-1100: oklch(0.2002 0 0);
   --p-neutral-1200: oklch(0.1344 0 0);
 
-  /* Info (blue). The accent hue is green, so blue only carries the info state. */
+  /* Info (blue). The accent hue is emerald, so blue only carries the info state. */
   --p-blue-100: oklch(0.9789 0.0099 267.36);
   --p-blue-200: oklch(0.9582 0.0183 269.09);
   --p-blue-300: oklch(0.8706 0.0599 267.42);
@@ -239,19 +239,21 @@
   --p-yellow-1100: oklch(0.4589 0.0643 85.45);
   --p-yellow-1200: oklch(0.3757 0.0442 88.09);
 
-  /* Accent and success (green). */
-  --p-green-100: oklch(0.9647 0.0274 150.43);
-  --p-green-200: oklch(0.9247 0.0493 149.73);
-  --p-green-300: oklch(0.8891 0.0744 150.14);
-  --p-green-400: oklch(0.8498 0.1141 149.98);
-  --p-green-500: oklch(0.7899 0.1495 150.07);
-  --p-green-600: oklch(0.7441 0.1694 150.14);
-  --p-green-700: oklch(0.6659 0.165 150.1);
-  --p-green-800: oklch(0.56 0.1451 150.03);
-  --p-green-900: oklch(0.5059 0.1249 150.13);
-  --p-green-1000: oklch(0.4362 0.1055 149.89);
-  --p-green-1100: oklch(0.3705 0.0854 149.82);
-  --p-green-1200: oklch(0.2998 0.0601 150.03);
+  /* Accent and success (emerald). The hue sits at 163deg so the accent reads
+     as emerald rather than the yellow-leaning green it replaced; the middle
+     steps keep the same lightness ladder and are clipped to sRGB. */
+  --p-green-100: oklch(0.9647 0.0274 163);
+  --p-green-200: oklch(0.9247 0.0493 163);
+  --p-green-300: oklch(0.8891 0.0744 163);
+  --p-green-400: oklch(0.8498 0.1141 163);
+  --p-green-500: oklch(0.7899 0.1495 163);
+  --p-green-600: oklch(0.7441 0.161 163);
+  --p-green-700: oklch(0.6659 0.143 163);
+  --p-green-800: oklch(0.56 0.121 163);
+  --p-green-900: oklch(0.5059 0.109 163);
+  --p-green-1000: oklch(0.4362 0.094 163);
+  --p-green-1100: oklch(0.3705 0.079 163);
+  --p-green-1200: oklch(0.2998 0.0601 163);
 
   /* Transparency ladder for layering, borders and interaction states. */
   --p-alpha-white-0: oklch(1 0 0 / 0%);
@@ -284,8 +286,8 @@
   --p-avatar-border-yellow: #e7af36;
   --p-avatar-bg-cyan: #005a6e;
   --p-avatar-border-cyan: #0096b8;
-  --p-avatar-bg-green: #196130;
-  --p-avatar-border-green: #49c970;
+  --p-avatar-bg-green: #006340;
+  --p-avatar-border-green: #00cc8d;
   --p-avatar-bg-red: #7a1f23;
   --p-avatar-border-red: #d92e3c;
   --p-avatar-bg-pink: #8c2d61;
@@ -344,7 +346,7 @@
   --bg-inverse: var(--p-neutral-100);
   --bg-contrast: var(--p-neutral-700);
   --bg-accent: var(--p-green-700);
-  /* Primary and submit controls use the most saturated green step so the
+  /* Primary and submit controls use the most saturated emerald step so the
      accent reads clearly against the neutral surfaces. */
   --bg-control-accent: var(--p-green-600);
   --fg-control-accent: var(--p-neutral-1200);
@@ -407,9 +409,10 @@
   --state-border-info: var(--p-blue-900);
 
   /* Diff rows use the desktop's transparent color washes over the base
-     surface rather than the stronger success/danger state fills. */
-  --diff-add-bg: color-mix(in oklab, #96e3a6 10%, transparent);
-  --diff-add-fg: #96e3a6;
+     surface rather than the stronger success/danger state fills. The addition
+     wash follows the accent scale so it stays emerald like the rest. */
+  --diff-add-bg: color-mix(in oklab, var(--p-green-400) 10%, transparent);
+  --diff-add-fg: var(--p-green-400);
   --diff-remove-bg: color-mix(in oklab, #f17471 10%, transparent);
   --diff-remove-fg: #f17471;
 
@@ -481,17 +484,24 @@
 
 [data-color-scheme="light"] {
   color-scheme: light;
+  /* White page, gray chrome, emerald accent: the page keeps the lightest
+     neutral step, the window chrome (title bar, sidebar) steps down to a
+     visibly gray surface, and the layer ladder carries the gray card and
+     control steps. */
   --bg-base: var(--p-neutral-100);
-  --bg-deep: var(--p-neutral-200);
+  --bg-deep: var(--p-neutral-300);
   --bg-layer-01: var(--p-neutral-200);
   --bg-layer-02: var(--p-neutral-300);
   --bg-layer-03: var(--p-neutral-400);
   --bg-layer-04: var(--p-neutral-500);
   --bg-inverse: var(--p-neutral-1100);
   --bg-contrast: var(--p-neutral-1000);
-  --bg-accent: var(--p-green-800);
-  --bg-control-accent: var(--p-green-600);
-  --fg-control-accent: var(--p-neutral-1200);
+  --bg-accent: var(--p-green-900);
+  /* Primary and submit controls take the same deep emerald step so the fill
+     reads as the accent against the white page; the label is the near-white
+     step. */
+  --bg-control-accent: var(--p-green-900);
+  --fg-control-accent: var(--p-neutral-100);
   --bg-button-neutral: var(--p-alpha-black-6);
   --bg-accent-soft: color-mix(in oklch, var(--p-green-400) 14%, transparent);
   --bg-raised: var(--p-alpha-white-100);
@@ -516,16 +526,19 @@
   --fg-float: var(--p-neutral-100);
   --fg-accent: var(--p-green-1000);
 
+  /* Light syntax stays inside the theme's three families: gray for comments
+     and punctuation, near-black for variables, and three emerald steps for
+     keywords, types and primitives. */
   --syntax-comment: #8f8f8f;
   --syntax-regexp: #6f6f6f;
-  --syntax-string: #006656;
+  --syntax-string: #017853;
   --syntax-keyword: #8f8f8f;
-  --syntax-primitive: #fb4804;
+  --syntax-primitive: #016142;
   --syntax-operator: #6f6f6f;
   --syntax-variable: #171717;
-  --syntax-property: #ed6dc8;
-  --syntax-type: #596600;
-  --syntax-constant: #007b80;
+  --syntax-property: #016142;
+  --syntax-type: #024c34;
+  --syntax-constant: #017853;
   --syntax-punctuation: #6f6f6f;
 
   --border-weak: var(--p-alpha-black-8);
@@ -553,7 +566,9 @@
 
   --overlay-hover: var(--p-alpha-black-6);
   --overlay-pressed: var(--p-alpha-black-10);
-  --overlay-selected: var(--p-alpha-black-8);
+  /* Selection is the one place the accent leaves the gray ladder: rows,
+     keyboard-selected chips and text selection read as an emerald wash. */
+  --overlay-selected: color-mix(in oklab, var(--p-green-700) 12%, transparent);
   --overlay-scrim: var(--p-alpha-black-40);
   --overlay-contrast-hover: var(--p-alpha-white-16);
   --overlay-contrast-pressed: var(--p-alpha-white-30);
@@ -576,15 +591,15 @@
     0 8px 16px 0 var(--p-alpha-black-8),
     0 0 0 0.5px var(--p-alpha-black-12);
   --elevation-input:
-    0 0 0 0.5px var(--p-alpha-white-16),
-    0 -0.5px 0 0 var(--p-alpha-white-6);
+    0 1px 1.5px 0 var(--p-alpha-black-6),
+    0 0 0 0.5px var(--p-alpha-black-12);
   --elevation-button-neutral:
     0 1px 2px 0 var(--p-alpha-black-40),
     0 0 0 0.5px var(--p-alpha-white-20),
     0 -0.5px 0 0 var(--p-alpha-white-10);
   --elevation-button-contrast:
     0 1px 2px 0 var(--p-alpha-black-20),
-    0 0 0 0.5px var(--p-neutral-800);
+    0 0 0 0.5px var(--p-green-800);
 
   --avatar-fg: var(--p-avatar-fg);
   --avatar-highlight: var(--p-alpha-black-8);

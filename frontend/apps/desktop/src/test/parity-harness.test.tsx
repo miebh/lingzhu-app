@@ -269,10 +269,10 @@ test("representative tools mount the production surfaces with reference geometry
   expect(resolveToken(dark, "--syntax-constant")).toBe("#93e9f6");
   expect(resolveToken(dark, "--syntax-variable")).toBe("#ffffffef");
   expect(resolveToken(light, "--syntax-keyword")).toBe("#8f8f8f");
-  expect(resolveToken(light, "--syntax-string")).toBe("#006656");
-  expect(resolveToken(light, "--syntax-property")).toBe("#ed6dc8");
-  expect(resolveToken(light, "--syntax-type")).toBe("#596600");
-  expect(resolveToken(light, "--syntax-constant")).toBe("#007b80");
+  expect(resolveToken(light, "--syntax-string")).toBe("#017853");
+  expect(resolveToken(light, "--syntax-property")).toBe("#016142");
+  expect(resolveToken(light, "--syntax-type")).toBe("#024c34");
+  expect(resolveToken(light, "--syntax-constant")).toBe("#017853");
   expect(resolveToken(light, "--syntax-variable")).toBe("#171717");
 
   // Typography roles resolve to the reference 13px/530/16px/-0.04px.
