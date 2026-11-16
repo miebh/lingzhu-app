@@ -1,5 +1,6 @@
 import { api } from "../lib/api";
 import { notify } from "./notify";
+import { openNoticeTarget } from "../lib/notice";
 import { useCatalogStore } from "./catalog";
 import { useChatStore } from "./chat";
 import { usePreferencesStore } from "./preferences";
@@ -16,6 +17,19 @@ export function startApp() {
   started = true;
 
   api.onEvent((event) => useChatStore.getState().handleEvent(event));
+
+  // A desktop notification is the way back into the session it reported on:
+  // the Go side focuses the window, and this reopens that conversation.
+  api.onNotice((target) => openNoticeTarget(target));
+
+  // Clicking a toast while the app was closed starts it with the payload, so
+  // the first read after subscribing still lands on that session.
+  void api
+    .pendingNotice()
+    .then((target) => {
+      if (target) openNoticeTarget(target);
+    })
+    .catch(() => undefined);
 
   // A core that crashes is restarted in the background; the notice tells the
   // user why the app is briefly unavailable instead of failing silently.

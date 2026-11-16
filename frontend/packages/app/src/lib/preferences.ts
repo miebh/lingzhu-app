@@ -52,10 +52,10 @@ export const defaultPreferences: AppPreferences = {
     timelineDetail: defaultTimelineDetail,
   },
   notifications: {
-    agent: false,
+    agent: true,
     permissions: true,
     questions: true,
-    errors: false,
+    errors: true,
   },
   keybinds: {},
 };

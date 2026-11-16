@@ -7,5 +7,5 @@
  * component.
  */
 export { usePreferences, usePreferencesStore } from "../store/preferences";
-export { notify } from "../store/notify";
+export { notify, notifySession } from "../store/notify";
 export { useCatalogStore } from "../store/catalog";

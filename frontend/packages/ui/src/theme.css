@@ -164,13 +164,17 @@
   --shadow-elevation-elements: var(--elevation-elements);
 
   --color-state-fg-success: var(--state-fg-success);
+  --color-state-bg-success: var(--state-bg-success);
+  --color-state-border-success: var(--state-border-success);
   --color-state-bg-warning: var(--state-bg-warning);
   --color-state-fg-warning: var(--state-fg-warning);
   --color-state-border-warning: var(--state-border-warning);
   --color-state-bg-danger: var(--state-bg-danger);
   --color-state-fg-danger: var(--state-fg-danger);
   --color-state-border-danger: var(--state-border-danger);
+  --color-state-bg-info: var(--state-bg-info);
   --color-state-fg-info: var(--state-fg-info);
+  --color-state-border-info: var(--state-border-info);
 
   /* Aliases used by shadcn/ui primitives, mapped onto the same slots. */
   --color-background: var(--bg-base);
@@ -4060,6 +4064,29 @@
 
 @media (prefers-reduced-motion: reduce) {
   .steer-arrival {
+    animation: none;
+  }
+}
+
+/* A notice rises into the corner from just below, so it reads as arriving
+   rather than as part of the surface it floats over. */
+.notice-arrive {
+  animation: notice-arrive-in 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes notice-arrive-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-arrive {
     animation: none;
   }
 }

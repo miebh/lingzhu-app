@@ -32,7 +32,7 @@ describe("cancellation errors", () => {
     notify("cancelled job");
     expect(useNotifyStore.getState().notice).toBeUndefined();
     notify("permission denied");
-    expect(useNotifyStore.getState().notice?.text).toBe("permission denied");
+    expect(useNotifyStore.getState().notice?.title).toBe("permission denied");
   });
 
   test("does not put a cancellation into the chat error state", () => {

@@ -1,16 +1,21 @@
 import { create } from "zustand";
-import type { ToastTone } from "@lingzhu/ui/types";
+import type { NoticeTarget, ToastTone } from "@lingzhu/ui/types";
 import { isCancellation } from "../lib/errors";
 
-interface Notice {
+export interface Notice {
   id: number;
-  text: string;
+  /** Headline; a plain notice uses the text itself as the headline. */
+  title: string;
+  /** Secondary line under the headline. */
+  body?: string;
   tone: ToastTone;
+  /** The session the notice is about, so the toast can reopen it. */
+  target?: NoticeTarget;
 }
 
 interface NotifyStore {
   notice?: Notice;
-  push: (text: string, tone?: ToastTone) => void;
+  push: (notice: Omit<Notice, "id">) => void;
   dismiss: () => void;
 }
 
@@ -19,9 +24,9 @@ let nextID = 0;
 /** Single transient notice slot shared by every store and surface. */
 export const useNotifyStore = create<NotifyStore>((set) => ({
   notice: undefined,
-  push: (text, tone = "error") => {
+  push: (notice) => {
     nextID += 1;
-    set({ notice: { id: nextID, text, tone } });
+    set({ notice: { ...notice, id: nextID } });
   },
   dismiss: () => set({ notice: undefined }),
 }));
@@ -30,7 +35,20 @@ export const useNotifyStore = create<NotifyStore>((set) => ({
 export function notify(text: string, tone: ToastTone = "error") {
   const value = text.trim();
   if (!value || isCancellation(value)) return;
-  useNotifyStore.getState().push(value, tone);
+  useNotifyStore.getState().push({ title: value, tone });
+}
+
+/**
+ * A finished run, raised with the session it belongs to. The toast reopens
+ * that conversation on click, so the notice is a way back into the work.
+ */
+export function notifySession(notice: { title: string; body?: string; tone?: ToastTone; target: NoticeTarget }) {
+  useNotifyStore.getState().push({
+    title: notice.title.trim(),
+    body: notice.body?.trim() || undefined,
+    tone: notice.tone ?? "success",
+    target: notice.target,
+  });
 }
 
 export function useNotice(): Notice | undefined {

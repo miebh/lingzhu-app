@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { chatKey } from "@lingzhu/ui/types";
-import { notify } from "../store/notify";
+import { api } from "../lib/api";
+import { notifySession } from "../store/notify";
 import { usePreferencesStore } from "../store/preferences";
 import { useChatStore } from "../store/chat";
 import { t } from "@lingzhu/ui/i18n";
@@ -10,12 +11,14 @@ type NoticeKind = "agent" | "permissions" | "questions" | "errors";
 type Snapshot = { running: boolean; pending: number; questions: number };
 
 /**
- * Desktop and in-app notifications for sessions the user is not watching.
- * Sounds are best-effort: an unavailable audio device must never interrupt the
- * event stream.
+ * Completion and request notices for sessions the user is not watching.
  *
- * The hook subscribes to a status signature rather than the chat map, so a
- * streamed token does not re-run the notification scan for every session.
+ * A finished run is reported by the Go side, from the event stream, because a
+ * minimised window lets WebView2 suspend its timers: a notice that waited for
+ * this hook to notice the end of a run would arrive when the user came back.
+ * This hook therefore only publishes which conversation is on screen, raises
+ * the in-app card for a foreground window, and keeps the approval and question
+ * channels, which need no timer.
  */
 export function useAppNotifications(activePath?: string, activeId?: string) {
   const notifyState = useRef<Record<string, Snapshot>>({});
@@ -27,6 +30,30 @@ export function useAppNotifications(activePath?: string, activeId?: string) {
       ),
     ),
   );
+
+  // The Go watcher reports runs for sessions the user is not looking at, so it
+  // has to know which one is on screen.
+  useEffect(() => {
+    if (!activePath || !activeId) {
+      void api.setWatchedSession("", "").catch(() => undefined);
+      return;
+    }
+    void api.setWatchedSession(activePath, activeId).catch(() => undefined);
+  }, [activePath, activeId]);
+
+  // The toast is raised by Go from the event stream, so it cannot read the
+  // message catalog itself: hand it the current wording, which also re-sends
+  // when the user switches language.
+  const language = usePreferencesStore((state) => state.preferences.appearance.language);
+  useEffect(() => {
+    void api
+      .setNoticeCopy({
+        finished: t("notifyFinishedBody"),
+        failed: t("notifyFailedBody"),
+        clickToOpen: t("noticeClickToOpen"),
+      })
+      .catch(() => undefined);
+  }, [language]);
 
   const playSound = (kind: NoticeKind) => {
     if (!usePreferencesStore.getState().preferences.sounds[kind]) return;
@@ -50,17 +77,25 @@ export function useAppNotifications(activePath?: string, activeId?: string) {
     }
   };
 
-  const notifyEvent = (title: string, body: string, kind?: NoticeKind) => {
-    notify(`${title} — ${body}`, "info");
-    if (kind) playSound(kind);
-    try {
-      if (typeof Notification === "undefined") return;
-      if (Notification.permission === "granted") new Notification(title, { body });
-      else if (Notification.permission === "default") void Notification.requestPermission();
-    } catch {
-      // Notifications are best-effort; a denied or unsupported API must not
-      // interrupt the event stream.
+  const notifyEvent = (
+    target: { workspace: string; sessionID: string },
+    title: string,
+    body: string,
+    kind: NoticeKind,
+    tone: "success" | "info" | "error",
+  ) => {
+    playSound(kind);
+    // The window is in front, so the card is enough. A run that ends while the
+    // window is behind the user is reported by the Go watcher instead, which
+    // still fires when this page is suspended.
+    if (document.hasFocus()) {
+      notifySession({ title, body, tone, target });
+      return;
     }
+    void api.notifyTask({ ...target, title, body: `${body} ${t("noticeClickToOpen")}` }).catch(() => {
+      // A blocked system channel still has to reach the user.
+      notifySession({ title, body, tone, target });
+    });
   };
 
   useEffect(() => {
@@ -74,18 +109,16 @@ export function useAppNotifications(activePath?: string, activeId?: string) {
       next[key] = { running: chat.running, pending: chat.pending.length, questions: chat.questions.length };
       if (!previous || key === foreground) continue;
       const title = chat.title || t("notifySessionFallback");
+      const separator = key.indexOf("\u0000");
+      const target = { workspace: key.slice(0, separator), sessionID: key.slice(separator + 1) };
       if (preferences.permissions && chat.pending.length > previous.pending) {
-        notifyEvent(t("notifyNeedsPermission", { title }), t("notifyNeedsPermissionBody"), "permissions");
+        notifyEvent(target, t("notifyNeedsPermission", { title }), t("notifyNeedsPermissionBody"), "permissions", "info");
       }
       if (preferences.questions && chat.questions.length > previous.questions) {
-        notifyEvent(t("notifyHasQuestion", { title }), t("notifyHasQuestionBody"), "questions");
+        notifyEvent(target, t("notifyHasQuestion", { title }), t("notifyHasQuestionBody"), "questions", "info");
       }
-      if (preferences.agent && previous.running && !chat.running && !chat.error) {
-        notifyEvent(t("notifyFinished", { title }), t("notifyFinishedBody"), "agent");
-      }
-      if (preferences.errors && previous.running && !chat.running && chat.error) {
-        notifyEvent(t("notifyFailed", { title }), chat.error, "errors");
-      }
+      // A finished run is the Go watcher's job; this hook would only report it
+      // once the window regained focus.
     }
     notifyState.current = next;
   }, [signature, activePath, activeId]);

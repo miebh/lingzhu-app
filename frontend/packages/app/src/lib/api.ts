@@ -39,6 +39,7 @@ import type {
   MCPToolResult,
   Message,
   ModelVisibility,
+  NoticeTarget,
   OAuthAuthorization,
   OAuthStatus,
   PermissionRequest,
@@ -391,6 +392,24 @@ export const api = {
   savePreferences: (input: AppPreferences): Promise<void> => call.SavePreferences(input),
   info: (): Promise<AppInfo> => call.Info(),
 
+  /** Raises a desktop notification for a finished run. */
+  notifyTask: (notice: NoticeTarget & { title: string; body: string; failed?: boolean; message?: string }): Promise<void> =>
+    call.NotifyTask({
+      workspace: notice.workspace,
+      sessionId: notice.sessionID,
+      title: notice.title,
+      body: notice.body,
+      failed: notice.failed ?? false,
+      message: notice.message ?? "",
+    }),
+
+  /** Hands the Go notifier the wording for a completion notice. */
+  setNoticeCopy: (copy: {
+    finished: string;
+    failed: string;
+    clickToOpen: string;
+  }): Promise<void> => call.SetNoticeCopy(copy),
+
   onEvent(handler: (event: CoreEvent) => void): () => void {
     return Events.On("lingzhu:event", (payload: any) => handler(payload.data as CoreEvent));
   },
@@ -406,6 +425,25 @@ export const api = {
   onSessionTail(handler: (event: SessionTailEvent) => void): () => void {
     return Events.On("lingzhu:tail", (payload: any) => handler(payload.data as SessionTailEvent));
   },
+
+  /** A desktop notification was clicked; the payload names its session. */
+  onNotice(handler: (target: NoticeTarget) => void): () => void {
+    return Events.On("lingzhu:notice", (payload: any) => {
+      const data = payload.data ?? {};
+      if (!data.sessionId) return;
+      handler({ workspace: data.workspace ?? "", sessionID: data.sessionId });
+    });
+  },
+
+  /** The session a cold-start toast click named, consumed once. */
+  pendingNotice: (): Promise<NoticeTarget | null> =>
+    call.PendingNotice().then((value: any) =>
+      value?.sessionId ? { workspace: value.workspace ?? "", sessionID: value.sessionId } : null,
+    ),
+
+  /** Tells the Go watcher which conversation is on screen. */
+  setWatchedSession: (workspace: string, sessionID: string): Promise<void> =>
+    call.SetWatchedSession(workspace, sessionID),
 };
 
 

@@ -69,9 +69,10 @@ describe("settings surfaces", () => {
         }}
       />,
     );
+    // Completion notices are on by default, so the first click turns it off.
     await userEvent.click(screen.getByRole("switch", { name: "Notify Agent" }));
     expect(save).toHaveBeenCalled();
-    expect(save.mock.calls[0][0].notifications.agent).toBe(true);
+    expect(save.mock.calls[0][0].notifications.agent).toBe(false);
   });
 
   test("models page can disable every model in a provider", async () => {

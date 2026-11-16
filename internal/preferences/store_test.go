@@ -193,6 +193,75 @@ func TestMigratesLegacyPreferencesOnce(t *testing.T) {
 	}
 }
 
+func TestCompletionNoticesDefaultOn(t *testing.T) {
+	notices := Default().Notifications
+	if !notices.Agent || !notices.Errors {
+		t.Fatalf("a finished or failed run must report by default: %+v", notices)
+	}
+	if !notices.Permissions || !notices.Questions {
+		t.Fatalf("approvals and questions must stay on by default: %+v", notices)
+	}
+}
+
+// An install that predates completion notices kept the old default, so a run's
+// end was silent. The upgrade turns those two channels on once, and must not
+// touch a channel the user changed.
+func TestCompletionNoticesUpgradeOldDefault(t *testing.T) {
+	dir := t.TempDir()
+	_, db := openAt(t, dir)
+	legacy := Default()
+	legacy.Notifications = Notifications{Agent: false, Permissions: true, Questions: true, Errors: false}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT OR REPLACE INTO preferences(id, data) VALUES(1, ?)`, string(data)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DELETE FROM meta WHERE key = ?`, notificationsKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, _ := openAt(t, dir)
+	got := reopened.Get().Notifications
+	if !got.Agent || !got.Errors {
+		t.Fatalf("completion channels were not enabled: %+v", got)
+	}
+	if !got.Permissions || !got.Questions {
+		t.Fatalf("upgrade changed an untouched channel: %+v", got)
+	}
+}
+
+func TestCompletionNoticesUpgradeKeepsUserChoice(t *testing.T) {
+	dir := t.TempDir()
+	_, db := openAt(t, dir)
+	custom := Default()
+	// The user turned the completion notice off on purpose.
+	custom.Notifications = Notifications{Agent: false, Permissions: false, Questions: true, Errors: true}
+	data, err := json.Marshal(custom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT OR REPLACE INTO preferences(id, data) VALUES(1, ?)`, string(data)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DELETE FROM meta WHERE key = ?`, notificationsKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, _ := openAt(t, dir)
+	got := reopened.Get().Notifications
+	if got.Agent || got.Permissions {
+		t.Fatalf("upgrade overrode a deliberate choice: %+v", got)
+	}
+}
+
 func TestShowMessageAgentDefaultsOff(t *testing.T) {
 	if Default().ShowMessageAgent {
 		t.Fatal("message agent labels must stay hidden by default")

@@ -38,6 +38,10 @@ const (
 	languageChinese = "zh"
 
 	migratedKey = "preferences.migrated"
+
+	// notificationsKey guards the one-time upgrade that turns the completion
+	// channels on for documents written before they defaulted to on.
+	notificationsKey = "preferences.notifications-v2"
 )
 
 // Appearance controls the client look without changing core configuration.
@@ -159,10 +163,12 @@ func Default() Preferences {
 			TimelineDetail:  defaultTimelineDetail(),
 		},
 		Notifications: Notifications{
-			Agent:       false,
+			// A finished run is the event a desktop notice exists for, so it is
+			// on by default; the settings page still turns it off per channel.
+			Agent:       true,
 			Permissions: true,
 			Questions:   true,
-			Errors:      false,
+			Errors:      true,
 		},
 	}
 }
@@ -195,7 +201,58 @@ func (s *Store) ensure() error {
 	)`); err != nil {
 		return err
 	}
-	return s.migrate()
+	if err := s.migrate(); err != nil {
+		return err
+	}
+	return s.enableCompletionNotices()
+}
+
+// enableCompletionNotices upgrades a document that still carries the old
+// defaults, where a finished run raised nothing. Only the untouched shape is
+// upgraded, so a channel the user changed keeps its value.
+func (s *Store) enableCompletionNotices() error {
+	done, err := metaHas(s.db, notificationsKey)
+	if err != nil || done {
+		return err
+	}
+	var data string
+	if err := s.db.QueryRow(`SELECT data FROM preferences WHERE id = 1`).Scan(&data); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return s.markNoticesMigrated()
+		}
+		return err
+	}
+	var stored struct {
+		Notifications Notifications `json:"notifications"`
+	}
+	if json.Unmarshal([]byte(data), &stored) != nil {
+		return s.markNoticesMigrated()
+	}
+	// The old default: only approvals and questions reported, so a run's
+	// completion was silent.
+	untouched := stored.Notifications == Notifications{
+		Agent:       false,
+		Permissions: true,
+		Questions:   true,
+		Errors:      false,
+	}
+	if !untouched {
+		return s.markNoticesMigrated()
+	}
+	prefs := s.Get()
+	prefs.Notifications.Agent = true
+	prefs.Notifications.Errors = true
+	if err := s.Save(prefs); err != nil {
+		return err
+	}
+	return s.markNoticesMigrated()
+}
+
+func (s *Store) markNoticesMigrated() error {
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO meta(key, value) VALUES(?, '1')`, notificationsKey,
+	)
+	return err
 }
 
 // migrate imports preferences.json into the new table. The JSON file stays on

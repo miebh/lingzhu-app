@@ -1492,7 +1492,14 @@ export interface SlashCommand {
   run?: () => void;
 }
 
-export type ToastTone = "info" | "error";
+/** Where a notice points when it is about one session. */
+export interface NoticeTarget {
+  workspace: string;
+  sessionID: string;
+}
+
+export type ToastTone = "info" | "error" | "success";
+
 
 export interface VCSBase {
   name: string;

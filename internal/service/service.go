@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 
 	"lingzhu-app/internal/appdb"
 	"lingzhu-app/internal/core"
@@ -57,6 +58,22 @@ type CoreService struct {
 	emitEvent func(EventEnvelope)
 	// emitCoreStatus is the lifecycle event seam, matching emitEvent.
 	emitCoreStatus func(CoreStatus)
+	// notifier raises desktop notifications; nil disables the channel.
+	notifier *notifications.NotificationService
+	// noticeOnce starts the toast worker; noticeQueue carries its pushes.
+	noticeOnce  sync.Once
+	noticeQueue chan noticeJob
+	// watched is the conversation on screen; lastNotice is the session the most
+	// recent toast reported, used when an activation arrives without its args.
+	watcher    *noticeWatcher
+	watchMu    sync.Mutex
+	watched    NoticeTarget
+	lastNotice NoticeTarget
+	// noticeCopy is the webview's wording for a completion notice.
+	noticeCopy NoticeCopy
+	// pendingNotice is the session a cold-start toast click named; the webview
+	// collects it after it subscribes.
+	pendingNotice *NoticeTarget
 	// startCoreFn is the supervisor's attach seam, so a restart can be driven
 	// in a test without spawning a process.
 	startCoreFn func(*workspaceRuntime) error
@@ -197,13 +214,20 @@ const (
 )
 
 func NewCoreService() *CoreService {
-	return &CoreService{
+	service := &CoreService{
 		spaces:     map[string]*workspaceRuntime{},
 		streams:    map[string]*streamState{},
 		feeds:      map[string]context.CancelFunc{},
 		tails:      map[string]*tailState{},
 		placements: map[string]string{},
+		watcher:    newNoticeWatcher(),
 	}
+	// A cold start caused by clicking a toast carries the session in the launch
+	// arguments; the webview collects it after it subscribes to events.
+	if target, ok := NoticeFromArgs(os.Args[1:]); ok {
+		service.pendingNotice = &target
+	}
+	return service
 }
 
 func (s *CoreService) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
@@ -232,6 +256,11 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 		return nil
 	}
 	s.prefs = prefs
+
+	// Desktop notifications are optional: a machine without a bundle
+	// identifier or with the channel blocked still runs the app.
+	s.notifier = notifications.New()
+	s.startNotifier(ctx, options)
 
 	store, err := workspaces.Open(db, appDir)
 	if err != nil {
@@ -328,6 +357,10 @@ func (s *CoreService) ServiceShutdown() error {
 	}
 	if s.db != nil {
 		_ = s.db.Close()
+	}
+	if s.notifier != nil {
+		_ = s.notifier.ServiceShutdown()
+		s.notifier = nil
 	}
 	return nil
 }
@@ -643,14 +676,16 @@ func (s *CoreService) watchEvents(client *core.Client) {
 				if ev.Global > last {
 					last = ev.Global
 				}
-				s.emit(EventEnvelope{
+				envelope := EventEnvelope{
 					Workspace: s.workspaceOf(ev.SessionID, ev.Directory),
 					SessionID: ev.SessionID,
 					Seq:       ev.Seq,
 					Type:      ev.Type,
 					At:        ev.At,
 					Data:      ev.Data,
-				})
+				}
+				s.emit(envelope)
+				s.watchRun(envelope)
 			})
 			if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 				return
@@ -662,6 +697,37 @@ func (s *CoreService) watchEvents(client *core.Client) {
 			}
 		}
 	}()
+}
+
+// watchRun raises the completion notice for a run that ended while the user
+// was elsewhere. It runs off the event stream rather than the webview, because
+// a minimised window lets WebView2 suspend its timers and the page would only
+// notice the end of the run once the user came back.
+func (s *CoreService) watchRun(ev EventEnvelope) {
+	if ev.Type == "session.deleted" {
+		s.watcher.forget(ev.SessionID)
+		return
+	}
+	// Every event is offered to the watcher: it tracks the running state from
+	// the starts so that only the transition into a settled run reports.
+	s.watchMu.Lock()
+	watched := s.watched
+	s.watchMu.Unlock()
+	focused := watched.SessionID != "" &&
+		watched.SessionID == ev.SessionID &&
+		watched.Workspace == ev.Workspace &&
+		appFocused()
+
+	notice, ok := s.watcher.observe(ev, focused)
+	if !ok {
+		return
+	}
+	if notice.Workspace == "" {
+		notice.Workspace = ev.Workspace
+	}
+	if err := s.raiseNotice(notice); err != nil {
+		logNotice("completion notice %s/%s: %v", notice.Workspace, notice.SessionID, err)
+	}
 }
 
 // workspaceOf maps a session to the workspace that owns it. The core tags each
