@@ -23,6 +23,37 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
   };
   let entries = chat.entries;
 
+  /** Index of the first row that belongs to the current turn. */
+  const turnStart = (list: TimelineEntry[]) => findLastIndex(list, (entry) => entry.role === "user") + 1;
+
+  /**
+   * Closes the reasoning rows a step left open. They are found by the live flag
+   * and scoped to the current turn: an older turn's thought must not be closed
+   * (or merged into) by a later step.
+   */
+  const closeLiveReasoning = (list: TimelineEntry[], at?: string): TimelineEntry[] => {
+    const endedAt = at ?? new Date().toISOString();
+    const from = turnStart(list);
+    return list.map((entry, index) =>
+      index >= from && entry.role === "reasoning" && entry.live ? { ...entry, live: false, endedAt } : entry,
+    );
+  };
+
+  /**
+   * Closes every row a turn was still streaming. A step that streamed text or a
+   * thought and then ended without a confirming event would otherwise keep a
+   * `live` row open, and the next turn's deltas would append into it.
+   */
+  const settleLive = (list: TimelineEntry[], at?: string): TimelineEntry[] => {
+    const endedAt = at ?? new Date().toISOString();
+    return list.map((entry) => {
+      if (!entry.live) return entry;
+      if (entry.role === "reasoning") return { ...entry, live: false, endedAt };
+      if (entry.role === "assistant") return { ...entry, live: false };
+      return entry;
+    });
+  };
+
   switch (event.type) {
     case "shell.ended": {
       // The composer shows a pending shell row; adopt it when the core echoes
@@ -154,15 +185,18 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
       // Only a live reasoning row can be open when text starts; every earlier
       // row keeps its identity. Rewriting the whole list on each delta would
       // copy every entry in a long transcript.
-      for (let index = entries.length - 1; index >= 0; index -= 1) {
-        const entry = entries[index];
-        if (entry.role === "reasoning" && entry.live) {
-          entries = replaceEntry(entries, index, { ...entry, live: false });
-        }
-      }
-      const last = entries[entries.length - 1];
-      if (last?.role === "assistant" && last.live) {
-        entries = replaceEntry(entries, entries.length - 1, { ...last, text: (last.text ?? "") + text });
+      entries = closeLiveReasoning(entries, event.at);
+      // The open row is identified by its live flag, never by its position: a
+      // step that already called tools has those rows after the text, and text
+      // that resumes after them still belongs to the same step.
+      const openAt = findLastIndex(
+        entries,
+        (entry) => entry.role === "assistant" && entry.live === true,
+        turnStart(entries),
+      );
+      if (openAt >= 0) {
+        const open = entries[openAt];
+        entries = replaceEntry(entries, openAt, { ...open, text: (open.text ?? "") + text });
       } else {
         entries = [...entries, { key: nextEntryKey("assistant"), role: "assistant", text, live: true }];
       }
@@ -172,9 +206,16 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
       startedAt();
       const text = String(data.text ?? "");
       if (!text) break;
-      const last = entries[entries.length - 1];
-      if (last?.role === "reasoning" && last.live) {
-        entries = replaceEntry(entries, entries.length - 1, { ...last, text: (last.text ?? "") + text });
+      // Same rule as text: the open thought is the live row, wherever the tool
+      // rows of this step left it.
+      const openAt = findLastIndex(
+        entries,
+        (entry) => entry.role === "reasoning" && entry.live === true,
+        turnStart(entries),
+      );
+      if (openAt >= 0) {
+        const open = entries[openAt];
+        entries = replaceEntry(entries, openAt, { ...open, text: (open.text ?? "") + text });
       } else {
         entries = [
           ...entries,
@@ -197,34 +238,43 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
       const reasoning = String(data.reasoning ?? "");
       const reasoningCreated = data.reasoningCreated ? String(data.reasoningCreated) : undefined;
       const reasoningCompleted = data.reasoningCompleted ? String(data.reasoningCompleted) : ended;
+      // Rows before this turn's prompt are somebody else's reply: a provider that
+      // only reports its final reasoning must not merge into an earlier turn's
+      // thought just because the text happens to share a prefix.
+      const from = turnStart(entries);
       // Live deltas normally built the reasoning row already. When a provider
       // only reports the final reasoning, reconcile it before the text row.
-      const reasoningAt = reasoning
-        ? findLastIndex(
-            entries,
-            (entry) =>
-              entry.role === "reasoning" &&
-              (entry.live || ((entry.text ?? "") !== "" && reasoning.startsWith(entry.text ?? ""))),
-          )
-        : -1;
+      let reasoningAt = -1;
+      if (reasoning) {
+        for (let index = entries.length - 1; index >= from; index -= 1) {
+          const entry = entries[index];
+          if (entry.role !== "reasoning") continue;
+          if (entry.live || ((entry.text ?? "") !== "" && reasoning.startsWith(entry.text ?? ""))) {
+            reasoningAt = index;
+            break;
+          }
+        }
+      }
       if (reasoningAt >= 0) {
-        entries = entries.map((entry, index) =>
-          index === reasoningAt
-            ? {
-                ...entry,
-                text: reasoning,
-                live: false,
-                created: entry.created ?? reasoningCreated,
-                endedAt: reasoningCompleted,
-              }
-            : entry,
-        );
+        const entry = entries[reasoningAt];
+        entries = replaceEntry(entries, reasoningAt, {
+          ...entry,
+          text: reasoning,
+          live: false,
+          created: entry.created ?? reasoningCreated,
+          endedAt: reasoningCompleted,
+        });
       } else if (reasoning) {
-        let insertAt = findLastIndex(entries, (entry) => entry.role === "assistant" && entry.live === true);
-        if (insertAt < 0) {
-          insertAt = entries.length;
-          // Tool calls from this step already landed; reasoning belongs above them.
-          while (insertAt > 0 && entries[insertAt - 1].role === "tool") insertAt -= 1;
+        const openText = findLastIndex(
+          entries,
+          (entry) => entry.role === "assistant" && entry.live === true,
+          from,
+        );
+        let insertAt = openText >= 0 ? openText : entries.length;
+        if (openText < 0) {
+          // Tool calls from this step already landed; reasoning belongs above
+          // them, but never above the prompt that started the turn.
+          while (insertAt > from && entries[insertAt - 1].role === "tool") insertAt -= 1;
         }
         const entry: TimelineEntry = {
           key: nextEntryKey("reasoning"),
@@ -236,28 +286,34 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
         };
         entries = [...entries.slice(0, insertAt), entry, ...entries.slice(insertAt)];
       }
-      entries = entries.map((entry) =>
-        entry.role === "reasoning" && entry.live ? { ...entry, live: false, endedAt: reasoningCompleted } : entry,
-      );
-      const last = entries[entries.length - 1];
+      entries = closeLiveReasoning(entries, reasoningCompleted);
       const meta = {
         agent: String(data.agent ?? ""),
         provider: String(data.provider ?? ""),
         model: String(data.model ?? ""),
       };
-      // The streamed row is authoritative until this event confirms it.
-      if (last?.role === "assistant" && last.live) {
-        entries = [
-          ...entries.slice(0, -1),
-          {
-            ...last,
-            text,
-            live: false,
-            agent: meta.agent || last.agent,
-            provider: meta.provider || last.provider,
-            model: meta.model || last.model,
-          },
-        ];
+      // The streamed row is authoritative until this event confirms it. A step
+      // that streamed commentary before calling tools leaves that row above the
+      // tool rows, not at the end, so it is found by its live flag instead of
+      // its position; otherwise the confirmed reply would be appended a second
+      // time and the transcript would show the same paragraph twice.
+      const streamedAt = findLastIndex(
+        entries,
+        (entry) => entry.role === "assistant" && entry.live === true,
+        from,
+      );
+      if (streamedAt >= 0) {
+        const streamed = entries[streamedAt];
+        entries = replaceEntry(entries, streamedAt, {
+          ...streamed,
+          // An empty event text means the step produced no text of its own; the
+          // row keeps what it already streamed rather than blanking it.
+          text: text || (streamed.text ?? ""),
+          live: false,
+          agent: meta.agent || streamed.agent,
+          provider: meta.provider || streamed.provider,
+          model: meta.model || streamed.model,
+        });
       } else {
         entries = [...entries, { key: nextEntryKey("assistant"), role: "assistant", text, ...meta }];
       }
@@ -265,11 +321,7 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
     }
     case "tool.call":
       startedAt();
-      entries = entries.map((entry) =>
-        entry.role === "reasoning" && entry.live
-          ? { ...entry, live: false, endedAt: event.at ?? new Date().toISOString() }
-          : entry,
-      );
+      entries = closeLiveReasoning(entries, event.at);
       entries = [
         ...entries,
         {
@@ -516,11 +568,9 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
           ? { ...entry, tool: { ...entry.tool, done: true } }
           : entry,
       );
-      entries = entries.map((entry) =>
-        entry.role === "reasoning" && entry.live
-          ? { ...entry, live: false, endedAt: event.at ?? new Date().toISOString() }
-          : entry,
-      );
+      // A turn that ends without confirming its streamed rows must still close
+      // them, or the next turn's deltas would append into finished text.
+      entries = settleLive(entries, event.at);
       next.lastRunStatus =
         reason === "done"
           ? "completed"
@@ -541,6 +591,8 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
       break;
     case "client.error": {
       next.running = false;
+      // The stream died mid-reply, so nothing will confirm the open rows.
+      entries = settleLive(entries, event.at);
       if (isCancellation(data.message)) {
         next.lastRunStatus = "stopped";
         break;
@@ -552,17 +604,13 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
     case "error":
       next.running = false;
       next.retry = undefined;
+      entries = settleLive(entries, event.at);
       if (isCancellation(data.message)) {
         next.lastRunStatus = "stopped";
         break;
       }
       next.lastRunStatus = "failed";
       next.error = String(data.message ?? "run failed");
-      entries = entries.map((entry) =>
-        entry.role === "reasoning" && entry.live
-          ? { ...entry, live: false, endedAt: event.at ?? new Date().toISOString() }
-          : entry,
-      );
       break;
   }
 
@@ -576,8 +624,8 @@ export function nextEntryKey(prefix: string): string {
   return `${prefix}-${entryID}`;
 }
 
-function findLastIndex(entries: TimelineEntry[], match: (entry: TimelineEntry) => boolean): number {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
+function findLastIndex(entries: TimelineEntry[], match: (entry: TimelineEntry) => boolean, from = 0): number {
+  for (let index = entries.length - 1; index >= from; index -= 1) {
     if (match(entries[index])) return index;
   }
   return -1;
