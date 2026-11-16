@@ -808,6 +808,12 @@ export interface ChatState {
   tokens: number;
   pending: PermissionRequest[];
   questions: QuestionRequest[];
+  /**
+   * Durable pending input, mirrored from the core's inbox facts. Both the
+   * composer queue and the pending steer rows are derived from it, so a
+   * refresh cannot make a just-sent message disappear.
+   */
+  inbox?: InboxItem[];
   usage?: UsageTotals;
   runStartedAt?: number;
   runEndedAt?: number;
@@ -841,6 +847,7 @@ export function blankChat(id: string, title = "New session", provider?: string, 
     tokens: 0,
     pending: [],
     questions: [],
+    inbox: [],
   };
 }
 
@@ -1206,7 +1213,7 @@ export interface InboxItem {
   sessionID: string;
   type: string;
   delivery: string;
-  payload: { text: string };
+  payload: { text: string; data?: Record<string, unknown> };
   time: { created: string };
 }
 

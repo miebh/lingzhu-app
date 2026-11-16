@@ -3,6 +3,7 @@ import { Messages } from "@lingzhu/session-ui/Messages";
 import type { ShellOutputSource } from "@lingzhu/session-ui/ToolPart";
 import type { ToolRun } from "@lingzhu/ui/types";
 import { api } from "../../../lib/api";
+import { pendingEntries } from "../../../lib/pending";
 import { useShell } from "../../ShellProvider";
 import { useActiveChat } from "../../hooks";
 import { useRevert } from "../../useRevert";
@@ -128,12 +129,18 @@ export function MessagesPane({ bottomInset = 0, header }: { bottomInset?: number
     shell.tabs.removeSessionTabs([{ path: activeWorkspacePath, id: activeId }]);
   }, [shell.tabs, activeWorkspacePath, activeId]);
 
+  // Pending steering input comes from the durable inbox projection, so it
+  // renders before delivery and disappears in the same update that appends
+  // the delivered message.
+  const pending = useMemo(() => (active ? pendingEntries(active.inbox, active) : []), [active]);
+
   if (!active) return null;
+  const chat = pending.length > 0 ? { ...active, entries: [...active.entries, ...pending] } : active;
 
   return (
     <>
       <Messages
-        chat={active}
+        chat={chat}
         workspace={activeWorkspacePath}
         runningSubagents={runningSubagents}
         header={header}

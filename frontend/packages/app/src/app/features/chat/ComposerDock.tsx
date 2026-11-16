@@ -32,7 +32,6 @@ export function ComposerDock({
   const inbox = useInbox({
     workspace: activeWorkspace?.path,
     sessionID: active && !active.draft ? active.id : undefined,
-    running: Boolean(active?.running),
     restorePrompt: shell.restoreText,
   });
   const ref = useRef<HTMLDivElement>(null);
@@ -116,7 +115,7 @@ export function ComposerDock({
       )}
 
       <SessionQueuePanel
-        items={inbox.inbox}
+        items={inbox.inbox.filter((item) => item.type === "user" && item.delivery === "queue")}
         onRemove={(id) => void inbox.removeInboxItem(id)}
         onToggleDelivery={(item) => void inbox.toggleInboxDelivery(item)}
         onEdit={(item) => void inbox.editInboxItem(item)}

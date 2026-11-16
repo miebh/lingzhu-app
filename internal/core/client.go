@@ -1532,7 +1532,9 @@ func (c *Client) Interrupt(ctx context.Context, sessionID string) (bool, error) 
 	var payload struct {
 		Interrupted bool `json:"interrupted"`
 	}
-	err := c.do(ctx, http.MethodPost, sessionPath(sessionID, "/interrupt"), nil, &payload)
+	// Stopping continues steering input and control items; queued prompts stay
+	// parked in the inbox.
+	err := c.do(ctx, http.MethodPost, sessionPath(sessionID, "/interrupt")+"?resume=true", nil, &payload)
 	return payload.Interrupted, err
 }
 

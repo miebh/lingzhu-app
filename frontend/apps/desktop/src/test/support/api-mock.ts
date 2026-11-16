@@ -23,6 +23,7 @@ export const api = {
     searchFiles: vi.fn(async () => ({ files: [], truncated: false })),
     fileContent: vi.fn(async () => ({ content: "", truncated: false, binary: false, size: 0 })),
     backgroundJobs: vi.fn(async () => []),
+    inbox: vi.fn(async () => []),
     jobOutput: vi.fn(async () => ({ job: {}, output: "", running: false })),
     sessionSubagents: vi.fn(async () => []),
     interrupt: vi.fn(async () => undefined),

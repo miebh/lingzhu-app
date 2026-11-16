@@ -67,6 +67,13 @@ func (w *noticeWatcher) observe(ev EventEnvelope, focused bool) (TaskNotice, boo
 		if focused {
 			return TaskNotice{}, false
 		}
+		if ev.Type == "run.end" {
+			if reason, _ := ev.Data["reason"].(string); reason == "interrupted" {
+				// Stopping is not completion, and a resumed successor usually
+				// starts immediately after it.
+				return TaskNotice{}, false
+			}
+		}
 		return TaskNotice{
 			Workspace: ev.Workspace,
 			SessionID: ev.SessionID,

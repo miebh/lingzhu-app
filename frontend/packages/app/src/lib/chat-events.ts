@@ -1,7 +1,15 @@
 import { entryAttachments } from "@lingzhu/ui/attachments";
 import { t } from "@lingzhu/ui/i18n";
 import { isCancellation } from "./errors";
-import type { ChatState, CoreEvent, QuestionPrompt, ShellRun, TimelineEntry, UsageTotals } from "@lingzhu/ui/types";
+import type {
+  ChatState,
+  CoreEvent,
+  InboxItem,
+  QuestionPrompt,
+  ShellRun,
+  TimelineEntry,
+  UsageTotals,
+} from "@lingzhu/ui/types";
 import { switchChanges } from "@lingzhu/ui/types";
 
 /**
@@ -22,6 +30,36 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
     if (next.runStartedAt === undefined) next.runStartedAt = Date.now();
   };
   let entries = chat.entries;
+  // Pending input is one projection shared by the queue strip and the pending
+  // transcript rows. Every inbox fact updates this list, and delivery removes
+  // the item in the same state update that appends the visible message.
+  let inbox = chat.inbox ?? [];
+  const dropInput = (id: string) => {
+    if (!id) return;
+    const remaining = inbox.filter((item) => item.id !== id);
+    if (remaining.length !== inbox.length) inbox = remaining;
+  };
+  const upsertInput = (item: InboxItem) => {
+    const index = inbox.findIndex((existing) => existing.id === item.id);
+    inbox = index >= 0 ? inbox.map((existing, i) => (i === index ? item : existing)) : [...inbox, item];
+  };
+  const inboxItem = (
+    type: string,
+    id: string,
+    text: string,
+    delivery: string,
+    payload?: Record<string, unknown>,
+  ): InboxItem => ({
+    id,
+    sessionID: event.sessionId,
+    type,
+    delivery,
+    payload: { text, data: payload },
+    time: { created: event.at ?? new Date().toISOString() },
+  });
+  // A delivery event names the inbox item it consumed, so the pending row and
+  // the transcript row transition together.
+  if (typeof data.inputId === "string") dropInput(data.inputId);
 
   /** Index of the first row that belongs to the current turn. */
   const turnStart = (list: TimelineEntry[]) => findLastIndex(list, (entry) => entry.role === "user") + 1;
@@ -55,6 +93,52 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
   };
 
   switch (event.type) {
+    case "input.queued":
+    case "synthetic.queued": {
+      const id = typeof data.id === "string" ? data.id : "";
+      if (!id) break;
+      const payload =
+        data.payload && typeof data.payload === "object" ? (data.payload as Record<string, unknown>) : undefined;
+      upsertInput(
+        inboxItem(
+          event.type === "synthetic.queued" ? "synthetic" : "user",
+          id,
+          String(data.text ?? ""),
+          typeof data.delivery === "string" && data.delivery ? data.delivery : "steer",
+          payload,
+        ),
+      );
+      break;
+    }
+    case "compaction.queued":
+    case "move.queued": {
+      const id = typeof data.id === "string" ? data.id : "";
+      if (!id) break;
+      upsertInput(
+        inboxItem(
+          event.type === "compaction.queued" ? "compaction" : "move",
+          id,
+          "",
+          typeof data.delivery === "string" && data.delivery ? data.delivery : "steer",
+          data as Record<string, unknown>,
+        ),
+      );
+      break;
+    }
+    case "input.updated": {
+      const id = typeof data.id === "string" ? data.id : "";
+      const delivery = typeof data.delivery === "string" ? data.delivery : "";
+      if (!id || !delivery) break;
+      inbox = inbox.map((item) => (item.id === id ? { ...item, delivery } : item));
+      break;
+    }
+    case "input.cancelled":
+      dropInput(typeof data.id === "string" ? data.id : "");
+      break;
+    case "turn.cancelled":
+      // A cancelled turn drops every input queued before its claim.
+      inbox = [];
+      break;
     case "shell.ended": {
       // The composer shows a pending shell row; adopt it when the core echoes
       // the same command, otherwise append a new shell message.
@@ -106,8 +190,10 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
     }
     case "user.message": {
       // A prompt echoed while the turn was already live arrived as a steer, so
-      // it grows into place instead of appearing like a fresh turn.
-      const steer = chat.running === true || undefined;
+      // it grows into place instead of appearing like a fresh turn. Delivered
+      // queue prompts carry their delivery mode and start a normal block.
+      const delivery = typeof data.delivery === "string" ? data.delivery : undefined;
+      const steer = (delivery ? delivery === "steer" : chat.running === true) || undefined;
       // A prompt echo is the first event of a turn, so it starts the live
       // status even when this client never sent the prompt itself.
       startedAt();
@@ -615,6 +701,7 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
   }
 
   next.entries = entries;
+  next.inbox = inbox;
   return { ...chats, [key]: next };
 }
 

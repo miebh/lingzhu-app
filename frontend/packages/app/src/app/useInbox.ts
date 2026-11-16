@@ -1,58 +1,32 @@
-import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { messageOf } from "../lib/errors";
-import type { InboxItem } from "@lingzhu/ui/types";
+import { chatKey, type InboxItem } from "@lingzhu/ui/types";
 import { notify } from "../store/notify";
+import { useChatStore } from "../store/chat";
 
 interface Options {
   workspace?: string;
   sessionID?: string;
-  /** Queued prompts change only while a turn runs, so they poll until it ends. */
-  running: boolean;
   restorePrompt: (text: string) => void;
 }
 
-/** Queued prompts for the active session, shown above the composer. */
-export function useInbox({ workspace, sessionID, running, restorePrompt }: Options) {
-  const [inbox, setInbox] = useState<InboxItem[]>([]);
-
-  useEffect(() => {
-    if (!workspace || !sessionID) {
-      setInbox([]);
-      return;
-    }
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const items = await api.inbox(workspace, sessionID);
-        if (!cancelled) setInbox(items ?? []);
-      } catch {
-        if (!cancelled) setInbox([]);
-      }
-    };
-    void load();
-    // The queue only changes while a turn runs; poll it at the same cadence as
-    // the reference's live inbox while the session is busy.
-    const timer = running ? window.setInterval(() => void load(), 1500) : undefined;
-    return () => {
-      cancelled = true;
-      if (timer) window.clearInterval(timer);
-    };
-  }, [workspace, sessionID, running]);
-
-  const refreshInbox = async (path: string, id: string) => {
-    try {
-      setInbox((await api.inbox(path, id)) ?? []);
-    } catch {
-      setInbox([]);
-    }
-  };
+/**
+ * Pending input for one session. The durable inbox projection in the chat
+ * store is the single source for both the composer queue and the pending
+ * steer rows, so a send, delivery change or cancellation updates both views
+ * in the same state update.
+ */
+export function useInbox({ workspace, sessionID, restorePrompt }: Options) {
+  const key = workspace && sessionID ? chatKey(workspace, sessionID) : "";
+  const inbox = useChatStore((state) => (key ? state.chats[key]?.inbox : undefined));
+  const removeInboxInput = useChatStore((state) => state.removeInboxInput);
+  const setInboxDelivery = useChatStore((state) => state.setInboxDelivery);
 
   const removeInboxItem = async (id: string) => {
     if (!workspace || !sessionID) return;
     try {
       await api.cancelInbox(workspace, sessionID, id);
-      await refreshInbox(workspace, sessionID);
+      removeInboxInput(workspace, sessionID, id);
     } catch (error) {
       notify(messageOf(error));
     }
@@ -60,9 +34,10 @@ export function useInbox({ workspace, sessionID, running, restorePrompt }: Optio
 
   const toggleInboxDelivery = async (item: InboxItem) => {
     if (!workspace || !sessionID) return;
+    const next = item.delivery === "steer" ? "queue" : "steer";
     try {
-      await api.updateInbox(workspace, sessionID, item.id, item.delivery === "steer" ? "queue" : "steer");
-      await refreshInbox(workspace, sessionID);
+      await api.updateInbox(workspace, sessionID, item.id, next);
+      setInboxDelivery(workspace, sessionID, item.id, next);
     } catch (error) {
       notify(messageOf(error));
     }
@@ -73,12 +48,12 @@ export function useInbox({ workspace, sessionID, running, restorePrompt }: Optio
     if (!workspace || !sessionID) return;
     try {
       await api.cancelInbox(workspace, sessionID, item.id);
+      removeInboxInput(workspace, sessionID, item.id);
       restorePrompt(item.payload.text);
-      await refreshInbox(workspace, sessionID);
     } catch (error) {
       notify(messageOf(error));
     }
   };
 
-  return { inbox, removeInboxItem, toggleInboxDelivery, editInboxItem };
+  return { inbox: inbox ?? [], removeInboxItem, toggleInboxDelivery, editInboxItem };
 }

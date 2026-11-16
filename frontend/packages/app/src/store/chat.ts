@@ -42,6 +42,10 @@ interface ChatStore {
   open: (workspace: string, sessionID: string) => Promise<void>;
   newChat: (workspace: string) => Promise<void>;
   send: (text: string, delivery?: 'steer' | 'queue', attachments?: PromptAttachment[], meta?: { comments?: PromptComment[]; references?: PromptReference[]; voice?: boolean }) => Promise<void>;
+  /** Drops one pending input after the core accepted its cancellation. */
+  removeInboxInput: (workspace: string, sessionID: string, inputID: string) => void;
+  /** Mirrors a delivery change before the live inbox fact arrives. */
+  setInboxDelivery: (workspace: string, sessionID: string, inputID: string, delivery: string) => void;
   /** Runs a shell command in the active session and shows its output. */
   runShell: (command: string) => Promise<void>;
   startSession: (text: string, agent?: string, attachments?: PromptAttachment[], meta?: { references?: PromptReference[] }) => Promise<void>;
@@ -279,8 +283,9 @@ export const useChatStore = create<ChatStore>((set, get) => {
 
   const refreshChat = async (workspace: string, sessionID: string, title = "") => {
     const key = chatKey(workspace, sessionID);
+    const fetchStart = Date.now();
     try {
-      const [messages, pending, questions, usage] = await Promise.all([
+      const [messages, pending, questions, usage, inbox] = await Promise.all([
         api.messages(workspace, sessionID),
         api.pending(workspace, sessionID),
         api.questions(workspace, sessionID),
@@ -288,6 +293,9 @@ export const useChatStore = create<ChatStore>((set, get) => {
         // persisted for this session, so a reopened session shows its numbers
         // before the next turn reports a fresh usage event.
         api.usage(workspace, sessionID).catch(() => undefined),
+        // Pending input is not history yet; the inbox tells us which optimistic
+        // rows are still on their way to a boundary.
+        api.inbox(workspace, sessionID).catch(() => []),
       ]);
       set((state) => {
         const chat = state.chats[key] ?? blankChat(sessionID, title);
@@ -325,6 +333,15 @@ export const useChatStore = create<ChatStore>((set, get) => {
             }),
           };
         });
+        // The inbox snapshot and history are applied in one update: pending input
+        // and the transcript are views of the same projection, so a refresh
+        // cannot make a just-sent message vanish. Items admitted while this
+        // fetch was in flight are kept.
+        const snapshot = inbox ?? [];
+        const knownInbox = new Set(snapshot.map((item) => item.id));
+        const late = (chat.inbox ?? []).filter(
+          (item) => !knownInbox.has(item.id) && Date.parse(item.time.created) > fetchStart,
+        );
         return {
           chats: {
             ...state.chats,
@@ -333,6 +350,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
               loading: false,
               draft: false,
               entries: history,
+              inbox: [...snapshot, ...late],
               // The persisted counters are cumulative, so they replace the
               // local ones instead of adding to them. The prompt size is the
               // last call's totals, which is what the ring reports.
@@ -433,18 +451,11 @@ export const useChatStore = create<ChatStore>((set, get) => {
       return;
     }
     const title = chat.title && chat.title !== "New session" ? chat.title : text.slice(0, 40);
-    const attachmentMeta = attachments.map((attachment) => ({
-      mime: attachment.mime,
-      name: attachment.name,
-      data: attachment.data,
-      kind: attachment.kind,
-      start: attachment.start,
-      end: attachment.end,
-    }));
     set((state) => {
       const current = state.chats[key] ?? chat;
       // Steering input joins the active run, so it must not restart the timer
-      // or clear the live run status.
+      // or clear the live run status. The transcript row comes from the pending
+      // projection, not from a local optimistic entry.
       const active = current.running;
       turnEndedAt.delete(key);
       return {
@@ -462,31 +473,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
             lastRunStatus: active ? current.lastRunStatus : undefined,
             error: undefined,
             notice: active ? current.notice : undefined,
-            // Show the turn immediately; the core echoes it back as user.message
-            // and history replaces the optimistic row when the run ends.
-            entries: [
-              ...current.entries,
-              {
-                key: nextEntryKey("user"),
-                role: "user",
-                text,
-                attachments: attachmentMeta.length > 0 ? attachmentMeta : undefined,
-                comments: meta?.comments,
-                references: meta?.references?.map((reference) => ({
-                  mime: reference.mime ?? "",
-                  name: reference.name,
-                })),
-                voice: meta?.voice,
-                pending: true,
-                // A prompt sent into a live turn joins it as a steer, so the
-                // transcript can grow the row in where it arrived.
-                steer: active || undefined,
-                created: new Date().toISOString(),
-                agent: agentID,
-                provider: providerID,
-                model: modelID,
-              },
-            ],
           },
         },
       };
@@ -669,6 +655,22 @@ export const useChatStore = create<ChatStore>((set, get) => {
         }));
         notify(messageOf(error));
       }
+    },
+
+    removeInboxInput: (workspace, sessionID, inputID) => {
+      const key = chatKey(workspace, sessionID);
+      patchChat(key, (chat) =>
+        chat.inbox ? { ...chat, inbox: chat.inbox.filter((item) => item.id !== inputID) } : chat,
+      );
+    },
+
+    setInboxDelivery: (workspace, sessionID, inputID, delivery) => {
+      const key = chatKey(workspace, sessionID);
+      patchChat(key, (chat) =>
+        chat.inbox
+          ? { ...chat, inbox: chat.inbox.map((item) => (item.id === inputID ? { ...item, delivery } : item)) }
+          : chat,
+      );
     },
 
     /** Home composer: reuse an empty draft, otherwise create the session here. */
@@ -861,9 +863,14 @@ export const useChatStore = create<ChatStore>((set, get) => {
         const chats = applyEvent(state.chats, key, event);
         return chats === state.chats ? state : { chats };
       });
-      if (event.type === "run.end" || event.type === "client.done") {
+      if (event.type === "run.end") {
         flushDeltas();
         void refreshChat(event.workspace, event.sessionId);
+        void useWorkspaceStore.getState().loadSessions(event.workspace);
+      } else if (event.type === "client.done") {
+        // A prompt stream closing is not a turn boundary: a joined prompt
+        // already handed its text to the live turn. Refreshing history here
+        // dropped the optimistic row until the core delivered it.
         void useWorkspaceStore.getState().loadSessions(event.workspace);
       }
     },
