@@ -22,15 +22,17 @@ func main() {
 	arch := flag.String("arch", "amd64", "target architecture")
 	scope := flag.String("scope", "user", "install scope: user or machine")
 	script := flag.String("script", "project.nsi", "NSIS script to compile")
+	license := flag.String("license", "", "license file to install beside the binaries")
+	notices := flag.String("notices", "", "third-party notices file to install beside the binaries")
 	flag.Parse()
 
-	if err := run(*app, *core, *arch, *scope, *script); err != nil {
+	if err := run(*app, *core, *arch, *scope, *script, *license, *notices); err != nil {
 		fmt.Fprintln(os.Stderr, "nsis:", err)
 		os.Exit(1)
 	}
 }
 
-func run(app, core, arch, scope, script string) error {
+func run(app, core, arch, scope, script, license, notices string) error {
 	for _, path := range []string{app, core} {
 		if _, err := os.Stat(path); err != nil {
 			return fmt.Errorf("%s: %w", path, err)
@@ -58,6 +60,20 @@ func run(app, core, arch, scope, script string) error {
 	args := []string{
 		"-DARG_WAILS_" + argFlag + "_BINARY=" + appPath,
 		"-DARG_WAILS_CORE_BINARY=" + corePath,
+	}
+	if license != "" {
+		licensePath, err := filepath.Abs(license)
+		if err != nil {
+			return err
+		}
+		args = append(args, "-DARG_WAILS_LICENSE="+licensePath)
+	}
+	if notices != "" {
+		noticesPath, err := filepath.Abs(notices)
+		if err != nil {
+			return err
+		}
+		args = append(args, "-DARG_WAILS_NOTICES="+noticesPath)
 	}
 	if scope == "user" {
 		// A per-user install needs no elevation and stays writable for the

@@ -8,9 +8,9 @@
 			"ProductVersion": "0.1.0",
 			"CompanyName": "Lingzhu",
 			"FileDescription": "Desktop client for the lingzhu agent",
-			"LegalCopyright": "© 2026, My Company",
+			"LegalCopyright": "© 2026, Lingzhu contributors",
 			"ProductName": "Lingzhu",
-			"Comments": "This is a comment"
+			"Comments": "MIT licensed; third-party notices in the app"
 		}
 	}
 }

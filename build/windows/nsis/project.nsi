@@ -23,7 +23,7 @@ Unicode true
 ## !define INFO_COMPANYNAME    "My Company" # Default "Lingzhu"
 ## !define INFO_PRODUCTNAME    "My Product Name" # Default "Lingzhu"
 ## !define INFO_PRODUCTVERSION "1.0.0"     # Default "0.1.0"
-## !define INFO_COPYRIGHT      "(c) Now, My Company" # Default "© 2026, My Company"
+## !define INFO_COPYRIGHT      "(c) Now, Lingzhu contributors" # Default "© 2026, Lingzhu contributors"
 ###
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
 ## !define UNINST_KEY_NAME     "UninstKeyInRegistry"  # Default "${INFO_COMPANYNAME}${INFO_PRODUCTNAME}"
@@ -216,6 +216,15 @@ Section
     Call BackupCurrent
 
     SetOutPath $INSTDIR
+
+    # The license ships beside the binaries: a per-user install has no other
+    # copy of it, and the About page points at this file.
+    !ifdef ARG_WAILS_LICENSE
+        File "/oname=LICENSE.txt" "${ARG_WAILS_LICENSE}"
+    !endif
+    !ifdef ARG_WAILS_NOTICES
+        File "/oname=THIRD_PARTY_NOTICES.txt" "${ARG_WAILS_NOTICES}"
+    !endif
 
     !ifdef SUPPORTS_AMD64
         ${if} ${IsNativeAMD64}

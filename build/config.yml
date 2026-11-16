@@ -9,8 +9,8 @@ info:
   productName: "Lingzhu" # The name of the application
   productIdentifier: "com.lingzhu.app" # The unique product identifier
   description: "Desktop client for the lingzhu agent" # The application description
-  copyright: "(c) 2026, Lingzhu" # Copyright text
-  comments: "Desktop client for the lingzhu agent" # Comments
+  copyright: "© 2026, Lingzhu contributors" # Copyright text
+  comments: "MIT licensed; third-party notices in the app" # Comments
   version: "0.1.0" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension

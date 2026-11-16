@@ -25,15 +25,17 @@ func main() {
 	arch := flag.String("arch", "amd64", "target architecture")
 	out := flag.String("out", "bin/lingzhu-app.msix", "output package")
 	publisher := flag.String("publisher", "", "publisher, for example CN=Lingzhu")
+	license := flag.String("license", "", "license file to include in the package")
+	notices := flag.String("notices", "", "third-party notices file to include in the package")
 	flag.Parse()
 
-	if err := run(*config, *app, *core, *arch, *out, *publisher); err != nil {
+	if err := run(*config, *app, *core, *arch, *out, *publisher, *license, *notices); err != nil {
 		fmt.Fprintln(os.Stderr, "msix:", err)
 		os.Exit(1)
 	}
 }
 
-func run(config, app, core, arch, out, publisher string) error {
+func run(config, app, core, arch, out, publisher, license, notices string) error {
 	if _, err := os.Stat(app); err != nil {
 		return fmt.Errorf("app executable: %w", err)
 	}
@@ -68,6 +70,17 @@ func run(config, app, core, arch, out, publisher string) error {
 	// Place the core beside the app executable inside the package.
 	if err := copyFile(core, filepath.Join(unpacked, filepath.Base(core))); err != nil {
 		return err
+	}
+	// The MIT license travels with the binaries; an MSIX has no other copy.
+	if license != "" {
+		if err := copyFile(license, filepath.Join(unpacked, "LICENSE.txt")); err != nil {
+			return err
+		}
+	}
+	if notices != "" {
+		if err := copyFile(notices, filepath.Join(unpacked, "THIRD_PARTY_NOTICES.txt")); err != nil {
+			return err
+		}
 	}
 	if err := execute("makeappx", "pack", "/d", unpacked, "/p", out, "/o"); err != nil {
 		return fmt.Errorf("pack package: %w", err)

@@ -12,7 +12,7 @@ priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "Desktop client for the lingzhu agent"
 vendor: "Lingzhu"
-homepage: "https://wails.io"
+homepage: "https://github.com/0x132189/lingzhu-app"
 license: "MIT"
 release: "1"
 
@@ -27,6 +27,10 @@ contents:
     dst: "/usr/share/icons/hicolor/128x128/apps/lingzhu-app.png"
   - src: "./build/linux/lingzhu-app.desktop"
     dst: "/usr/share/applications/lingzhu-app.desktop"
+  - src: "./LICENSE"
+    dst: "/usr/share/doc/lingzhu-app/copyright"
+  - src: "./THIRD_PARTY_NOTICES.md"
+    dst: "/usr/share/doc/lingzhu-app/THIRD_PARTY_NOTICES.md"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

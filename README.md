@@ -115,3 +115,16 @@ frontend/apps/desktop/bindings  Generated from Go; not committed, run `wails3 ge
   never talks to the core directly.
 - Closing a connection does not stop a turn; the Stop button calls the interrupt endpoint.
 - Sessions are durable in the core, so a client restart loses nothing.
+
+## License
+
+MIT. The full text is in [LICENSE](LICENSE); copyright is held by the Lingzhu contributors. Runtime
+dependencies keep their own licenses, listed in the app under Settings → About → Third-party notices
+(`frontend/packages/app/src/components/settings/notices.ts`); add an entry there when a new runtime
+dependency is bundled.
+
+The interaction design follows [opencode](https://github.com/sst/opencode), also MIT. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the attribution and the full license text.
+
+The implementation is written by AI agents under human design, review and acceptance; the copyright
+line names the contributors rather than a single account for that reason.

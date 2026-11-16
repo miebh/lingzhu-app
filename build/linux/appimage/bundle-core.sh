@@ -7,6 +7,7 @@
 # puts usr/bin on PATH, so it finds the core without an environment variable.
 #
 # Usage: bundle-core.sh <appimage-pattern> <core-binary> <output-dir>
+# Set LICENSE to a license file to place it beside the binaries as LICENSE.txt.
 set -euo pipefail
 
 APPIMAGE_PATTERN="${1:?appimage path or pattern is required}"
@@ -34,6 +35,14 @@ cd "$WORK"
 "$APPIMAGE" --appimage-extract >/dev/null
 cp "$CORE" squashfs-root/usr/bin/
 chmod +x "squashfs-root/usr/bin/$(basename "$CORE")"
+
+# The license travels with the binaries, beside the core in usr/bin.
+if [[ -n "${LICENSE:-}" && -f "$LICENSE" ]]; then
+    cp "$LICENSE" squashfs-root/usr/bin/LICENSE.txt
+fi
+if [[ -n "${NOTICES:-}" && -f "$NOTICES" ]]; then
+    cp "$NOTICES" squashfs-root/usr/bin/THIRD_PARTY_NOTICES.txt
+fi
 
 TOOL="appimagetool-$ARCH.AppImage"
 if [[ ! -x "$TOOL" ]]; then

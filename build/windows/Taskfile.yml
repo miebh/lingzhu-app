@@ -170,6 +170,8 @@ tasks:
         --core "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"
         --arch "{{.ARCH}}"
         --scope "{{.INSTALL_SCOPE}}"
+        --license "{{.ROOT_DIR}}/LICENSE"
+        --notices "{{.ROOT_DIR}}/THIRD_PARTY_NOTICES.md"
         --script project.nsi
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
@@ -202,6 +204,8 @@ tasks:
         --core "{{.ROOT_DIR}}/{{.BIN_DIR}}/lingzhu.exe"
         --arch "{{.ARCH}}"
         --out "{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}-{{.ARCH}}.msix"
+        --license "{{.ROOT_DIR}}/LICENSE"
+        --notices "{{.ROOT_DIR}}/THIRD_PARTY_NOTICES.md"
         {{if .PUBLISHER}}--publisher "{{.PUBLISHER}}"{{end}}
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
