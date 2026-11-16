@@ -32,3 +32,14 @@ export function isCancellation(error: unknown): boolean {
     value.includes(" was canceled")
   );
 }
+
+/**
+ * The core reports a missing session as 404, which the client surfaces as
+ * `core 404: session not found`. A deleted session is a normal state the UI
+ * explains, not a failure to toast.
+ */
+export function isSessionNotFound(error: unknown): boolean {
+  const text =
+    typeof error === "string" ? error : error instanceof Error ? error.message : error == null ? "" : String(error);
+  return /\bcore 404\b/.test(text) || /session not found/i.test(text);
+}

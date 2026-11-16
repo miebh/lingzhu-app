@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { api } from "../lib/api";
 import { entryAttachments } from "@lingzhu/ui/attachments";
 import { applyEvent, nextEntryKey } from "../lib/chat-events";
-import { messageOf } from "../lib/errors";
+import { isSessionNotFound, messageOf } from "../lib/errors";
 import { splitModelID } from "../lib/models";
 import {
   blankChat,
@@ -20,6 +20,7 @@ import {
 import { useCatalogStore, type Catalog } from "./catalog";
 import { notify } from "./notify";
 import { usePreferencesStore } from "./preferences";
+import { useTabsStore } from "./tabs";
 import { useViewStore } from "./view";
 import { useWorkspaceStore } from "./workspaces";
 import { t } from "@lingzhu/ui/i18n";
@@ -361,13 +362,18 @@ export const useChatStore = create<ChatStore>((set, get) => {
       });
       void hydrateAttachmentData(workspace, sessionID);
     } catch (error) {
+      const missing = isSessionNotFound(error);
       set((state) => ({
         chats: {
           ...state.chats,
           [key]: {
             ...(state.chats[key] ?? blankChat(sessionID, title)),
             loading: false,
-            error: messageOf(error),
+            // A deleted session is a state the transcript explains, not an
+            // error to show: the row survives in a cached list, so opening it
+            // must say the session is gone instead of rendering it empty.
+            notFound: missing || undefined,
+            error: missing ? undefined : messageOf(error),
           },
         },
       }));
@@ -380,6 +386,32 @@ export const useChatStore = create<ChatStore>((set, get) => {
     if (sessionID) {
       set((state) => ({ activeByWorkspace: { ...state.activeByWorkspace, [workspace]: sessionID } }));
     }
+  };
+
+  /**
+   * Drops a session the core reported as deleted. The cached list row, the
+   * open tab and the chat itself all go, so nothing can reopen a session that
+   * no longer exists.
+   */
+  const forgetDeleted = (workspace: string, sessionID: string) => {
+    const key = chatKey(workspace, sessionID);
+    useWorkspaceStore.setState((state) => ({
+      sessionsByWorkspace: {
+        ...state.sessionsByWorkspace,
+        [workspace]: (state.sessionsByWorkspace[workspace] ?? []).filter((item) => item.id !== sessionID),
+      },
+    }));
+    useTabsStore.setState((state) => ({
+      tabs: state.tabs.filter((tab) => !(tab.path === workspace && tab.sessionID === sessionID)),
+    }));
+    turnEndedAt.delete(key);
+    set((state) => {
+      const chats = { ...state.chats };
+      delete chats[key];
+      const activeByWorkspace = { ...state.activeByWorkspace };
+      if (activeByWorkspace[workspace] === sessionID) delete activeByWorkspace[workspace];
+      return { chats, activeByWorkspace };
+    });
   };
 
   const sendTo = async (
@@ -793,6 +825,19 @@ export const useChatStore = create<ChatStore>((set, get) => {
           void api.reply(event.workspace, event.sessionId, id, "once").catch((error) => notify(messageOf(error)));
         }
       }
+      // A removed session leaves every client's lists at once. The cached row
+      // would otherwise survive until the next list fetch and open onto an
+      // empty transcript.
+      if (event.type === "session.deleted") {
+        const sessionID = String(event.data?.sessionID ?? event.sessionId ?? "");
+        if (!sessionID) return;
+        // The envelope names the workspace the core mapped the session to. A
+        // session whose placement is already gone is found in the cached lists
+        // instead, so the row is still removed.
+        const workspace = event.workspace || workspaceHolding(sessionID);
+        if (workspace) forgetDeleted(workspace, sessionID);
+        return;
+      }
       const key = chatKey(event.workspace, event.sessionId);
       // Ending events clear the flag's opposite; every other event means a turn
       // is live again, so a later snapshot may trust the core's `running`.
@@ -827,6 +872,15 @@ export const useChatStore = create<ChatStore>((set, get) => {
 
 export function useChatMap(): Record<string, ChatState> {
   return useChatStore((state) => state.chats);
+}
+
+/** The cached workspace list that still holds one session, if any. */
+function workspaceHolding(sessionID: string): string | undefined {
+  const lists = useWorkspaceStore.getState().sessionsByWorkspace;
+  for (const [path, sessions] of Object.entries(lists)) {
+    if ((sessions ?? []).some((session) => session.id === sessionID)) return path;
+  }
+  return undefined;
 }
 
 export function useActiveChatID(): string | undefined {

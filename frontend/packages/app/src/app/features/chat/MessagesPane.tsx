@@ -123,6 +123,10 @@ export function MessagesPane({ bottomInset = 0, header }: { bottomInset?: number
     [activeWorkspacePath],
   );
   const modelLabel = useMemo(() => modelName(provider, model), [modelName, provider, model]);
+  const closeMissing = useCallback(() => {
+    if (!activeWorkspacePath || !activeId) return;
+    shell.tabs.removeSessionTabs([{ path: activeWorkspacePath, id: activeId }]);
+  }, [shell.tabs, activeWorkspacePath, activeId]);
 
   if (!active) return null;
 
@@ -150,6 +154,7 @@ export function MessagesPane({ bottomInset = 0, header }: { bottomInset?: number
         bottomInset={bottomInset}
         onLoadOlder={onLoadOlder}
         shellOutput={shellOutput}
+        onCloseMissing={closeMissing}
       />
     </>
   );

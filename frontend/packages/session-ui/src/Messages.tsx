@@ -142,6 +142,7 @@ export function Messages({
   foldLongMessages = true,
   showTurnDiffs = true,
   showAgent = false,
+  onCloseMissing,
 }: {
   chat: ChatState;
   /** Workspace root used to shorten absolute tool paths. */
@@ -178,6 +179,8 @@ export function Messages({
   showTurnDiffs?: boolean;
   /** Show the agent name in message footers, as the reference's Show agent setting does. */
   showAgent?: boolean;
+  /** Closes a tab whose session the core no longer has. */
+  onCloseMissing?: () => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -735,6 +738,14 @@ export function Messages({
     />
   );
 
+  if (chat.notFound) {
+    return (
+      <div className="flex-1 overflow-y-auto py-inset-panel">
+        <SessionMissing onClose={onCloseMissing} />
+      </div>
+    );
+  }
+
   if (chat.loading && empty) {
     return (
       <div className="flex-1 overflow-y-auto py-inset-panel">
@@ -1123,6 +1134,28 @@ function EmptyState() {
       <p className="mx-auto mt-2 max-w-measure-narrow text-body leading-5 text-text-faint">
         {tr("emptyTranscriptHint")}
       </p>
+    </div>
+  );
+}
+
+/** The session the core no longer has: a deleted row that a cached list kept. */
+function SessionMissing({ onClose }: { onClose?: () => void }) {
+  const tr = useT();
+  return (
+    <div data-component="session-missing" className="select-none py-24 text-center">
+      <p className="text-reading text-text-base">{tr("sessionNotFoundTitle")}</p>
+      <p className="mx-auto mt-2 max-w-measure-narrow text-body leading-5 text-text-faint">
+        {tr("sessionNotFoundHint")}
+      </p>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="interactive mt-6 inline-flex h-control-md items-center rounded-md border-[0.5px] border-border-base bg-bg-layer-01 px-control text-body font-[440] text-text-base hover:bg-bg-layer-02"
+        >
+          {tr("sessionNotFoundClose")}
+        </button>
+      )}
     </div>
   );
 }

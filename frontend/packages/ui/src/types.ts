@@ -817,6 +817,12 @@ export interface ChatState {
   retry?: { attempt: number; next: string; message: string };
   error?: string;
   notice?: string;
+  /**
+   * The core no longer has this session. A deleted session answers 404 instead
+   * of an empty transcript, so a row that survives in a cached list opens onto
+   * this state rather than onto an empty conversation.
+   */
+  notFound?: boolean;
   /** Newest transcript entries kept mounted; older ones load on demand. */
   historyLimit?: number;
 }
