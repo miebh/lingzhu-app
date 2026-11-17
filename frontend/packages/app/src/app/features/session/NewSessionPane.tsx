@@ -22,6 +22,7 @@ export function NewSessionPane() {
     undoLatestTurn: async () => undefined,
     redoLatestTurn: async () => undefined,
     forkSession: shell.sessionActions.forkSession,
+    compactSession: shell.sessionActions.compactSession,
     reload: agents.reload,
   });
 

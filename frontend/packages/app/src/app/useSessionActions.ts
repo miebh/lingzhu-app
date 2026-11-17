@@ -49,8 +49,7 @@ export function useSessionActions({ restorePrompt, removeSessionTabs, onSelectio
     restorePrompt(text);
   };
 
-  const confirmCompact = async (target: { workspace: string; sessionID: string; title: string }) => {
-    closeDialog("compact");
+  const compactSession = async (target: { workspace: string; sessionID: string; title: string }) => {
     try {
       await api.compact(target.workspace, target.sessionID);
       await useChatStore.getState().refresh(target.workspace, target.sessionID);
@@ -197,7 +196,7 @@ export function useSessionActions({ restorePrompt, removeSessionTabs, onSelectio
     confirmRename,
     forkSession,
     forkMessage,
-    confirmCompact,
+    compactSession,
     openSummary,
     confirmBulkMove,
     confirmDelete,

@@ -124,6 +124,11 @@ type Message struct {
 	Switch *MessageSwitch `json:"switch,omitempty"`
 	// Failure marks a transcript-only row explaining why a turn failed.
 	Failure *MessageFailure `json:"failure,omitempty"`
+	// Compaction marks a checkpoint row that separates compacted history. The
+	// model request restarts from it while the transcript keeps earlier turns.
+	Compaction        bool   `json:"compaction,omitempty"`
+	CompactionCovered int    `json:"compactionCovered,omitempty"`
+	CompactionReason  string `json:"compactionReason,omitempty"`
 }
 
 // MessageFailure is the reason a turn ended in an error. It is UI metadata

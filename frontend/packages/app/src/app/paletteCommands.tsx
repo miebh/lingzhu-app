@@ -50,6 +50,7 @@ export interface PaletteContext {
   undoLatestTurn: (path: string, sessionID: string, text?: string) => Promise<void>;
   redoLatestTurn: (path: string, sessionID: string) => Promise<void>;
   openSummary: (target: SessionDialogTarget) => Promise<void>;
+  compactSession: (target: SessionDialogTarget) => void | Promise<void>;
   dialogs: ReturnType<typeof useDialogBindings>;
 }
 
@@ -83,6 +84,7 @@ export function buildPaletteCommands(ctx: PaletteContext, tr: Translate): Palett
     closeSideTab,
     navigateMessage,
     forkSession,
+    compactSession,
     undoLatestTurn,
     redoLatestTurn,
     openSummary,
@@ -109,7 +111,6 @@ export function buildPaletteCommands(ctx: PaletteContext, tr: Translate): Palett
     setTransferTarget,
     setShareTarget,
     setRevertTarget,
-    setCompactTarget,
     setLogTarget,
     setUsageTarget,
     setInboxTarget,
@@ -411,7 +412,7 @@ export function buildPaletteCommands(ctx: PaletteContext, tr: Translate): Palett
         title: tr("paletteCompactSession"),
         group: tr("paletteGroupCommands"),
         keywords: ["summarize", "context"],
-        run: () => setCompactTarget(target),
+        run: () => void compactSession(target),
       },
       {
         id: "session-summary",

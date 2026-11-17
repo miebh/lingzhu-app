@@ -47,7 +47,6 @@ type SessionDialogID =
   | "wait"
   | "prompt-once"
   | "revert"
-  | "compact"
   | "schedules"
   | "environment"
 ;
@@ -152,7 +151,6 @@ export function useDialogBindings() {
       setWaitTarget: session("wait"),
       setPromptOnceTarget: session("prompt-once"),
       setRevertTarget: session("revert"),
-      setCompactTarget: session("compact"),
       setSchedulesTarget: session("schedules"),
       setEnvironmentTarget: session("environment"),
     };

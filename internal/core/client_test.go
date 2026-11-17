@@ -33,6 +33,25 @@ func TestEventsParsesSessionEnvelope(t *testing.T) {
 	}
 }
 
+func TestMessagesParsesCompactionCheckpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/sessions/s1/messages" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"messages":[{"role":"user","content":"<conversation-checkpoint/>","compaction":true,"compactionCovered":4,"compactionReason":"manual"}]}`))
+	}))
+	defer server.Close()
+
+	messages, err := New(server.URL).Messages(context.Background(), "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 || !messages[0].Compaction || messages[0].CompactionCovered != 4 || messages[0].CompactionReason != "manual" {
+		t.Fatalf("compaction checkpoint was not preserved: %+v", messages)
+	}
+}
+
 func TestInputQueuesOrReportsNotRunning(t *testing.T) {
 	tests := []struct {
 		name   string

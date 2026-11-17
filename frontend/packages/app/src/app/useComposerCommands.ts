@@ -23,6 +23,7 @@ interface Options {
   undoLatestTurn: (workspace: string, sessionID: string, text?: string) => Promise<void>;
   redoLatestTurn: (workspace: string, sessionID: string) => Promise<void>;
   forkSession: (workspace: string, session: SessionInfo) => void;
+  compactSession: (target: { workspace: string; sessionID: string; title: string }) => void | Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -44,6 +45,7 @@ export function useComposerCommands(options: Options) {
     undoLatestTurn,
     redoLatestTurn,
     forkSession,
+    compactSession,
     reload,
   } = options;
 
@@ -96,7 +98,7 @@ export function useComposerCommands(options: Options) {
           redo: (target) => {
             void redoLatestTurn(target.workspace, target.sessionID).catch((error) => notify(messageOf(error)));
           },
-          compact: (target) => openDialog({ id: "compact", props: target }),
+          compact: (target) => void compactSession(target),
           fork: (target) => {
             const session = sessionsByWorkspace[target.workspace]?.find((entry) => entry.id === target.sessionID);
             if (session) void forkSession(target.workspace, session);

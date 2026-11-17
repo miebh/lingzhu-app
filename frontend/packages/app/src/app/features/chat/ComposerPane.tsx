@@ -31,6 +31,7 @@ export function ComposerPane() {
     undoLatestTurn: revert.undoLatestTurn,
     redoLatestTurn: revert.redoLatestTurn,
     forkSession: shell.sessionActions.forkSession,
+    compactSession: shell.sessionActions.compactSession,
     reload: agents.reload,
   });
 

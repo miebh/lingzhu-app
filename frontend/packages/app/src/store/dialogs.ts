@@ -60,7 +60,6 @@ export type DialogEntry =
   | { id: "prompt-once"; props: SessionDialogTarget }
   | { id: "revert"; props: SessionDialogTarget & { text?: string } }
   | { id: "summary"; props: SessionDialogTarget & { text: string; loading: boolean; error: string } }
-  | { id: "compact"; props: SessionDialogTarget }
   | { id: "transfer"; props: { workspace: string; sessionID?: string; title?: string } }
   | { id: "environment"; props: SessionDialogTarget }
   | { id: "manage-models"; props: { connect: boolean } }

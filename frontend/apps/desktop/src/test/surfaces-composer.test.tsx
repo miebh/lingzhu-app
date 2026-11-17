@@ -51,6 +51,33 @@ describe("composer surfaces", () => {
     expect(await screen.findByText("/review")).toBeTruthy();
   });
 
+  test("selecting a built-in command clears the composer", async () => {
+    const run = vi.fn();
+    render(
+      <TooltipProvider>
+        <Composer
+          running={false}
+          disabled={false}
+          providers={[]}
+          provider=""
+          model=""
+          commands={[{ name: "compact", description: "Compact the conversation", plugin: "builtin", run } as never]}
+          onSelectModel={() => undefined}
+          onManageModels={() => undefined}
+          onAddProvider={() => undefined}
+          onSend={() => undefined}
+          onStop={() => undefined}
+        />
+      </TooltipProvider>,
+    );
+    const input = screen.getByLabelText("Prompt") as HTMLTextAreaElement;
+    await userEvent.type(input, "/");
+    await screen.findByText("/compact");
+    await userEvent.keyboard("{Enter}");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(input.value).toBe("");
+  });
+
   test("mod+enter sends with the alternate delivery", async () => {
     const onSend = vi.fn();
     render(

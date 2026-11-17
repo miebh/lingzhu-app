@@ -521,4 +521,22 @@ describe("cancelled tool results", () => {
     ]);
     expect(history[0]?.tool?.cancelled).toBe(true);
   });
+
+  test("a stored compaction checkpoint becomes a divider row", () => {
+    const history = entriesFromMessages([
+      { role: "user", content: "old" },
+      {
+        role: "user",
+        content: "<conversation-checkpoint/>",
+        compaction: true,
+        compactionCovered: 2,
+        compactionReason: "manual",
+      },
+      { role: "user", content: "new" },
+    ]);
+    expect(history.map((entry) => entry.role)).toEqual(["user", "compaction", "user"]);
+    expect(history[1]?.compaction?.summary).toBe("<conversation-checkpoint/>");
+    expect(history[1]?.compaction?.covered).toBe(2);
+    expect(history[1]?.compaction?.reason).toBe("manual");
+  });
 });

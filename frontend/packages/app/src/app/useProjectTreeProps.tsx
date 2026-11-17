@@ -10,8 +10,8 @@ import { useUnreadKeys } from "./hooks";
 type ProjectTreeProps = Omit<ComponentProps<typeof Sidebar>, "children">;
 
 /**
- * The Projects tree wiring. Every menu entry opens a dialog by id, so the
- * surface only has to render `<Sidebar {...tree} />`.
+ * The Projects tree wiring. Every menu entry opens a dialog by id or runs a
+ * session action, so the surface only has to render `<Sidebar {...tree} />`.
  */
 export function useProjectTreeProps(): ProjectTreeProps {
   const shell = useShell();
@@ -120,7 +120,7 @@ export function useProjectTreeProps(): ProjectTreeProps {
       shell.panel.openSidePanel("review");
     },
     onCompact: (path, session) =>
-      dialogs.setCompactTarget(sessionTarget(path, session.id, session.title || session.id)),
+      void shell.sessionActions.compactSession(sessionTarget(path, session.id, session.title || session.id)),
     onExport: (path, session) =>
       dialogs.setTransferTarget(sessionTarget(path, session.id, session.title || session.id)),
     onEnvironment: (path, session) =>

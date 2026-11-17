@@ -23,7 +23,6 @@ export function ConfirmDialogs() {
   const manageModels = useDialogEntry("manage-models");
   const removeWorkspace = useDialogEntry("remove-workspace");
   const transfer = useDialogEntry("transfer");
-  const compact = useDialogEntry("compact");
   const actions = shell.sessionActions;
   const running = useAnyChatRunning();
   const workspaces = shell.workspaceList;
@@ -120,17 +119,6 @@ export function ConfirmDialogs() {
           if (!transfer) return;
           void useWorkspaceStore.getState().loadSessions(transfer.props.workspace);
           void useChatStore.getState().open(transfer.props.workspace, session.id);
-        }}
-      />
-
-      <ConfirmDialog
-        open={compact !== undefined}
-        title={tr("confirmDialogsCompactConversation")}
-        description={`Summarize "${compact?.props.title ?? ""}" to free context? Older messages are replaced by a summary and the action cannot be undone.`}
-        confirmLabel="Compact"
-        onOpenChange={dismiss("compact")}
-        onConfirm={() => {
-          if (compact) void actions.confirmCompact(compact.props);
         }}
       />
 

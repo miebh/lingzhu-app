@@ -429,6 +429,9 @@ export function Composer({
   const pickCommand = (command: SlashCommand) => {
     setMenuOpen(false);
     if (command.run) {
+      // Selecting a command consumes its slash token, so the composer is empty
+      // when the command opens its own surface.
+      setText("");
       command.run();
       area.current?.focus();
       return;

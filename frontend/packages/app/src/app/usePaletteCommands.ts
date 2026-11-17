@@ -57,6 +57,7 @@ export function usePaletteCommands() {
     closeSideTab: tabs.closeSideTab,
     navigateMessage,
     forkSession: sessionActions.forkSession,
+    compactSession: sessionActions.compactSession,
     undoLatestTurn: revert.undoLatestTurn,
     redoLatestTurn: revert.redoLatestTurn,
     openSummary: sessionActions.openSummary,

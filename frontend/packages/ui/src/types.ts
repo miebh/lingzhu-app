@@ -52,8 +52,8 @@ export interface Message {
   /** Paths a synthetic notice mentioned, so history can redraw the row. */
   syntheticPaths?: string[];
   syntheticId?: string;
-  /** Compaction checkpoint carried by a stored message. */
-  compaction?: { status: string; summary?: string; covered?: number; usage?: string; reason?: string };
+  /** Compaction marks a checkpoint row that separates compacted history. */
+  compaction?: boolean;
   compactionCovered?: number;
   compactionReason?: string;
   /** Tool result failure flag kept for history replay. */
