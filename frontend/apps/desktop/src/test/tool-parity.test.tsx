@@ -558,7 +558,7 @@ describe("tool timeline parity", () => {
     expect(next.s1.entries[0].text).toBe("External note");
   });
 
-  test("background job and subagent completions become event rows", async () => {
+  test("background job and subagent completions become notice rows", async () => {
     let next = applyEvent({ s1: chat([]) }, "s1", {
       workspace: ".",
       sessionId: "s1",
@@ -583,19 +583,90 @@ describe("tool timeline parity", () => {
         <Messages chat={next.s1} />
       </TooltipProvider>,
     );
-    // Two reports in a row read as one counted row.
+    // Every report keeps its own terminal outcome.
+    const rows = await waitFor(() => {
+      const found = document.querySelectorAll<HTMLElement>('[data-slot="session-timeline-notice"]');
+      expect(found).toHaveLength(2);
+      return found;
+    });
+    expect(rows[0].textContent).toContain("Shell finished · npm test");
+    expect(rows[1].textContent).toContain("Subagent failed · inspect tests");
+  });
+
+  test("a legacy failed job record with an exit code reads as completed", async () => {
+    const next = applyEvent({ s1: chat([]) }, "s1", {
+      workspace: ".",
+      sessionId: "s1",
+      seq: 1,
+      type: "job.completed",
+      at: "2026-01-01T00:00:00Z",
+      data: { command: "go run ./cmd/server", status: "failed", exit_code: 1 },
+    });
+
+    expect(next.s1.entries[0].notice?.state).toBe("completed");
+
+    render(
+      <TooltipProvider>
+        <Messages chat={next.s1} />
+      </TooltipProvider>,
+    );
     const row = await waitFor(() => {
-      const found = document.querySelector<HTMLElement>('[data-component="timeline-event-row"]');
+      const found = document.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]');
       expect(found).toBeTruthy();
       return found!;
     });
-    expect(row.textContent).toContain("Finished");
-    expect(row.textContent).toContain("1 shell");
-    expect(row.textContent).toContain("1 subagent");
-    expect(row.textContent).toContain("1 failed");
+    expect(row.textContent).toContain("Shell finished · go run ./cmd/server");
+    expect(row.getAttribute("data-outcome")).toBe("completed");
   });
 
-  test("stored synthetic shell completions render as events instead of user messages", async () => {
+  test("instruction updates name their changed sources and carry no outcome", async () => {
+    const next = applyEvent({ s1: chat([]) }, "s1", {
+      workspace: ".",
+      sessionId: "s1",
+      seq: 1,
+      type: "synthetic",
+      at: "2026-01-01T00:00:00Z",
+      data: {
+        text: "The harness instructions changed.",
+        source: "instructions",
+        description: "Instructions updated",
+        sources: ["agents", "environment"],
+      },
+    });
+
+    const notice = next.s1.entries[0].notice;
+    expect(notice?.state).toBeUndefined();
+    expect(notice?.sources).toEqual(["agents", "environment"]);
+
+    render(
+      <TooltipProvider>
+        <Messages chat={next.s1} detail="everything" />
+      </TooltipProvider>,
+    );
+    const row = await waitFor(() => {
+      const found = document.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    expect(row.textContent).toContain("Instructions updated · AGENTS.md, Environment");
+    expect(row.getAttribute("data-outcome")).toBeNull();
+
+    // History carries the same sources through the stored message.
+    const history = entriesFromMessages([
+      {
+        role: "user",
+        content: "The harness instructions changed.",
+        synthetic: true,
+        syntheticSource: "instructions",
+        syntheticDescription: "Instructions updated",
+        syntheticSources: ["agents", "environment"],
+      },
+    ]);
+    expect(history[0].notice?.sources).toEqual(["agents", "environment"]);
+    expect(history[0].notice?.state).toBeUndefined();
+  });
+
+  test("stored synthetic shell completions render as notices instead of user messages", async () => {
     const entries = entriesFromMessages([
       {
         role: "user",
@@ -614,11 +685,11 @@ describe("tool timeline parity", () => {
       </TooltipProvider>,
     );
     const row = await waitFor(() => {
-      const found = document.querySelector<HTMLElement>('[data-component="timeline-event-row"]');
+      const found = document.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]');
       expect(found).toBeTruthy();
       return found!;
     });
-    expect(row.textContent).toContain("Finished 1 shell");
+    expect(row.textContent).toContain("Shell finished · npm test");
     expect(screen.queryByText(/Background shell completed/)).toBeNull();
   });
 

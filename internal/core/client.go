@@ -107,10 +107,11 @@ type Message struct {
 	Shell *ShellRun `json:"shell,omitempty"`
 	// Synthetic hides a system notification from the transcript. The source
 	// fields let history draw the same notice the live event showed.
-	Synthetic            bool   `json:"synthetic,omitempty"`
-	SyntheticSource      string `json:"syntheticSource,omitempty"`
-	SyntheticDescription string `json:"syntheticDescription,omitempty"`
-	SyntheticState       string `json:"syntheticState,omitempty"`
+	Synthetic            bool     `json:"synthetic,omitempty"`
+	SyntheticSource      string   `json:"syntheticSource,omitempty"`
+	SyntheticDescription string   `json:"syntheticDescription,omitempty"`
+	SyntheticState       string   `json:"syntheticState,omitempty"`
+	SyntheticSources     []string `json:"syntheticSources,omitempty"`
 	// Reasoning is UI-only provider reasoning attached to an assistant message.
 	Reasoning string `json:"reasoning,omitempty"`
 	// Created is the durable time the message entered the conversation. It is

@@ -58,8 +58,8 @@ describe("search tools", () => {
   });
 });
 
-describe("background event rows", () => {
-  test("a finished shell report reads as a counted row that opens to its item", async () => {
+describe("background notices", () => {
+  test("a finished shell report keeps its own notice row", async () => {
     const { container } = render(
       <TooltipProvider>
         <Messages
@@ -77,19 +77,15 @@ describe("background event rows", () => {
     );
 
     const row = await waitFor(() => {
-      const found = container.querySelector<HTMLElement>('[data-component="timeline-event-row"]');
+      const found = container.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]');
       expect(found).toBeTruthy();
       return found!;
     });
-    expect(row.textContent).toContain("Finished");
-    expect(row.textContent).toContain("1 shell");
-
-    // Opening it lists the shell that reported back.
-    const trigger = row.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]')!;
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(row.textContent).toContain("Shell finished · npm test");
+    expect(row.getAttribute("data-outcome")).toBe("completed");
   });
 
-  test("a failed report marks the row and its item", async () => {
+  test("a failed report marks its own row", async () => {
     const { container } = render(
       <TooltipProvider>
         <Messages
@@ -107,12 +103,38 @@ describe("background event rows", () => {
     );
 
     const row = await waitFor(() => {
-      const found = container.querySelector<HTMLElement>('[data-component="timeline-event-row"]');
+      const found = container.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]');
       expect(found).toBeTruthy();
       return found!;
     });
-    expect(row.textContent).toContain("1 subagent");
-    expect(row.textContent).toContain("Failed");
+    expect(row.textContent).toContain("Subagent failed · inspect tests");
+    expect(row.getAttribute("data-outcome")).toBe("error");
+  });
+
+  test("a cancelled shell report reads as cancelled", async () => {
+    const { container } = render(
+      <TooltipProvider>
+        <Messages
+          detail="everything"
+          chat={chat([
+            {
+              key: "n1",
+              role: "notice",
+              text: "npm run dev",
+              notice: { source: "shell", state: "cancelled", description: "npm run dev" },
+            },
+          ])}
+        />
+      </TooltipProvider>,
+    );
+
+    const row = await waitFor(() => {
+      const found = container.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    expect(row.textContent).toContain("Shell cancelled · npm run dev");
+    expect(row.getAttribute("data-outcome")).toBe("cancelled");
   });
 });
 

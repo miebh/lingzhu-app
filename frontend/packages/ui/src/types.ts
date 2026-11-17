@@ -51,6 +51,8 @@ export interface Message {
   parts?: MessagePart[];
   /** Paths a synthetic notice mentioned, so history can redraw the row. */
   syntheticPaths?: string[];
+  /** Instruction sections a synthetic update changed, so history can name them. */
+  syntheticSources?: string[];
   syntheticId?: string;
   /** Compaction marks a checkpoint row that separates compacted history. */
   compaction?: boolean;
@@ -729,7 +731,7 @@ export interface TimelineEntry {
   /** User-run shell command and its output. */
   shell?: ShellRun;
   /** Synthetic notice source, outcome and subject. */
-  notice?: { source: string; state?: string; description?: string; exit?: number; id?: string };  /** A compaction checkpoint and the turns it replaced. */
+  notice?: { source: string; state?: string; description?: string; exit?: number; id?: string; sources?: string[] };  /** A compaction checkpoint and the turns it replaced. */
   compaction?: { status?: "running" | "completed" | "failed"; summary?: string; covered?: number; usage?: string; error?: string; reason?: string };
   /** Inline media carried by a user turn, without bytes. */
   attachments?: EntryAttachment[];
@@ -919,6 +921,7 @@ export function entriesFromMessages(messages: Message[]): TimelineEntry[] {
               state: message.syntheticState,
               description: message.syntheticDescription,
               id: message.syntheticId,
+              sources: message.syntheticSources,
             },
             created: message.created,
           });

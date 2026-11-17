@@ -24,23 +24,31 @@ function chat(entries: TimelineEntry[]): ChatState {
 }
 
 describe("a notice between tool blocks", () => {
-  test("labels an instruction update with its own actor", () => {
+  test("an instruction update reads as an informational notice, not a completion", () => {
     const entries: TimelineEntry[] = [
       {
         key: "n1",
         role: "notice",
         text: "Instructions updated",
-        notice: { source: "instructions", state: "completed", description: "Instructions updated" },
+        notice: {
+          source: "instructions",
+          state: "completed",
+          description: "Instructions updated",
+          sources: ["agents", "environment"],
+        },
       },
     ];
 
     const { container } = render(
       <TooltipProvider>
-        <Messages chat={chat(entries)} detail="compact" />
+        <Messages chat={chat(entries)} detail="everything" />
       </TooltipProvider>,
     );
 
-    expect(container.textContent).toContain("Instructions finished");
+    const row = container.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]')!;
+    expect(row.textContent).toContain("Instructions updated · AGENTS.md, Environment");
+    expect(row.textContent).not.toContain("finished");
+    expect(row.getAttribute("data-outcome")).toBeNull();
   });
 
   test("keeps the tight tool gap, so it does not read as a divider", () => {
@@ -64,7 +72,7 @@ describe("a notice between tool blocks", () => {
     const wrappers = [...container.querySelectorAll("[data-row-key]")];
     expect(wrappers).toHaveLength(3);
 
-    // Background work reports as its own event row, spaced like the activity
+    // A background report keeps its own notice row, spaced like the activity
     // around it, and the block after it keeps the tight tool gap rather than
     // reading as a divider.
     expect(wrappers[1].className).toBe("pt-2");

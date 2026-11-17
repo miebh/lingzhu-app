@@ -4013,37 +4013,6 @@
   }
 }
 
-/* An events row opens to the subagents and shells it counts, each read like a
-   nested row and leading to its session. */
-[data-component="timeline-event-row"] [data-slot="context-tool-group-detail"] {
-  color: var(--fg-base);
-  font-variant-numeric: tabular-nums;
-}
-
-[data-component="timeline-event-row"] [data-slot="context-tool-group-verb"] {
-  color: var(--fg-muted);
-}
-
-[data-component="timeline-event-row"] [data-slot="context-tool-group-separator"] {
-  color: var(--fg-faint);
-  padding-inline: 2px;
-}
-
-[data-component="timeline-event-list"] {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-block: 2px;
-}
-
-[data-slot="timeline-event-item"] {
-  min-width: 0;
-}
-
-[data-slot="timeline-event-item"]:not(:disabled):hover [data-slot="timeline-event-item-title"] {
-  color: var(--fg-base);
-}
-
 /* A prompt that joined a live turn grows in where it landed, so the reader
    sees it arrive instead of finding it already in place. */
 .steer-arrival {

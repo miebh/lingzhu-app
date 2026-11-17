@@ -166,12 +166,15 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
       const paths = Array.isArray(data.paths)
         ? data.paths.filter((value): value is string => typeof value === "string")
         : [];
+      const sources = Array.isArray(data.sources)
+        ? data.sources.filter((value): value is string => typeof value === "string")
+        : [];
       const source = typeof data.source === "string" ? data.source : "";
       if (paths.length > 0) {
         entries = [...entries, { key: nextEntryKey("loaded"), role: "loaded", loaded: paths, created: event.at }];
       } else if (source) {
-        // A synthetic event with a source is an actor notice, such as an
-        // instruction update, and reads like other finished work.
+        // An instruction update is an informational notice, not finished work;
+        // other sourced synthetics read like the work they report on.
         const description = typeof data.description === "string" ? data.description.trim() : "";
         entries = [
           ...entries,
@@ -179,7 +182,12 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
             key: nextEntryKey("notice"),
             role: "notice",
             text: description,
-            notice: { source, state: "completed", description },
+            notice: {
+              source,
+              state: source === "instructions" ? undefined : "completed",
+              description,
+              ...(sources.length > 0 ? { sources } : {}),
+            },
             created: event.at,
           },
         ];
@@ -539,6 +547,11 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
     case "job.completed": {
       const command = String(data.command ?? "background command");
       const status = String(data.status ?? "completed");
+      const exit = Number(data.exit_code ?? 0);
+      // Older records stored a non-zero command exit as a failed job. A job
+      // that ended with an exit code is completed, so read those records the
+      // same way and leave the failure on the command's exit code.
+      const state = status === "failed" && exit < 0 ? "error" : status === "failed" ? "completed" : status;
       entries = [
         ...entries,
         {
@@ -547,9 +560,9 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
           text: command,
           notice: {
             source: "shell",
-            state: status === "failed" ? "error" : status,
+            state,
             description: command,
-            exit: Number(data.exit_code ?? 0),
+            exit,
             id: String(data.id ?? ""),
           },
           created: event.at,

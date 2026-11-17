@@ -6,13 +6,12 @@ import { LinkedText } from "@lingzhu/ui/LinkedText";
 import { TextShimmer } from "@lingzhu/ui/TextShimmer";
 import { CopyButton, Markdown } from "./Markdown";
 import { ActivityRing } from "@lingzhu/ui/ActivityRing";
-import { FileGroup, LoadedRow, ReadGroup, ReasoningRow, SessionShellMessage, ToolBlock, ToolScopeProvider, ToolStandalone, BasicTool, useDisclosure } from "./ToolPart";
+import { FileGroup, LoadedRow, ReadGroup, ReasoningRow, SessionShellMessage, ToolBlock, ToolScopeProvider, ToolStandalone } from "./ToolPart";
 import type { ShellOutputSource } from "./ToolPart";
 import { attachmentContextLabel, attachmentName, attachmentTypeLabel } from "@lingzhu/ui/attachments";
 import { timelineRows, type TimelineRow, type TurnTotals } from "@lingzhu/session-ui/timeline";
 import { timelineStatus, type TimelineStatus } from "@lingzhu/session-ui/status";
-import { summarizeEvents, type TimelineEvent, type TimelineEventVerb } from "@lingzhu/session-ui/events";
-import { noticeLabel } from "@lingzhu/session-ui/notice";
+import { instructionSourceLabels, noticeLabel } from "@lingzhu/session-ui/notice";
 import { MessageNav, messageNavItems } from "@lingzhu/session-ui/MessageNav";
 import { createTimelineVirtualizer, timelineVirtualDefaults, type VirtualItem } from "@lingzhu/session-ui/timeline-virtual";
 import { trackNestedRails } from "@lingzhu/session-ui/nested-rail";
@@ -505,9 +504,9 @@ export function Messages({
         row.read ||
         row.files ||
         row.tool ||
-        row.events ||
         row.entry?.role === "reasoning" ||
         row.entry?.role === "assistant" ||
+        row.entry?.role === "notice" ||
         row.entry?.role === "loaded",
     );
   const isToolLikeRow = (row: TimelineRow) =>
@@ -517,7 +516,6 @@ export function Messages({
         row.read ||
         row.files ||
         row.tool ||
-        row.events ||
         row.entry?.role === "reasoning" ||
         row.entry?.role === "shell" ||
         // A separate notice is a status line about a tool run, so the next tool
@@ -1165,7 +1163,6 @@ function rowSearchText(row: TimelineRow): string {
   if (row.diff) return "";
   if (row.retry) return row.retry.message;
   if (row.error) return row.error;
-  if (row.events) return row.events.map((event) => [event.kind, event.title ?? "", event.agent ?? ""].join("\n")).join("\n");
   if (row.entry) {
     if (row.entry.loaded) return row.entry.loaded.join("\n");
     if (row.entry.shell) return [row.entry.shell.command, row.entry.shell.output].join("\n");
@@ -1202,8 +1199,7 @@ function sameRowPayload(left: TimelineRow, right: TimelineRow): boolean {
     left.dividerSwitch === right.dividerSwitch &&
     sameItems(left.parts, right.parts) &&
     sameItems(left.read, right.read) &&
-    sameItems(left.files, right.files) &&
-    sameItems(left.events, right.events)
+    sameItems(left.files, right.files)
   );
 }
 
@@ -1407,7 +1403,6 @@ const TimelineRowView = memo(function TimelineRowView({
       <TimelineSeparator label={row.divider} />
     );
   }
-  if (row.events) return <TimelineEventRow events={row.events} onOpenSession={onOpenSession} />;
   if (row.parts) {
     return (
       <ToolBlock
@@ -2058,125 +2053,6 @@ function SessionErrorCard({ message }: { message: string }) {
   );
 }
 
-/**
- * A run of background subagents and shells, read like a group label: "Started 2
- * subagents · Finished 1 shell". Opening it lists each one; a subagent opens its
- * session and a shell jumps to the call that ran it.
- */
-function TimelineEventRow({
-  events,
-  onOpenSession,
-}: {
-  events: TimelineEvent[];
-  onOpenSession?: (sessionID: string) => void;
-}) {
-  const tr = useT();
-  const summary = summarizeEvents(events);
-  const items = events.filter((event) => event.title);
-  const [open, setOpen] = useDisclosure(`events:${events[0]?.sessionID ?? events[0]?.shellID ?? "work"}`);
-
-  if (summary.verbs.length === 0) return null;
-
-  return (
-    <div data-component="timeline-event-row">
-      <BasicTool
-        id={`events:${events[0]?.sessionID ?? events[0]?.shellID ?? "work"}`}
-        compact
-        hasContent={items.length > 0}
-        open={open}
-        onOpenChange={setOpen}
-        trigger={
-          <div data-component="context-tool-group-trigger" data-timeline-event="">
-            <span data-slot="context-tool-group-title" data-activity="">
-              {summary.verbs.map((bucket, index) => (
-                <span key={bucket.verb} className="contents">
-                  {index > 0 && <span data-slot="context-tool-group-separator">·</span>}
-                  <span data-slot="context-tool-group-verb">{tr(verbKey(bucket.verb))}</span>
-                  <span data-slot="context-tool-group-detail">
-                    {" "}
-                    {bucket.kinds
-                      .map((item) =>
-                        tr(
-                          item.count === 1
-                            ? item.kind === "subagent"
-                              ? "eventSubagentOne"
-                              : "eventShellOne"
-                            : item.kind === "subagent"
-                              ? "eventSubagentMany"
-                              : "eventShellMany",
-                          { count: item.count },
-                        ),
-                      )
-                      .join(", ")}
-                  </span>
-                </span>
-              ))}
-              {summary.failed > 0 && (
-                <span data-slot="timeline-event-failed" className="text-state-fg-danger">
-                  {summary.failed === events.length
-                    ? tr("eventAllFailed")
-                    : tr("eventFailedCount", { count: summary.failed })}
-                </span>
-              )}
-            </span>
-          </div>
-        }
-      >
-        <div data-component="timeline-event-list">
-          {items.map((event, index) => (
-            <TimelineEventItem
-              key={`${event.kind}:${event.sessionID ?? event.shellID ?? index}`}
-              event={event}
-              onOpenSession={onOpenSession}
-            />
-          ))}
-        </div>
-      </BasicTool>
-    </div>
-  );
-}
-
-function verbKey(verb: TimelineEventVerb) {
-  return verb === "started"
-    ? ("eventStarted" as const)
-    : verb === "finished"
-      ? ("eventFinished" as const)
-      : verb === "stopped"
-        ? ("eventStopped" as const)
-        : ("eventStarted" as const);
-}
-
-/** One background subagent or shell an events row lists: who did it and what. */
-function TimelineEventItem({
-  event,
-  onOpenSession,
-}: {
-  event: TimelineEvent;
-  onOpenSession?: (sessionID: string) => void;
-}) {
-  const tr = useT();
-  const name = event.kind === "shell" ? tr("toolShell") : capitalize(event.agent ?? tr("toolAgent"));
-  const clickable = Boolean(event.sessionID && onOpenSession);
-  return (
-    <button
-      type="button"
-      data-slot="timeline-event-item"
-      data-kind={event.kind}
-      disabled={!clickable}
-      onClick={() => event.sessionID && onOpenSession?.(event.sessionID)}
-      className="flex min-w-0 items-center gap-2 py-0.5 text-start text-meta leading-4 text-text-faint disabled:cursor-default"
-    >
-      <span data-slot="timeline-event-item-name" className="shrink-0 text-text-muted">
-        {name}
-      </span>
-      <span data-slot="timeline-event-item-title" className="min-w-0 truncate">
-        {event.title}
-      </span>
-      {event.failed && <span className="shrink-0 text-state-fg-danger">{tr("toolFailed")}</span>}
-    </button>
-  );
-}
-
 /** Emphasised first segment of a provider error; a scheme or port never splits a URL. */
 function SessionErrorMessage({ message, links }: { message: string; links?: boolean }) {
   const url = message.search(/https?:\/\//);
@@ -2345,12 +2221,15 @@ function NoticeSeparator({
 }) {
   const tr = useT();
   const text = noticeLabel(notice, tr);
-  const value = notice.description;
+  const instructions = notice.source === "instructions";
+  const value = instructions ? instructionSourceLabels(notice, tr).join(", ") : notice.description;
   const link = notice.source === "subagent" && notice.id && onOpenSession ? notice.id : undefined;
   // The outcome colours the label and, for a failure, adds the warning glyph,
-  // matching the reference notice row.
-  const tone =
-    notice.state === "error"
+  // matching the reference notice row. An instruction update is informational
+  // and stays in the quiet notice tone.
+  const tone = instructions
+    ? undefined
+    : notice.state === "error"
       ? "text-state-fg-danger"
       : notice.state === "cancelled"
         ? "text-state-fg-warning"
@@ -2360,7 +2239,7 @@ function NoticeSeparator({
   return (
     <div
       data-slot="session-timeline-notice"
-      data-outcome={notice.state}
+      data-outcome={instructions ? undefined : notice.state}
       className="flex w-full min-w-0 items-center gap-1.5 py-1 text-body leading-5 tracking-[-0.04px] text-text-faint"
     >
       {notice.state === "error" && <TriangleAlert className="size-4 shrink-0 text-state-fg-danger" />}

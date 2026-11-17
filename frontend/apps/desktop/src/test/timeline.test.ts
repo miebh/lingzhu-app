@@ -124,6 +124,25 @@ describe("timelineRows", () => {
     expect(rows[0].parts?.map((part) => part.kind)).toEqual(["tool", "notice"]);
   });
 
+  test("instruction updates follow the notices placement", () => {
+    const instruction: TimelineEntry = {
+      key: "i1",
+      role: "notice",
+      text: "Instructions updated",
+      notice: { source: "instructions", description: "Instructions updated", sources: ["agents"] },
+    };
+
+    // Compact groups the informational update with the surrounding calls
+    // instead of splitting them with a standalone completion row.
+    const compact = timelineRows([tool("1", "grep"), instruction, tool("2", "grep")], "compact");
+    expect(compact).toHaveLength(1);
+    expect(compact[0].parts?.map((part) => part.kind)).toEqual(["tool", "notice", "tool"]);
+
+    // Quiet hides notices, so the update disappears with them.
+    const quiet = timelineRows([tool("1", "grep"), instruction], "quiet");
+    expect(quiet.some((row) => row.parts?.some((part) => part.kind === "notice"))).toBe(false);
+  });
+
   test("an empty assistant step does not split the group", () => {
     const rows = timelineRows(
       [
@@ -176,7 +195,7 @@ describe("timelineRows", () => {
     expect(shape(hidden)).toEqual(["context[tool:1,tool:2]"]);
   });
 
-  test("a failed shell notice reads as a background event row", () => {
+  test("a failed shell notice keeps its own row", () => {
     const entries: TimelineEntry[] = [
       tool("1", "grep"),
       {
@@ -188,12 +207,12 @@ describe("timelineRows", () => {
       tool("2", "grep"),
     ];
 
-    // Background work reports back as its own counted row, so the tool block
+    // Background work reports its outcome as its own row, so the tool block
     // after it starts a new one rather than folding the report into a group.
     const rows = timelineRows(entries, "compact");
-    expect(rows.map((row) => (row.parts ? "context" : row.events ? "events" : (row.entry?.role ?? "other")))).toEqual([
+    expect(rows.map((row) => (row.parts ? "context" : (row.entry?.role ?? "other")))).toEqual([
       "context",
-      "events",
+      "notice",
       "context",
     ]);
   });
@@ -394,7 +413,7 @@ describe("timelineRows", () => {
     ]);
   });
 
-  test("background reports fold into one counted events row", () => {
+  test("background reports keep one row each", () => {
     const shellNotice = (key: string, state: string): TimelineEntry => ({
       key,
       role: "notice",
@@ -411,18 +430,18 @@ describe("timelineRows", () => {
       "compact",
     );
 
-    const events = rows.find((row) => row.events);
-    expect(events?.events).toHaveLength(2);
-    expect(events?.events?.[0].verb).toBe("finished");
-    expect(events?.events?.[1].failed).toBe(true);
+    const notices = rows.filter((row) => row.entry?.role === "notice");
+    expect(notices.map((row) => row.entry?.key)).toEqual(["n1", "n2"]);
+    expect(notices[1].entry?.notice?.state).toBe("error");
     // The tool group before the reports keeps its own row.
-    expect(rows.findIndex((row) => row.parts)).toBeLessThan(rows.findIndex((row) => row.events));
+    expect(rows.findIndex((row) => row.parts)).toBeLessThan(
+      rows.findIndex((row) => row.entry?.key === "n1"),
+    );
   });
 
   test("every row key is unique even when background reports carry no id", () => {
-    // A notice without a session or shell id is the case that used to collapse
-    // every events row onto one constant key. React reuses the DOM for a
-    // repeated key, so the rows stacked on top of each other.
+    // Three separate reports stay three rows with their own keys, even when
+    // they carry no session or shell id to tell them apart.
     const bareNotice = (key: string): TimelineEntry => ({
       key,
       role: "notice",
@@ -443,8 +462,7 @@ describe("timelineRows", () => {
 
     const keys = rows.map((row) => row.key);
     expect(new Set(keys).size).toBe(keys.length);
-    // Three separate runs of background work stay three rows.
-    expect(rows.filter((row) => row.events)).toHaveLength(3);
+    expect(rows.filter((row) => row.entry?.role === "notice")).toHaveLength(3);
   });
 
   test("an interrupted turn splits the transcript with a divider", () => {    const aborted = tool("1", "shell", { failed: true, output: "aborted" });

@@ -1,6 +1,5 @@
 import type { ChatState, MessageSwitch, TimelineCategory, TimelineDetailInput, TimelineEntry, ToolRun } from "@lingzhu/ui/types";
 import { timelineDetail } from "./timeline-detail.ts";
-import { noticeEvent, type TimelineEvent } from "./events.ts";
 
 /** The transcript groups tools, thoughts, commentary, notices and shell output like the desktop timeline. */
 export type ContextPart =
@@ -23,7 +22,7 @@ export interface TurnTotals {
 /**
  * A timed transcript row. Exactly one payload is set: an entry, a standalone
  * tool, a context group, a read or file group, a turn summary, a retry, an
- * error, a divider, or a run of background events.
+ * error or a divider.
  */
 export interface TimelineRow {
   key: string;
@@ -38,8 +37,6 @@ export interface TimelineRow {
   divider?: string;
   /** Set when the divider records an agent or model change rather than an interruption. */
   dividerSwitch?: MessageSwitch;
-  /** Background subagents and shells read as one counted row, not as tool calls. */
-  events?: TimelineEvent[];
 }
 
 function toolCategory(name: string): TimelineCategory | undefined {
@@ -152,11 +149,6 @@ function analyzeTurns(entries: TimelineEntry[], running: boolean, withDiffs: boo
   return { commentary, beforeUser, last };
 }
 
-/** A background event follows the detail setting of its own category. */
-function eventVisible(event: TimelineEvent, detail: ReturnType<typeof timelineDetail>) {
-  return (event.kind === "subagent" ? detail.subagents : detail.shell).placement !== "hidden";
-}
-
 /** Notices follow their source category; failures stay visible even when hidden. */
 function noticePlacement(entry: TimelineEntry, detail: ReturnType<typeof timelineDetail>) {
   const source = entry.notice?.source;
@@ -165,9 +157,10 @@ function noticePlacement(entry: TimelineEntry, detail: ReturnType<typeof timelin
     entry.notice?.state === "error" ||
     (source === "shell" && entry.notice?.state === "completed" && entry.notice.exit !== undefined && entry.notice.exit !== 0);
   if (placement === "hidden") return required ? "separate" : "hidden";
-  // An instruction update changes how the model behaves from here on, so it
-  // stays visible as its own row instead of joining a tool group.
-  if (source === "shell" || source === "subagent" || source === "instructions") return "separate";
+  // Background outcomes stay their own rows. An instruction update is an
+  // informational notice, so it follows the notices setting and can join the
+  // summary block like the reference timeline.
+  if (source === "shell" || source === "subagent") return "separate";
   return placement;
 }
 
@@ -192,12 +185,8 @@ export function timelineRows(
   let firstPartKey = "";
   let reads: ToolRun[] = [];
   let files: ToolRun[] = [];
-  // Background work accumulates until something else interrupts it, so
-  // consecutive launches and their reports read as one counted row.
-  let events: TimelineEvent[] = [];
 
   const addPart = (part: ContextPart) => {
-    flushEvents();
     const key = part.kind === "tool" ? part.tool.id : part.entry.key;
     if (!firstPartKey) firstPartKey = key;
     // Commentary can leave a group once its turn settles and it becomes the
@@ -226,26 +215,10 @@ export function timelineRows(
     files = [];
   };
 
-  const flushEvents = () => {
-    if (events.length === 0) return;
-    rows.push({ key: `events:${events[0].sessionID ?? events[0].shellID ?? "work"}`, events });
-    events = [];
-  };
-
   const flush = () => {
     flushContext();
     flushReads();
     flushFiles();
-    flushEvents();
-  };
-
-  const addEvent = (event: TimelineEvent) => {
-    // Nothing else may sit between two events in one row, or the order of what
-    // happened would stop being true.
-    flushContext();
-    flushReads();
-    flushFiles();
-    events.push(event);
   };
 
   const pushDiff = (key: string, totals: TurnTotals) => {
@@ -309,7 +282,6 @@ export function timelineRows(
       if (groupedRead(tool)) {
         flushContext();
         flushFiles();
-        flushEvents();
         reads.push(tool);
         continue;
       }
@@ -321,7 +293,6 @@ export function timelineRows(
       if (fileChange(tool)) {
         flushContext();
         flushReads();
-        flushEvents();
         files.push(tool);
         continue;
       }
@@ -354,7 +325,6 @@ export function timelineRows(
       if (placement === "grouped") {
         flushReads();
         flushFiles();
-        flushEvents();
         addPart({ kind: "loaded", entry });
         continue;
       }
@@ -370,7 +340,6 @@ export function timelineRows(
       if (placement === "grouped") {
         flushReads();
         flushFiles();
-        flushEvents();
         addPart({ kind: "reasoning", entry });
         continue;
       }
@@ -380,14 +349,9 @@ export function timelineRows(
     }
 
     if (entry.role === "notice") {
-      // A background subagent or shell reporting back folds into one events
-      // row, so two finishes in a row read "Finished 2 subagents". The launch
-      // itself stays a tool card, where its output and session link live.
-      const event = noticeEvent(entry);
-      if (event && eventVisible(event, detail)) {
-        addEvent(event);
-        continue;
-      }      // A failed report the category hides still stays visible on its own.
+      // A background subagent or shell reports its terminal outcome as its own
+      // row where it finished, so the label stays the outcome the job settled
+      // with instead of a count of mixed results.
       const placement = noticePlacement(entry, detail);
       if (placement === "hidden") continue;
       if (placement === "grouped") {
@@ -443,11 +407,9 @@ export function timelineRows(
 }
 
 /**
- * Makes every row key unique. A row's natural key can repeat: an events row
- * falls back to a constant when its notices carry no session or shell id, and
- * two runs of background work then share one key. React reuses the DOM for a
- * repeated key, which stacks the second row on top of the first and overlaps
- * the text around it.
+ * Makes every row key unique. A row's natural key can repeat while a live turn
+ * is rebuilt, and React reuses the DOM for a repeated key, which stacks the
+ * second row on top of the first and overlaps the text around it.
  */
 function uniqueRowKeys(rows: TimelineRow[]): TimelineRow[] {
   const seen = new Map<string, number>();
