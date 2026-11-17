@@ -13,7 +13,6 @@ type PathDialogID =
   | "source-control"
   | "artifacts"
   | "project"
-  | "migration"
   | "services"
   | "core"
   | "core-models"
@@ -119,7 +118,6 @@ export function useDialogBindings() {
       setSourceControlTarget: path("source-control"),
       setArtifactsTarget: path("artifacts"),
       setProjectTarget: path("project"),
-      setMigrationTarget: path("migration"),
       setServicesTarget: path("services"),
       setCoreTarget: path("core"),
       setCoreModelsTarget: path("core-models"),

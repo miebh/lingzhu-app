@@ -246,9 +246,8 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 	}
 	s.db = db
 	s.appDBPath = dbPath
-	appDir := filepath.Dir(dbPath)
 
-	prefs, err := preferences.Open(db, appDir)
+	prefs, err := preferences.Open(db)
 	if err != nil {
 		_ = db.Close()
 		s.db = nil
@@ -262,7 +261,7 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 	s.notifier = notifications.New()
 	s.startNotifier(ctx, options)
 
-	store, err := workspaces.Open(db, appDir)
+	store, err := workspaces.Open(db)
 	if err != nil {
 		s.err = err.Error()
 		return nil

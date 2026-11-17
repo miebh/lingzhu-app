@@ -8,7 +8,6 @@ import { ImageGenDialog } from "../../components/ImageGenDialog";
 import { JobsOverviewDialog } from "../../components/JobsOverviewDialog";
 import { LiveEventsDialog } from "../../components/LiveEventsDialog";
 import { MCPDialog } from "../../components/MCPDialog";
-import { MigrationDialog } from "../../components/MigrationDialog";
 import { OAuthDialog } from "../../components/OAuthDialog";
 import { PluginsDialog } from "../../components/PluginsDialog";
 import { ProjectDialog } from "../../components/ProjectDialog";
@@ -28,7 +27,6 @@ import { useShell } from "../ShellProvider";
 type PathDialogID =
   | "source-control"
   | "artifacts"
-  | "migration"
   | "services"
   | "core"
   | "core-models"
@@ -93,8 +91,7 @@ export function PathDialogs() {
   const dialogs: Array<[PathDialogID, ComponentType<PathDialogProps>]> = [
     ["source-control", SourceControlDialog],
     ["artifacts", ArtifactsDialog],
-    ["migration", MigrationDialog],
-        ["services", ServicesDialog],
+    ["services", ServicesDialog],
     ["core", CoreDialog],
     ["core-models", CoreModelsDialog],
     ["mcp", MCPDialog],

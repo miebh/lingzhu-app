@@ -548,10 +548,6 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
       const command = String(data.command ?? "background command");
       const status = String(data.status ?? "completed");
       const exit = Number(data.exit_code ?? 0);
-      // Older records stored a non-zero command exit as a failed job. A job
-      // that ended with an exit code is completed, so read those records the
-      // same way and leave the failure on the command's exit code.
-      const state = status === "failed" && exit < 0 ? "error" : status === "failed" ? "completed" : status;
       entries = [
         ...entries,
         {
@@ -560,7 +556,7 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
           text: command,
           notice: {
             source: "shell",
-            state,
+            state: status === "failed" ? "error" : status,
             description: command,
             exit,
             id: String(data.id ?? ""),

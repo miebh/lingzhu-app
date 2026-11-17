@@ -10,29 +10,6 @@ import (
 	"testing"
 )
 
-func TestBuildAppSettingsProjectsLegacyConfig(t *testing.T) {
-	file := document{
-		"model":          "legacy-model",
-		"base_url":       "https://example.test/v1",
-		"api_key":        "secret",
-		"context_window": float64(64000),
-	}
-	settings := buildAppSettings("config.json", file)
-	if settings.Provider != "default" || settings.Model != "legacy-model" {
-		t.Fatalf("unexpected selection: %+v", settings)
-	}
-	if len(settings.Providers) != 1 {
-		t.Fatalf("want one legacy provider: %+v", settings.Providers)
-	}
-	provider := settings.Providers[0]
-	if provider.ID != "default" || !provider.Ready || !provider.APIKeySet {
-		t.Fatalf("legacy provider not ready: %+v", provider)
-	}
-	if len(provider.Models) != 1 || provider.Models[0].ContextWindow != 64000 || !provider.Models[0].Enabled {
-		t.Fatalf("unexpected legacy models: %+v", provider.Models)
-	}
-}
-
 func TestExplicitEmptyProvidersStayEmpty(t *testing.T) {
 	file := document{"providers": map[string]any{}, "provider": "", "model": ""}
 	settings := buildAppSettings("config.json", file)
@@ -81,41 +58,6 @@ func TestBuildAppSettingsReadsProviderBlock(t *testing.T) {
 	}
 	if settings.Providers[1].Models[0].ContextWindow != 1000 {
 		t.Fatalf("model window was not read: %+v", settings.Providers[1].Models)
-	}
-}
-
-func TestApplySettingsMigratesLegacyKey(t *testing.T) {
-	file := document{
-		"model":    "m",
-		"base_url": "https://old.test/v1",
-		"api_key":  "legacy-key",
-	}
-	applySettingsInput(file, SettingsInput{
-		Provider:      "default",
-		Model:         "m",
-		MaxSteps:      4,
-		ContextWindow: 64000,
-		CompactKeep:   1000,
-		Providers: []ProviderInput{{
-			ID:      "default",
-			Name:    "Default",
-			BaseURL: "https://old.test/v1",
-			Models:  []ModelInput{{ID: "m", ContextWindow: 64000, Enabled: true}},
-		}},
-	})
-	if _, ok := file["base_url"]; ok {
-		t.Fatal("legacy base_url should be removed")
-	}
-	if _, ok := file["api_key"]; ok {
-		t.Fatal("legacy api_key should be removed")
-	}
-	providers, _ := asDocument(file["providers"])
-	entry, _ := asDocument(providers["default"])
-	if entry["api_key"] != "legacy-key" {
-		t.Fatalf("legacy key was not migrated: %+v", entry)
-	}
-	if file["provider"] != "default" || file["model"] != "m" {
-		t.Fatalf("selection was not written: %+v", file)
 	}
 }
 
@@ -316,43 +258,5 @@ func TestSaveModelVisibilityWritesConfigWithoutRestart(t *testing.T) {
 	provider, _ := asDocument(providers["p"])
 	if provider["api_key"] != "key" {
 		t.Fatal("visibility write dropped the stored key")
-	}
-}
-
-func TestSaveModelVisibilityMigratesLegacyConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
-	legacy := `{"model":"legacy-model","base_url":"https://legacy.test/v1","api_key":"secret","context_window":64000}`
-	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	service := &CoreService{configPath: path}
-	if err := service.SaveModelVisibility([]ModelVisibility{{Provider: "default", Model: "legacy-model", Enabled: false}}); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	file := document{}
-	if err := json.Unmarshal(data, &file); err != nil {
-		t.Fatal(err)
-	}
-	providers, _ := asDocument(file["providers"])
-	provider, ok := asDocument(providers["default"])
-	if !ok {
-		t.Fatalf("legacy config was not migrated: %+v", file)
-	}
-	if provider["api_key"] != "secret" || provider["base_url"] != "https://legacy.test/v1" {
-		t.Fatalf("legacy provider fields were not preserved: %+v", provider)
-	}
-	if _, ok := file["api_key"]; ok {
-		t.Fatal("the legacy top-level key should move into the provider")
-	}
-	settings := buildAppSettings(path, file)
-	if settings.Provider != "default" || settings.Model != "legacy-model" {
-		t.Fatalf("selection changed: %+v", settings)
-	}
-	if settings.Providers[0].Models[0].Enabled {
-		t.Fatal("visibility was not persisted during migration")
 	}
 }

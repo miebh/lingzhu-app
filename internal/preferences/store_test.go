@@ -3,8 +3,6 @@ package preferences
 import (
 	"database/sql"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"lingzhu-app/internal/appdb"
@@ -17,7 +15,7 @@ func openAt(t *testing.T, dir string) (*Store, *sql.DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	store, err := Open(db, dir)
+	store, err := Open(db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,13 +41,13 @@ func TestGetMissingReturnsDefaults(t *testing.T) {
 
 func TestGetCorruptReturnsDefaults(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "preferences.json"), []byte("{not json"), 0o644); err != nil {
+	store, db := openAt(t, dir)
+	if _, err := db.Exec(`INSERT OR REPLACE INTO preferences(id, data) VALUES(1, ?)`, "{not json"); err != nil {
 		t.Fatal(err)
 	}
-	store, _ := openAt(t, dir)
 	got := store.Get()
 	if got.Appearance.Density != "comfortable" {
-		t.Fatalf("corrupt legacy file should fall back to defaults, got %+v", got)
+		t.Fatalf("corrupt stored preferences should fall back to defaults, got %+v", got)
 	}
 }
 
@@ -97,29 +95,6 @@ func TestTimelineDetailDefaultsToCompact(t *testing.T) {
 	}
 }
 
-func TestTimelineDetailLegacyStringLoads(t *testing.T) {
-	var prefs Preferences
-	if err := json.Unmarshal([]byte(`{"appearance":{"timelineDetail":"compact"}}`), &prefs); err != nil {
-		t.Fatal(err)
-	}
-	prefs = Normalize(prefs)
-	if prefs.Appearance.TimelineDetail.Shell.Placement != placementGrouped ||
-		prefs.Appearance.TimelineDetail.Thinking.Placement != placementGrouped ||
-		prefs.Appearance.TimelineDetail.Subagents.Placement != placementSeparate {
-		t.Fatalf("legacy compact detail was not mapped: %+v", prefs.Appearance.TimelineDetail)
-	}
-
-	var summary Preferences
-	if err := json.Unmarshal([]byte(`{"appearance":{"timelineDetail":"summary"}}`), &summary); err != nil {
-		t.Fatal(err)
-	}
-	summary = Normalize(summary)
-	if summary.Appearance.TimelineDetail.Shell.Placement != placementGrouped ||
-		summary.Appearance.TimelineDetail.Tools.Placement != placementGrouped {
-		t.Fatalf("legacy summary detail was not mapped to compact: %+v", summary.Appearance.TimelineDetail)
-	}
-}
-
 func TestTimelineDetailObjectRoundTrips(t *testing.T) {
 	store, _ := openAt(t, t.TempDir())
 	want := defaultTimelineDetail()
@@ -159,40 +134,6 @@ func TestHalfFilledDefaultModelIsDropped(t *testing.T) {
 	}
 }
 
-func TestMigratesLegacyPreferencesOnce(t *testing.T) {
-	dir := t.TempDir()
-	legacy := Preferences{
-		DefaultWorkspace: "D:/legacy",
-		AutoApprove:      true,
-		Appearance:       Appearance{Density: "compact", TimelineWidth: "wide", ReduceMotion: "off"},
-	}
-	data, err := json.Marshal(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "preferences.json"), data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	store, db := openAt(t, dir)
-	got := store.Get()
-	if got.DefaultWorkspace != "D:/legacy" || !got.AutoApprove || got.Appearance.Density != "compact" {
-		t.Fatalf("legacy preferences were not imported: %+v", got)
-	}
-
-	// A later save must win over the legacy file after a restart.
-	if err := store.Save(Preferences{DefaultWorkspace: "D:/new"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	reopened, _ := openAt(t, dir)
-	if got := reopened.Get(); got.DefaultWorkspace != "D:/new" {
-		t.Fatalf("legacy file overwrote a newer value: %+v", got)
-	}
-}
-
 func TestCompletionNoticesDefaultOn(t *testing.T) {
 	notices := Default().Notifications
 	if !notices.Agent || !notices.Errors {
@@ -200,65 +141,6 @@ func TestCompletionNoticesDefaultOn(t *testing.T) {
 	}
 	if !notices.Permissions || !notices.Questions {
 		t.Fatalf("approvals and questions must stay on by default: %+v", notices)
-	}
-}
-
-// An install that predates completion notices kept the old default, so a run's
-// end was silent. The upgrade turns those two channels on once, and must not
-// touch a channel the user changed.
-func TestCompletionNoticesUpgradeOldDefault(t *testing.T) {
-	dir := t.TempDir()
-	_, db := openAt(t, dir)
-	legacy := Default()
-	legacy.Notifications = Notifications{Agent: false, Permissions: true, Questions: true, Errors: false}
-	data, err := json.Marshal(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`INSERT OR REPLACE INTO preferences(id, data) VALUES(1, ?)`, string(data)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`DELETE FROM meta WHERE key = ?`, notificationsKey); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	reopened, _ := openAt(t, dir)
-	got := reopened.Get().Notifications
-	if !got.Agent || !got.Errors {
-		t.Fatalf("completion channels were not enabled: %+v", got)
-	}
-	if !got.Permissions || !got.Questions {
-		t.Fatalf("upgrade changed an untouched channel: %+v", got)
-	}
-}
-
-func TestCompletionNoticesUpgradeKeepsUserChoice(t *testing.T) {
-	dir := t.TempDir()
-	_, db := openAt(t, dir)
-	custom := Default()
-	// The user turned the completion notice off on purpose.
-	custom.Notifications = Notifications{Agent: false, Permissions: false, Questions: true, Errors: true}
-	data, err := json.Marshal(custom)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`INSERT OR REPLACE INTO preferences(id, data) VALUES(1, ?)`, string(data)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`DELETE FROM meta WHERE key = ?`, notificationsKey); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	reopened, _ := openAt(t, dir)
-	got := reopened.Get().Notifications
-	if got.Agent || got.Permissions {
-		t.Fatalf("upgrade overrode a deliberate choice: %+v", got)
 	}
 }
 
@@ -271,6 +153,6 @@ func TestShowMessageAgentDefaultsOff(t *testing.T) {
 		t.Fatal(err)
 	}
 	if prefs.ShowMessageAgent {
-		t.Fatal("legacy preferences must not enable message agent labels")
+		t.Fatal("missing fields must not enable message agent labels")
 	}
 }

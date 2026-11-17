@@ -1005,21 +1005,6 @@ type MediaList struct {
 	Truncated bool        `json:"truncated"`
 }
 
-// MigrationStatus summarizes the session store schema and legacy backups.
-type MigrationStatus struct {
-	SchemaVersion int      `json:"schemaVersion"`
-	SessionDir    string   `json:"sessionDir"`
-	Sessions      int      `json:"sessions"`
-	Events        int      `json:"events"`
-	LegacyBackups []string `json:"legacyBackups"`
-}
-
-// MigrationInfo is the migration status plus the database path.
-type MigrationInfo struct {
-	Migration MigrationStatus `json:"migration"`
-	Database  string          `json:"database"`
-}
-
 // PairingCode is one short-lived single-use pairing code.
 type PairingCode struct {
 	Code      string    `json:"code"`
@@ -1300,20 +1285,6 @@ func (c *Client) Media(ctx context.Context, sessionID string, limit int) (MediaL
 	var list MediaList
 	err := c.do(ctx, http.MethodGet, endpoint, nil, &list)
 	return list, err
-}
-
-// Migration reads the store schema, counts and legacy backups.
-func (c *Client) Migration(ctx context.Context) (MigrationInfo, error) {
-	var info MigrationInfo
-	err := c.do(ctx, http.MethodGet, "/migration", nil, &info)
-	return info, err
-}
-
-// Migrate re-imports legacy logs and returns the new status.
-func (c *Client) Migrate(ctx context.Context) (MigrationInfo, error) {
-	var info MigrationInfo
-	err := c.do(ctx, http.MethodPost, "/migration", nil, &info)
-	return info, err
 }
 
 // ExportBundle returns one session and its events.

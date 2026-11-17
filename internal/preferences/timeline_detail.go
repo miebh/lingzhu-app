@@ -1,7 +1,5 @@
 package preferences
 
-import "encoding/json"
-
 // TimelineDetail is the persisted category map for the transcript.
 // The JSON shape mirrors the desktop client so one document describes both.
 type TimelineDetail struct {
@@ -33,24 +31,6 @@ const (
 	expansionCollapsed = "collapsed"
 	expansionExpanded  = "expanded"
 )
-
-// UnmarshalJSON accepts both the current object and the legacy three-level
-// string so a hand-edited or older preference document still loads.
-func (detail *TimelineDetail) UnmarshalJSON(data []byte) error {
-	var legacy string
-	if err := json.Unmarshal(data, &legacy); err == nil {
-		*detail = timelineDetailFromLegacy(legacy)
-		return nil
-	}
-
-	type plain TimelineDetail
-	var parsed plain
-	if err := json.Unmarshal(data, &parsed); err != nil {
-		return err
-	}
-	*detail = TimelineDetail(parsed)
-	return nil
-}
 
 func defaultTimelineDetail() TimelineDetail {
 	return timelineDetailPreset("compact")
@@ -109,19 +89,6 @@ func timelineDetailPreset(name string) TimelineDetail {
 			Tools:      TimelinePlacementDetail{Placement: placementGrouped},
 			Commentary: TimelinePlacementDetail{Placement: placementSeparate},
 		}
-	}
-}
-
-func timelineDetailFromLegacy(name string) TimelineDetail {
-	switch name {
-	case "compact":
-		return timelineDetailPreset("compact")
-	case "detailed":
-		return timelineDetailPreset("everything")
-	case "summary":
-		return timelineDetailPreset("compact")
-	default:
-		return timelineDetailPreset("detailed")
 	}
 }
 

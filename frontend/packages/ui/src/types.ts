@@ -412,8 +412,8 @@ export interface TimelineDetail {
 /** The named points on the timeline detail slider. */
 export type TimelineDetailPreset = "everything" | "detailed" | "compact" | "quiet" | "text-only";
 
-/** Accepts a preset, the legacy three-level value, or a full category map. */
-export type TimelineDetailInput = TimelineDetail | TimelineDetailPreset | "summary";
+/** Accepts a preset name or a full category map. */
+export type TimelineDetailInput = TimelineDetail | TimelineDetailPreset;
 
 export interface AppearancePreferences {
   fontFamily: string;
@@ -577,21 +577,6 @@ export interface MediaList {
   media: MediaItem[];
   count: number;
   truncated: boolean;
-}
-
-/** Session store schema, counts and legacy backups. */
-export interface MigrationStatus {
-  schemaVersion: number;
-  sessionDir: string;
-  sessions: number;
-  events: number;
-  legacyBackups: string[];
-}
-
-/** Migration status plus the database path. */
-export interface MigrationInfo {
-  migration: MigrationStatus;
-  database: string;
 }
 
 /** One short-lived single-use pairing code. */

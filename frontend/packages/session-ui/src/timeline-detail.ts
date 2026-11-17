@@ -73,13 +73,7 @@ export const timelinePresets: { id: TimelineDetailPreset; value: TimelineDetail 
 export const defaultTimelineDetail = timelinePresets.find((preset) => preset.id === "compact")!.value;
 
 export function timelinePreset(value: TimelineDetailInput | undefined): TimelineDetailPreset | undefined {
-  if (!value || typeof value === "string") {
-    // Legacy three-level names win over same-named presets.
-    if (value === "compact") return "compact";
-    if (value === "detailed") return "everything";
-    if (value === "summary") return "compact";
-    return value;
-  }
+  if (!value || typeof value === "string") return value;
 
   return timelinePresets.find((preset) =>
     Object.entries(preset.value).every(([category, expected]) => {
@@ -102,10 +96,6 @@ export function timelinePreset(value: TimelineDetailInput | undefined): Timeline
 export function timelineDetail(value: TimelineDetailInput | undefined): TimelineDetail {
   if (!value) return PRESETS.get(defaultTimelineDetail) ?? clone(defaultTimelineDetail);
   if (typeof value === "string") {
-    // Legacy three-level names win over same-named presets.
-    if (value === "compact") return presetDetail("compact");
-    if (value === "detailed") return presetDetail("everything");
-    if (value === "summary") return presetDetail("compact");
     if (timelinePresets.some((item) => item.id === value)) return presetDetail(value as TimelineDetailPreset);
     return PRESETS.get(defaultTimelineDetail) ?? clone(defaultTimelineDetail);
   }

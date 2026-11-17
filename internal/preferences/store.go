@@ -5,9 +5,6 @@ package preferences
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -36,12 +33,6 @@ const (
 
 	languageEnglish = "en"
 	languageChinese = "zh"
-
-	migratedKey = "preferences.migrated"
-
-	// notificationsKey guards the one-time upgrade that turns the completion
-	// channels on for documents written before they defaulted to on.
-	notificationsKey = "preferences.notifications-v2"
 )
 
 // Appearance controls the client look without changing core configuration.
@@ -174,14 +165,12 @@ func Default() Preferences {
 }
 
 type Store struct {
-	db  *sql.DB
-	dir string
+	db *sql.DB
 }
 
-// Open prepares the preferences table and imports the legacy JSON document
-// once. dir is the app data directory that may still contain preferences.json.
-func Open(db *sql.DB, dir string) (*Store, error) {
-	store := &Store{db: db, dir: dir}
+// Open prepares the preferences table.
+func Open(db *sql.DB) (*Store, error) {
+	store := &Store{db: db}
 	if err := store.ensure(); err != nil {
 		return nil, err
 	}
@@ -189,111 +178,11 @@ func Open(db *sql.DB, dir string) (*Store, error) {
 }
 
 func (s *Store) ensure() error {
-	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS meta (
-		key   TEXT PRIMARY KEY,
-		value TEXT NOT NULL
-	)`); err != nil {
-		return err
-	}
-	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS preferences (
+	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS preferences (
 		id   INTEGER PRIMARY KEY CHECK (id = 1),
 		data TEXT NOT NULL
-	)`); err != nil {
-		return err
-	}
-	if err := s.migrate(); err != nil {
-		return err
-	}
-	return s.enableCompletionNotices()
-}
-
-// enableCompletionNotices upgrades a document that still carries the old
-// defaults, where a finished run raised nothing. Only the untouched shape is
-// upgraded, so a channel the user changed keeps its value.
-func (s *Store) enableCompletionNotices() error {
-	done, err := metaHas(s.db, notificationsKey)
-	if err != nil || done {
-		return err
-	}
-	var data string
-	if err := s.db.QueryRow(`SELECT data FROM preferences WHERE id = 1`).Scan(&data); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return s.markNoticesMigrated()
-		}
-		return err
-	}
-	var stored struct {
-		Notifications Notifications `json:"notifications"`
-	}
-	if json.Unmarshal([]byte(data), &stored) != nil {
-		return s.markNoticesMigrated()
-	}
-	// The old default: only approvals and questions reported, so a run's
-	// completion was silent.
-	untouched := stored.Notifications == Notifications{
-		Agent:       false,
-		Permissions: true,
-		Questions:   true,
-		Errors:      false,
-	}
-	if !untouched {
-		return s.markNoticesMigrated()
-	}
-	prefs := s.Get()
-	prefs.Notifications.Agent = true
-	prefs.Notifications.Errors = true
-	if err := s.Save(prefs); err != nil {
-		return err
-	}
-	return s.markNoticesMigrated()
-}
-
-func (s *Store) markNoticesMigrated() error {
-	_, err := s.db.Exec(
-		`INSERT OR REPLACE INTO meta(key, value) VALUES(?, '1')`, notificationsKey,
-	)
+	)`)
 	return err
-}
-
-// migrate imports preferences.json into the new table. The JSON file stays on
-// disk as a backup; the database is the source of truth after this runs.
-func (s *Store) migrate() error {
-	migrated, err := metaHas(s.db, migratedKey)
-	if err != nil || migrated {
-		return err
-	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var count int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM preferences`).Scan(&count); err != nil {
-		return err
-	}
-	if count == 0 {
-		data, err := os.ReadFile(filepath.Join(s.dir, "preferences.json"))
-		if err == nil {
-			var prefs Preferences
-			if json.Unmarshal(data, &prefs) == nil {
-				prefs = Normalize(prefs)
-				raw, err := json.Marshal(prefs)
-				if err != nil {
-					return err
-				}
-				if _, err := tx.Exec(`INSERT OR IGNORE INTO preferences(id, data) VALUES(1, ?)`, string(raw)); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	if _, err := tx.Exec(
-		`INSERT OR REPLACE INTO meta(key, value) VALUES(?, '1')`, migratedKey,
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
 }
 
 // Get returns the saved preferences; a missing or corrupt row falls back to
@@ -497,15 +386,6 @@ func normalizeKeybinds(items map[string]string) map[string]string {
 		return nil
 	}
 	return out
-}
-
-func metaHas(db *sql.DB, key string) (bool, error) {
-	var value string
-	err := db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(&value)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
 }
 
 func normalizeStringMap(value map[string]string, limit int) map[string]string {

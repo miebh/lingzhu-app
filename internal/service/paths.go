@@ -1,9 +1,7 @@
 package service
 
 import (
-	"crypto/sha1"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,50 +65,8 @@ func resolveBaseData(configPath string) string {
 	return global.Data()
 }
 
-// dataDir returns where one workspace's session database lives. The core now
-// keeps every project in one store under baseData, so a workspace's sessions
-// are counted from that store; the per-workspace directory is only read when a
-// previous release left one behind, so history stays visible after the change.
-func (s *CoreService) dataDir(path string) string {
-	if legacy := s.legacyDataDir(path); legacy != "" {
-		return legacy
-	}
+// dataDir returns where one workspace's session database lives. The core keeps
+// every project in one store under baseData.
+func (s *CoreService) dataDir(_ string) string {
 	return s.baseData
-}
-
-// legacyDataDir returns the dedicated directory a previous release created for
-// one workspace, or an empty string when it has none.
-func (s *CoreService) legacyDataDir(path string) string {
-	legacy := s.legacyPath(path)
-	if _, err := os.Stat(legacy); err != nil {
-		return ""
-	}
-	return legacy
-}
-
-// legacyPath is where a previous release stored one workspace's data.
-func (s *CoreService) legacyPath(path string) string {
-	sum := sha1.Sum([]byte(strings.ToLower(path)))
-	slug := slugify(filepath.Base(path))
-	return filepath.Join(s.baseData, "workspaces", fmt.Sprintf("%s-%x", slug, sum[:4]))
-}
-
-func slugify(name string) string {
-	var b strings.Builder
-	for _, r := range strings.ToLower(name) {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			b.WriteRune(r)
-		case r == '-' || r == '_' || r == '.':
-			b.WriteRune('-')
-		}
-	}
-	slug := strings.Trim(b.String(), "-")
-	if slug == "" {
-		return "workspace"
-	}
-	if len(slug) > 24 {
-		slug = slug[:24]
-	}
-	return slug
 }

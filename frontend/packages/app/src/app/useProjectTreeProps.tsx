@@ -55,7 +55,6 @@ export function useProjectTreeProps(): ProjectTreeProps {
     onFiles: (path) => dialogs.setFilesTarget({ workspace: path }),
     onArtifacts: dialogs.setArtifactsTarget,
     onProject: dialogs.setProjectTarget,
-    onMigration: dialogs.setMigrationTarget,
     onImport: (path) => dialogs.setTransferTarget({ workspace: path }),
     onServices: dialogs.setServicesTarget,
     onCore: dialogs.setCoreTarget,

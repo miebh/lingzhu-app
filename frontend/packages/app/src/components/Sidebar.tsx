@@ -8,7 +8,6 @@ import {
   Clock,
   Command,
   Cpu,
-  Database,
   Download,
   Ellipsis,
   FolderClosed,
@@ -94,7 +93,6 @@ interface Props {
   onFiles: (path: string) => void;
   onArtifacts: (path: string) => void;
   onProject: (path: string) => void;
-  onMigration: (path: string) => void;
   onImport: (path: string) => void;
   onServices: (path: string) => void;
   onCore: (path: string) => void;
@@ -170,7 +168,6 @@ function SidebarView({
   onFiles,
   onArtifacts,
   onProject,
-  onMigration,
   onImport,
   onServices,
   onCore,
@@ -766,7 +763,6 @@ function SidebarView({
                   onFiles={() => onFiles(workspace.path)}
                   onArtifacts={() => onArtifacts(workspace.path)}
                   onProject={() => onProject(workspace.path)}
-                  onMigration={() => onMigration(workspace.path)}
                   onImport={() => onImport(workspace.path)}
                   onServices={() => onServices(workspace.path)}
                   onCore={() => onCore(workspace.path)}
@@ -1296,7 +1292,6 @@ interface WorkspaceRowProps {
   onFiles: () => void;
   onArtifacts: () => void;
   onProject: () => void;
-  onMigration: () => void;
   onImport: () => void;
   onServices: () => void;
   onCore: () => void;
@@ -1321,7 +1316,7 @@ interface WorkspaceRowProps {
  * hit-testing on the anchor, which would otherwise collapse the strip and
  * unmount the trigger under its own open menu.
  */
-function WorkspaceRow({ workspace, active, expanded, onToggle, onNew, onSelectSessions, onRemove, onWorktree, onSourceControl, onFiles, onArtifacts, onProject, onMigration, onImport, onServices, onCore, onCoreModels, onMCP, onPlugins, onSearch, onLiveEvents, onSchedulesOverview, onJobsOverview, onUsageOverview, onWebSearch, onImageGen, onFormatters, onOAuth, onWorktreesManage }: WorkspaceRowProps) {
+function WorkspaceRow({ workspace, active, expanded, onToggle, onNew, onSelectSessions, onRemove, onWorktree, onSourceControl, onFiles, onArtifacts, onProject, onImport, onServices, onCore, onCoreModels, onMCP, onPlugins, onSearch, onLiveEvents, onSchedulesOverview, onJobsOverview, onUsageOverview, onWebSearch, onImageGen, onFormatters, onOAuth, onWorktreesManage }: WorkspaceRowProps) {
   const tr = useT();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -1440,10 +1435,6 @@ function WorkspaceRow({ workspace, active, expanded, onToggle, onNew, onSelectSe
             <DropdownMenuItem onSelect={onOAuth}>
               <KeyRound />
               {tr("oauthTitle")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onMigration}>
-              <Database />
-              {tr("migrationTitle")}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onFiles}>
               <FolderTree />

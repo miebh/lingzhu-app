@@ -34,7 +34,7 @@ describe("timeline surfaces", () => {
           },
           { key: "t2", role: "tool", tool: { id: "2", name: "grep", arguments: "b", done: true } },
         ])}
-        detail="summary"
+        detail="compact"
       />,
     );
     await waitFor(() => expect(screen.getByText("1 file changed")).toBeTruthy());
@@ -58,7 +58,7 @@ describe("timeline surfaces", () => {
             },
           },
         ])}
-        detail="summary"
+        detail="compact"
       />,
     );
     expect(screen.getByText("Patch")).toBeTruthy();

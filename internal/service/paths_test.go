@@ -1,11 +1,8 @@
 package service
 
 import (
-	"crypto/sha1"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -94,29 +91,15 @@ func TestResolveBaseData(t *testing.T) {
 	}
 }
 
-func TestDataDirPrefersTheSharedStore(t *testing.T) {
+func TestDataDirUsesTheSharedStore(t *testing.T) {
 	base := t.TempDir()
 	project := filepath.Join(t.TempDir(), "project")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	// One core keeps every project in one store, so a workspace with no legacy
-	// directory resolves to that shared store.
 	service := &CoreService{baseData: base, defaultRoot: project}
 	if got := service.dataDir(project); got != base {
 		t.Fatalf("a workspace must use the shared store: got %q, want %q", got, base)
-	}
-
-	// A directory left by a previous release is still read, so its history stays
-	// visible instead of disappearing after the upgrade.
-	sum := sha1.Sum([]byte(strings.ToLower(project)))
-	slug := slugify(filepath.Base(project))
-	legacy := filepath.Join(base, "workspaces", fmt.Sprintf("%s-%x", slug, sum[:4]))
-	if err := os.MkdirAll(legacy, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got := service.dataDir(project); got != legacy {
-		t.Fatalf("a legacy directory must still be found: got %q, want %q", got, legacy)
 	}
 }

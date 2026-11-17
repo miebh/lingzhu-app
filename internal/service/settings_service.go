@@ -126,17 +126,6 @@ func (s *CoreService) SaveModelVisibility(entries []ModelVisibility) error {
 		return err
 	}
 
-	// A legacy config has no providers block. Promote it first so visibility
-	// has somewhere to live; the running core never reads this flag, so the
-	// migration does not need a restart.
-	if _, ok := file["providers"]; !ok {
-		settings := buildAppSettings("", file)
-		input := settingsInputFromSettings(settings)
-		applyModelVisibilityInput(&input, entries)
-		applySettingsInput(file, input)
-		return writeConfigFile(s.configFilePath(), file)
-	}
-
 	if !applyModelVisibility(file, entries) {
 		return nil
 	}

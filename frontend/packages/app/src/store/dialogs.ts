@@ -28,7 +28,6 @@ export type DialogEntry =
   | { id: "schedules"; props: SessionDialogTarget }
   | { id: "artifacts"; props: { path: string } }
   | { id: "project"; props: { path: string } }
-  | { id: "migration"; props: { path: string } }
   | { id: "services"; props: { path: string } }
   | { id: "core"; props: { path: string } }
   | { id: "core-models"; props: { path: string } }

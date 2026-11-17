@@ -88,7 +88,6 @@ import type {
   SessionLocation,
   SessionSubagent,
   MediaList,
-  MigrationInfo,
   PairingCode,
   PairingList,
   PairingResult,
@@ -157,8 +156,6 @@ export const api = {
     call.Location(workspace, sessionID),
   media: (workspace: string, sessionID: string, limit = 0): Promise<MediaList> =>
     call.Media(workspace, sessionID, limit),
-  migration: (workspace: string): Promise<MigrationInfo> => call.Migration(workspace),
-  migrate: (workspace: string): Promise<MigrationInfo> => call.Migrate(workspace),
   pairings: (workspace: string, sessionID: string): Promise<PairingList> =>
     call.Pairings(workspace, sessionID),
   createPairing: (workspace: string, sessionID: string, ttlSeconds = 0): Promise<PairingCode> =>

@@ -104,16 +104,11 @@ func applySettingsInput(file document, input SettingsInput) {
 		} else {
 			delete(entry, "api_key_env")
 		}
-		// An empty key keeps the stored one; ClearKey removes it. A legacy
-		// top-level key migrates into the default provider on first save.
+		// An empty key keeps the stored one; ClearKey removes it.
 		if provider.ClearKey {
 			delete(entry, "api_key")
 		} else if key := strings.TrimSpace(provider.APIKey); key != "" {
 			entry["api_key"] = key
-		} else if _, ok := entry["api_key"]; !ok && id == "default" {
-			if legacy := file.str("api_key"); legacy != "" {
-				entry["api_key"] = legacy
-			}
 		}
 		entry.setStrings("blacklist", provider.Blacklist)
 		entry.setStrings("whitelist", provider.Whitelist)
@@ -163,10 +158,6 @@ func applySettingsInput(file document, input SettingsInput) {
 		next[id] = entry
 	}
 	file["providers"] = next
-	// The selected pair and the provider block are now the only source; drop
-	// the legacy duplicates so they cannot drift.
-	delete(file, "base_url")
-	delete(file, "api_key")
 	file["provider"] = providerID
 	file["model"] = model
 

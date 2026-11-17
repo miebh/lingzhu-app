@@ -43,25 +43,3 @@ INSERT INTO events(session_id, seq, type, at, data) VALUES('s1', 1, 'user.messag
 		t.Fatalf("unopened worktree count = %d, want 0", counts[unopened])
 	}
 }
-
-func TestWorktreeSessionsReadsLegacyStore(t *testing.T) {
-	base := t.TempDir()
-	service := &CoreService{baseData: base}
-	project := filepath.Join(t.TempDir(), "legacy")
-
-	if legacy := service.legacyDataDir(project); legacy != "" {
-		t.Fatalf("a fresh workspace must have no legacy directory, got %q", legacy)
-	}
-	// A directory left by a previous release still resolves, so an upgrade keeps
-	// reading the history that release wrote.
-	dir := filepath.Join(service.legacyPath(project), "sessions")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if legacy := service.legacyDataDir(project); legacy == "" {
-		t.Fatal("a directory written by a previous release must be found")
-	}
-	if got := service.dataDir(project); got != service.legacyDataDir(project) {
-		t.Fatalf("dataDir must prefer the legacy directory, got %q", got)
-	}
-}

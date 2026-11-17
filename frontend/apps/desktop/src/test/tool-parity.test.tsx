@@ -593,32 +593,6 @@ describe("tool timeline parity", () => {
     expect(rows[1].textContent).toContain("Subagent failed · inspect tests");
   });
 
-  test("a legacy failed job record with an exit code reads as completed", async () => {
-    const next = applyEvent({ s1: chat([]) }, "s1", {
-      workspace: ".",
-      sessionId: "s1",
-      seq: 1,
-      type: "job.completed",
-      at: "2026-01-01T00:00:00Z",
-      data: { command: "go run ./cmd/server", status: "failed", exit_code: 1 },
-    });
-
-    expect(next.s1.entries[0].notice?.state).toBe("completed");
-
-    render(
-      <TooltipProvider>
-        <Messages chat={next.s1} />
-      </TooltipProvider>,
-    );
-    const row = await waitFor(() => {
-      const found = document.querySelector<HTMLElement>('[data-slot="session-timeline-notice"]');
-      expect(found).toBeTruthy();
-      return found!;
-    });
-    expect(row.textContent).toContain("Shell finished · go run ./cmd/server");
-    expect(row.getAttribute("data-outcome")).toBe("completed");
-  });
-
   test("instruction updates name their changed sources and carry no outcome", async () => {
     const next = applyEvent({ s1: chat([]) }, "s1", {
       workspace: ".",

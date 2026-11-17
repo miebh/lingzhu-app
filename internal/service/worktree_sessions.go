@@ -9,24 +9,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// WorktreeSessions counts durable sessions recorded for each directory. One core
-// now keeps every project in one store, so a worktree's sessions are counted
-// from the session's placement rather than from a per-workspace database. A
-// directory that a previous release gave its own store is still counted there,
-// so history from before the change stays visible.
+// WorktreeSessions counts durable sessions recorded for each directory. The
+// core keeps every project in one store, so a worktree's sessions are counted
+// from the session's placement.
 func (s *CoreService) WorktreeSessions(paths []string) map[string]int {
 	out := make(map[string]int, len(paths))
 	shared := filepath.Join(s.baseData, "sessions", "sessions.db")
 	sharedCounts := countByDirectory(shared)
 
 	for _, path := range paths {
-		legacy := s.legacyDataDir(path)
-		if legacy != "" {
-			if count := countSessions(filepath.Join(legacy, "sessions", "sessions.db")); count > 0 {
-				out[path] = count
-				continue
-			}
-		}
 		out[path] = sharedCounts[strings.ToLower(filepath.Clean(path))]
 	}
 	return out
@@ -60,22 +51,6 @@ func countByDirectory(dbPath string) map[string]int {
 		out[strings.ToLower(filepath.Clean(directory))] = count
 	}
 	return out
-}
-
-// countSessions returns how many sessions one database holds.
-func countSessions(dbPath string) int {
-	db, err := openReadOnly(dbPath)
-	if err != nil {
-		return 0
-	}
-	defer db.Close()
-	var count int
-	if err := db.QueryRow(
-		`SELECT COUNT(*) FROM sessions s WHERE EXISTS (SELECT 1 FROM events e WHERE e.session_id = s.id)`,
-	).Scan(&count); err != nil {
-		return 0
-	}
-	return count
 }
 
 // openReadOnly opens a session database without creating it.

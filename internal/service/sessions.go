@@ -142,20 +142,6 @@ func (s *CoreService) Media(workspace, sessionID string, limit int) (core.MediaL
 	})
 }
 
-// Migration reads the store schema, counts and legacy backups.
-func (s *CoreService) Migration(workspace string) (core.MigrationInfo, error) {
-	return callClient(s, workspace, func(client *core.Client) (core.MigrationInfo, error) {
-		return client.Migration(s.ctx)
-	})
-}
-
-// Migrate re-imports legacy logs and returns the new status.
-func (s *CoreService) Migrate(workspace string) (core.MigrationInfo, error) {
-	return callClient(s, workspace, func(client *core.Client) (core.MigrationInfo, error) {
-		return client.Migrate(s.ctx)
-	})
-}
-
 // ExportBundle returns one session and its events.
 func (s *CoreService) ExportBundle(workspace, sessionID string) (core.SessionBundle, error) {
 	return callClient(s, workspace, func(client *core.Client) (core.SessionBundle, error) {

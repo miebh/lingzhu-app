@@ -94,7 +94,6 @@ export function buildPaletteCommands(ctx: PaletteContext, tr: Translate): Palett
     setSourceControlTarget,
     setWorktreesTarget,
     setProjectTarget,
-    setMigrationTarget,
     setServicesTarget,
     setCoreTarget,
     setCoreModelsTarget,
@@ -280,13 +279,6 @@ export function buildPaletteCommands(ctx: PaletteContext, tr: Translate): Palett
         group: tr("paletteGroupCommands"),
         keywords: ["instructions", "agents", "git"],
         run: () => setProjectTarget(path),
-      },
-      {
-        id: "migration",
-        title: tr("paletteMigration"),
-        group: tr("paletteGroupCommands"),
-        keywords: ["backup", "upgrade"],
-        run: () => setMigrationTarget(path),
       },
       {
         id: "services",

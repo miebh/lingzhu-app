@@ -6,9 +6,6 @@ import (
 	"strings"
 )
 
-// defaultBaseURL matches the core's default OpenAI-compatible endpoint.
-const defaultBaseURL = "https://api.openai.com/v1"
-
 // AppSettings is the editable view of the shared core config file. API keys
 // never leave the host; each provider only reports whether one is stored.
 type AppSettings struct {
@@ -157,14 +154,10 @@ func permissionRules(file document) []ConfigRule {
 	return out
 }
 
-// readProviderSettings projects the providers block. Configs without one are
-// shown as a single legacy "default" provider so old files stay editable.
+// readProviderSettings projects the providers block.
 func readProviderSettings(file document) ([]ProviderSettings, string, string) {
 	topModel := strings.TrimSpace(file.str("model"))
 	fallbackWindow := file.count("context_window", defaultContextWindow)
-	if _, exists := file["providers"]; !exists {
-		return legacyProvider(file, topModel, fallbackWindow), "default", topModel
-	}
 	raw := file.object("providers")
 	if len(raw) == 0 {
 		return []ProviderSettings{}, "", ""
@@ -232,7 +225,7 @@ func readProviderSettings(file document) ([]ProviderSettings, string, string) {
 		})
 	}
 	if len(providers) == 0 {
-		return legacyProvider(file, topModel, fallbackWindow), "default", topModel
+		return []ProviderSettings{}, "", ""
 	}
 
 	selected := strings.TrimSpace(file.str("provider"))
@@ -248,24 +241,4 @@ func readProviderSettings(file document) ([]ProviderSettings, string, string) {
 		}
 	}
 	return providers, selected, model
-}
-
-func legacyProvider(file document, model string, fallbackWindow int) []ProviderSettings {
-	baseURL := file.str("base_url")
-	if baseURL == "" {
-		baseURL = defaultBaseURL
-	}
-	keySet := file.str("api_key") != "" || os.Getenv("OPENAI_API_KEY") != ""
-	models := make([]ModelSettings, 0)
-	if model != "" {
-		models = append(models, ModelSettings{ID: model, Name: model, ContextWindow: fallbackWindow, Enabled: true})
-	}
-	return []ProviderSettings{{
-		ID:        "default",
-		Name:      "Default",
-		BaseURL:   baseURL,
-		APIKeySet: keySet,
-		Ready:     keySet,
-		Models:    models,
-	}}
 }
