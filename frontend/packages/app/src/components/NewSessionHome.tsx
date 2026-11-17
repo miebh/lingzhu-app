@@ -6,6 +6,8 @@ import { SessionLocationDialog } from "./SessionLocationDialog";
 import { Wordmark } from "./Wordmark";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lingzhu/ui/tooltip";
 import { useT } from "@lingzhu/ui/i18n";
+import { api } from "../lib/api";
+import { notify } from "../app/useApp";
 import type {
   AgentProfile,
   PromptAttachment,
@@ -69,6 +71,15 @@ export function NewSessionHome({
 }: Props) {
   const tr = useT();
   const [locationStep, setLocationStep] = useState<"projects" | "worktrees" | null>(null);
+
+  const revealWorkspace = async () => {
+    if (!workspacePath) return;
+    try {
+      await api.revealPath(workspacePath);
+    } catch {
+      notify(tr("revealFailed"));
+    }
+  };
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -158,12 +169,18 @@ export function NewSessionHome({
                   <div className="flex min-w-0 flex-1 justify-end pe-1.5">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span
-                          className="min-w-0 cursor-text overflow-hidden whitespace-nowrap text-text-faint select-text"
+                        <button
+                          type="button"
+                          aria-label={`${tr("openInFileManager")}: ${workspacePath}`}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            void revealWorkspace();
+                          }}
+                          className="interactive min-w-0 cursor-pointer overflow-hidden whitespace-nowrap rounded-sm text-left text-text-faint hover:text-text-base"
                           dir="ltr"
                         >
                           {workspacePath}
-                        </span>
+                        </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[calc(100vw-32px)] break-all">
                         {workspacePath}

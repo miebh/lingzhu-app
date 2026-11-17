@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import { NewSessionHome } from "@/components/NewSessionHome";
+import { api } from "@/lib/api";
+
+vi.mock("@/lib/api", () => import("./support/api-mock"));
 
 describe("new session surfaces", () => {
   test("new session surface shows the wordmark, composer and workspace tray", async () => {
@@ -149,6 +152,31 @@ describe("new session surfaces", () => {
     expect(onOpenWorktrees).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(onSelectWorktree).not.toHaveBeenCalled();
+  });
+
+  test("clicking the workspace path opens the file manager", async () => {
+    render(
+      <TooltipProvider>
+        <NewSessionHome
+          workspaceName="Project"
+          workspacePath="."
+          workspaces={[{ path: ".", name: "Project", addr: "", connected: true, error: "" }]}
+          connected
+          providers={[]}
+          provider=""
+          model=""
+          commands={[]}
+          onSelectModel={() => undefined}
+          onManageModels={() => undefined}
+          onAddProvider={() => undefined}
+          onSend={() => undefined}
+          onAddWorkspace={() => undefined}
+        />
+      </TooltipProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open in File Manager: ." }));
+    expect(api.revealPath).toHaveBeenCalledWith(".");
   });
 
   test("hovering the session location trigger shows the choose-project bubble", async () => {

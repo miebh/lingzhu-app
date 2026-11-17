@@ -20,6 +20,7 @@ export const api = {
     })),
     exportBundle: vi.fn(async () => ({ info: { id: "s1" }, messages: [], events: [] })),
     saveTextFile: vi.fn(async () => "C:/tmp/s1.json"),
+    revealPath: vi.fn(async () => undefined),
     searchFiles: vi.fn(async () => ({ files: [], truncated: false })),
     fileContent: vi.fn(async () => ({ content: "", truncated: false, binary: false, size: 0 })),
     backgroundJobs: vi.fn(async () => []),
