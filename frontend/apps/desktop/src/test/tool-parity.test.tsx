@@ -30,6 +30,26 @@ const tool = (id: string, name: string, argumentsJson = "{}", extra: Partial<Tim
 });
 
 describe("tool timeline parity", () => {
+  test("an interrupted tool renders as cancelled, not an error", async () => {
+    render(
+      <TooltipProvider>
+        <Messages
+          detail="everything"
+          chat={chat([
+            tool("1", "shell", '{"command":"sleep 10"}', {
+              output: "partial output",
+              failed: true,
+              cancelled: true,
+            }),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Cancelled")).toBeTruthy());
+    expect(screen.queryByText(/Tool failed/i)).toBeNull();
+  });
+
   test("compact folds reads and shell into one Used summary", async () => {
     render(
       <TooltipProvider>

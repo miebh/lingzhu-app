@@ -486,3 +486,39 @@ describe("timelineRows", () => {
     expect(running.filter((row) => row.diff)).toHaveLength(1);
   });
 });
+
+describe("cancelled tool results", () => {
+  test("live events and history replay both keep the cancelled flag", () => {
+    let chats: Record<string, ChatState> = {
+      s1: {
+        id: "s1",
+        title: "S",
+        draft: false,
+        entries: [],
+        running: true,
+        tokens: 0,
+        pending: [],
+        questions: [],
+      } as unknown as ChatState,
+    };
+    chats = applyEvent(chats, "s1", {
+      type: "tool.call",
+      sessionId: "s1",
+      workspace: ".",
+      data: { id: "c", name: "shell", arguments: "{}" },
+    } as unknown as CoreEvent);
+    chats = applyEvent(chats, "s1", {
+      type: "tool.result",
+      sessionId: "s1",
+      workspace: ".",
+      data: { id: "c", output: "aborted", failed: true, cancelled: true },
+    } as unknown as CoreEvent);
+
+    expect(chats.s1.entries[0]?.tool?.cancelled).toBe(true);
+
+    const history = entriesFromMessages([
+      { role: "tool", content: "aborted", toolCallId: "c", name: "shell", failed: true, cancelled: true },
+    ]);
+    expect(history[0]?.tool?.cancelled).toBe(true);
+  });
+});

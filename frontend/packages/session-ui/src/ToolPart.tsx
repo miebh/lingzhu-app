@@ -2096,6 +2096,16 @@ function ToolDisplay({
   summaryOnly?: boolean;
 }) {
   const tr = useT();
+  if (tool.cancelled) {
+    return (
+      <div data-component="tool-cancelled" className="flex w-full items-center gap-2">
+        <span className="text-meta leading-4 text-text-faint">{toolName(tool.name)}</span>
+        <span className="text-meta leading-4 text-text-faint">·</span>
+        <span className="text-meta leading-4 text-text-faint">{tr("toolCancelled")}</span>
+      </div>
+    );
+  }
+
   if (tool.name === "execute") {
     return <ExecuteTool tool={tool} />;
   }

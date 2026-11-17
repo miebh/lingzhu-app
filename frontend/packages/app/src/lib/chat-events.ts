@@ -449,6 +449,7 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
                     ? (data.metadata as Record<string, unknown>)
                     : undefined,
                 failed: Boolean(data.failed),
+                cancelled: Boolean(data.cancelled),
                 done: true,
               },
             }

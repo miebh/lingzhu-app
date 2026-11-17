@@ -58,6 +58,8 @@ export interface Message {
   compactionReason?: string;
   /** Tool result failure flag kept for history replay. */
   failed?: boolean;
+  /** Tool result interrupted by the user; rendered as cancelled, not an error. */
+  cancelled?: boolean;
   /** Durable time the message entered the conversation. */
   created?: string;
   /** Recorded on user turns for the footer meta. */
@@ -701,6 +703,7 @@ export interface ToolRun {
   output?: string;
   diff?: string;
   failed?: boolean;
+  cancelled?: boolean;
   done: boolean;
   /** Media returned by the tool, used by read previews. */
   attachments?: EntryAttachment[];
@@ -994,6 +997,7 @@ export function entriesFromMessages(messages: Message[]): TimelineEntry[] {
         output: message.content,
         diff: message.diff,
         failed: message.failed,
+        cancelled: message.cancelled,
         metadata: message.metadata,
         done: true,
       },
