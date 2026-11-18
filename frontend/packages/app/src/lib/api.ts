@@ -102,7 +102,7 @@ const call = CoreService as any;
 
 export const api = {
   workspaces: (): Promise<WorkspaceInfo[]> => call.Workspaces(),
-  addWorkspace: (): Promise<WorkspaceInfo> => call.AddWorkspace(),
+  addWorkspaces: (): Promise<WorkspaceInfo[]> => call.AddWorkspaces(),
   addWorkspaceAt: (path: string): Promise<WorkspaceInfo> => call.AddWorkspaceAt(path),
   removeWorkspace: (path: string): Promise<void> => call.RemoveWorkspace(path),
 

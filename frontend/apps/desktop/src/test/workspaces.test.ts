@@ -5,6 +5,8 @@ vi.mock("@/lib/api", () => ({
     remove: vi.fn(),
     interrupt: vi.fn(),
     sessions: vi.fn(),
+    addWorkspaces: vi.fn(),
+    workspaces: vi.fn(),
   },
 }));
 
@@ -43,6 +45,37 @@ describe("deleteSession", () => {
 
     expect(api.interrupt).not.toHaveBeenCalled();
     expect(useWorkspaceStore.getState().sessionsByWorkspace["/w"]).toEqual([]);
+  });
+});
+
+describe("connect", () => {
+  beforeEach(() => {
+    vi.mocked(api.addWorkspaces).mockReset();
+    vi.mocked(api.workspaces).mockReset();
+    vi.mocked(api.sessions).mockReset();
+    vi.mocked(api.sessions).mockResolvedValue([]);
+    useWorkspaceStore.setState({
+      workspaces: [{ path: "/old", name: "old", addr: "a", connected: true, error: "" }],
+      activePath: "/old",
+      sessionsByWorkspace: {},
+      loadingSessions: {},
+    });
+  });
+
+  test("adds the picked projects before the reconcile resolves", async () => {
+    vi.mocked(api.addWorkspaces).mockResolvedValue([
+      { path: "/new", name: "new", addr: "a", connected: true, error: "" },
+    ]);
+    // The full list is slower than the picker's return; the new row must not
+    // wait for it.
+    vi.mocked(api.workspaces).mockReturnValue(new Promise(() => undefined));
+
+    void useWorkspaceStore.getState().connect();
+
+    await vi.waitFor(() => {
+      expect(useWorkspaceStore.getState().workspaces.map((workspace) => workspace.path)).toEqual(["/old", "/new"]);
+    });
+    expect(useWorkspaceStore.getState().activePath).toBe("/new");
   });
 });
 

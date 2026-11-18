@@ -119,11 +119,26 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
   connect: async () => {
     try {
-      const info = await api.addWorkspace();
-      await get().refresh();
-      if (info?.path) set({ activePath: info.path });
-      notify(t("notifyWorkspaceAdded"), "info");
-      return info;
+      const added = await api.addWorkspaces();
+      if (added.length === 0) return undefined;
+      // The picker returns the new rows, so they join the list before the
+      // reconcile below: a slow attach never hides a project the user just added.
+      set((state) => {
+        const known = new Set(state.workspaces.map((workspace) => workspace.path));
+        return {
+          workspaces: [...state.workspaces, ...added.filter((workspace) => !known.has(workspace.path))],
+          activePath: added[0].path,
+        };
+      });
+      void get().prefetchSessions();
+      notify(
+        added.length === 1
+          ? t("notifyWorkspaceAddedNamed", { name: added[0].name })
+          : t("notifyWorkspacesAdded", { count: added.length }),
+        "info",
+      );
+      void get().refresh();
+      return added[0];
     } catch (error) {
       notify(messageOf(error));
       await get().refresh();

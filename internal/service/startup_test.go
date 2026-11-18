@@ -145,6 +145,42 @@ func TestRestartBeginsStartForEveryWorkspace(t *testing.T) {
 	}
 }
 
+// TestOpenAttachesNewWorkspaceImmediately proves an explicitly added workspace
+// is attached by its own call: the startup pass already copied the project list,
+// so waiting for a first attach that nobody owns would block the add forever.
+func TestOpenAttachesNewWorkspaceImmediately(t *testing.T) {
+	service := NewCoreService()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.ctx = ctx
+	attached := false
+	service.startCoreFn = func(runtime *workspaceRuntime) error {
+		attached = true
+		runtime.Core = &core.Core{Client: core.New("http://127.0.0.1:1")}
+		return nil
+	}
+
+	done := make(chan *workspaceRuntime, 1)
+	go func() {
+		done <- service.open("/new")
+	}()
+
+	select {
+	case runtime := <-done:
+		if !attached {
+			t.Fatal("open returned without attaching the new workspace")
+		}
+		if runtime.starting {
+			t.Fatal("open returned while the workspace is still starting")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("open blocked waiting for an attach no startup pass owns")
+	}
+	if list := service.Workspaces(); len(list) != 1 || list[0].Path != "/new" {
+		t.Fatalf("workspaces = %+v, want the new workspace", list)
+	}
+}
+
 // TestAttachRecordsFailureAndWakesWaiters proves the shared attach wrapper
 // leaves the workspace settled with the error, which is what every request and
 // the workspace list read.

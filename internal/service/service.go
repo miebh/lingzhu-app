@@ -476,24 +476,36 @@ func (s *CoreService) infoLocked(path string) WorkspaceInfo {
 	}
 }
 
-// AddWorkspace asks for a directory and registers it as a workspace.
-func (s *CoreService) AddWorkspace() (WorkspaceInfo, error) {
+// AddWorkspaces asks for directories and registers each as a workspace in one
+// pass, so the picker can add several projects at once.
+func (s *CoreService) AddWorkspaces() ([]WorkspaceInfo, error) {
 	app := application.Get()
 	if app == nil {
-		return WorkspaceInfo{}, errors.New("application is not ready")
+		return nil, errors.New("application is not ready")
 	}
-	dir, err := app.Dialog.OpenFile().
-		SetTitle("Add workspace").
+	dirs, err := app.Dialog.OpenFile().
+		SetTitle("Add projects").
 		CanChooseDirectories(true).
 		CanChooseFiles(false).
-		PromptForSingleSelection()
+		PromptForMultipleSelection()
 	if err != nil {
-		return WorkspaceInfo{}, err
+		return nil, err
 	}
-	if strings.TrimSpace(dir) == "" {
-		return WorkspaceInfo{}, errors.New("no directory selected")
+	added := make([]WorkspaceInfo, 0, len(dirs))
+	for _, dir := range dirs {
+		if strings.TrimSpace(dir) == "" {
+			continue
+		}
+		info, err := s.AddWorkspaceAt(dir)
+		if err != nil {
+			return added, err
+		}
+		added = append(added, info)
 	}
-	return s.AddWorkspaceAt(dir)
+	if len(added) == 0 {
+		return nil, errors.New("no directory selected")
+	}
+	return added, nil
 }
 
 // AddWorkspaceAt registers an already resolved directory as a workspace.
@@ -597,16 +609,23 @@ func (s *CoreService) register(path string) *workspaceRuntime {
 // open attaches a workspace before returning, which is what an explicit "add
 // workspace" needs: its caller reports the connection state. A workspace
 // startup has already registered is attached by the background pass, so opening
-// one of those waits for that attempt instead of attaching it twice.
+// one of those waits for that attempt instead of attaching it twice. A new
+// workspace has no such owner, so this call must attach it itself.
 func (s *CoreService) open(path string) *workspaceRuntime {
-	runtime := s.register(path)
 	s.mu.Lock()
+	runtime := s.spaces[path]
 	switch {
+	case runtime == nil:
+		runtime = &workspaceRuntime{Path: path, Name: filepath.Base(path)}
+		runtime.beginStart()
+		s.spaces[path] = runtime
+		s.order = append(s.order, path)
 	case runtime.Core != nil || runtime.Err != "":
 		s.mu.Unlock()
 		return runtime
 	case runtime.starting:
-		// The background start owns this workspace; wait for its result.
+		// The background start or another add owns this workspace; wait for
+		// its result.
 		ready := runtime.ready
 		s.mu.Unlock()
 		if ready != nil {
