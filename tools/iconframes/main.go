@@ -1,9 +1,9 @@
 // Command iconframes builds the Windows .ico from the square app icon source.
 //
 // The full artwork turns into mush once it is scaled down to 16 or 24 pixels,
-// so those two frames are drawn from simplified geometry instead: a jade disc
-// with a pearl core, plus one energy arc at 24px. Larger frames are an area
-// averaged downscale of the source, which keeps the spiral intact.
+// so those two frames are drawn from simplified geometry instead: the pearl
+// sphere with its highlight. Larger frames are an area averaged downscale of
+// the source.
 package main
 
 import (
@@ -23,19 +23,17 @@ import (
 // every simplified size. The disc is deliberately larger than in the full
 // artwork so it still reads at 16px.
 const (
-	tileRadius    = 0.222
-	discRadius    = 0.310
-	coreRadius    = 0.075
-	arcRadius     = 0.185
-	arcWidth      = 0.062
-	arcStart      = 40.0
-	arcEnd        = 280.0
-	superSampling = 8
+	tileRadius      = 0.222
+	discRadius      = 0.378
+	highlightRadius = 0.050
+	highlightX      = -0.085
+	highlightY      = -0.125
+	superSampling   = 8
 )
 
 var (
-	tileTop    = color.NRGBA{R: 12, G: 36, B: 25, A: 255}
-	tileBottom = color.NRGBA{R: 3, G: 14, B: 10, A: 255}
+	tileTop    = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	tileBottom = color.NRGBA{R: 240, G: 247, B: 243, A: 255}
 	discTop    = color.NRGBA{R: 69, G: 232, B: 176, A: 255}
 	discBottom = color.NRGBA{R: 8, G: 153, B: 108, A: 255}
 	pearl      = color.NRGBA{R: 242, G: 255, B: 250, A: 255}
@@ -61,8 +59,8 @@ func main() {
 	}
 
 	frames := []*image.NRGBA{
-		simplified(16, false),
-		simplified(24, true),
+		simplified(16),
+		simplified(24),
 		resizeArea(source, 32, 32),
 		resizeArea(source, 48, 48),
 		resizeArea(source, 64, 64),
@@ -89,15 +87,15 @@ func toNRGBA(src image.Image) *image.NRGBA {
 
 // simplified draws the mark at size using hard edges at a supersampled
 // resolution; resizeArea then provides the antialiasing.
-func simplified(size int, withArc bool) *image.NRGBA {
+func simplified(size int) *image.NRGBA {
 	s := size * superSampling
 	big := image.NewNRGBA(image.Rect(0, 0, s, s))
 	c := float64(s) / 2
 
 	discR := discRadius * float64(s)
-	coreR := coreRadius * float64(s)
-	arcR := arcRadius * float64(s)
-	arcHalf := arcWidth * float64(s) / 2
+	hlR := highlightRadius * float64(s)
+	hlX := c + highlightX*float64(s)
+	hlY := c + highlightY*float64(s)
 
 	for y := 0; y < s; y++ {
 		fy := float64(y) + 0.5
@@ -111,12 +109,9 @@ func simplified(size int, withArc bool) *image.NRGBA {
 			d := math.Hypot(fx-c, fy-c)
 			if d <= discR {
 				col = blend(discTop, discBottom, fy/float64(s))
-			}
-			if withArc && d >= arcR-arcHalf && d <= arcR+arcHalf && inArc(fx-c, fy-c) {
-				col = pearl
-			}
-			if d <= coreR {
-				col = pearl
+				if math.Hypot(fx-hlX, fy-hlY) <= hlR {
+					col = pearl
+				}
 			}
 			big.SetNRGBA(x, y, col)
 		}
@@ -134,14 +129,6 @@ func inRoundedSquare(dx, dy, half, radius float64) bool {
 		y = 0
 	}
 	return math.Hypot(x, y) <= radius
-}
-
-func inArc(dx, dy float64) bool {
-	deg := math.Atan2(dy, dx) * 180 / math.Pi
-	if deg < 0 {
-		deg += 360
-	}
-	return deg >= arcStart && deg <= arcEnd
 }
 
 func blend(from, to color.NRGBA, t float64) color.NRGBA {
