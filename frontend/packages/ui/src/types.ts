@@ -76,6 +76,18 @@ export interface Message {
   switch?: MessageSwitch;
   /** A transcript-only row explaining why a turn failed. */
   failure?: { message: string };
+  /**
+   * One model step's timing. Clients divide the step's output tokens by
+   * firstToken..streamed, so tool time and the wait for the first token never
+   * enter the throughput. Providers never receive these fields.
+   */
+  started?: string;
+  firstToken?: string;
+  streamed?: string;
+  completed?: string;
+  /** What the provider reported for this step. */
+  outputTokens?: number;
+  reasoningTokens?: number;
 }
 
 /** One inline attachment on a user or tool message. */
@@ -731,6 +743,11 @@ export interface TimelineEntry {
    * belongs to the arrival.
    */
   steer?: boolean;
+  /**
+   * How long the turn took and how fast the provider streamed it. Only a
+   * prompt row carries it; the transcript reads it for that turn's footer.
+   */
+  turn?: TurnUsage;
   /** Durable time the message entered the conversation. */
   created?: string;
   /** Agent and model the user turn ran with. */
@@ -758,6 +775,16 @@ export interface UsageStats {
   total: number;
   last?: UsageTotals;
   lastAt?: string;
+}
+
+/**
+ * One turn's footer measurements. Duration runs from the prompt to the turn's
+ * last assistant step; throughput covers only the windows the provider spent
+ * streaming, matching the reference session-turn rules.
+ */
+export interface TurnUsage {
+  durationMs?: number;
+  tokensPerSecond?: number;
 }
 
 /** One literal text match in a workspace file. */
@@ -846,6 +873,7 @@ export function entriesFromMessages(messages: Message[]): TimelineEntry[] {
       argumentsByID.set(call.id, call.arguments);
     }
   }
+  const turns = turnUsageByPrompt(messages);
 
   const entries: TimelineEntry[] = [];
   messages.forEach((message, index) => {
@@ -935,6 +963,7 @@ export function entriesFromMessages(messages: Message[]): TimelineEntry[] {
           start: attachment.start,
           end: attachment.end,
         })),
+        turn: turns.get(index),
       });
       return;
     }
@@ -985,6 +1014,85 @@ export function entriesFromMessages(messages: Message[]): TimelineEntry[] {
     });
   });
   return entries;
+}
+
+/** Whether a stored message opens a new turn in the transcript. */
+function opensTurn(message: Message): boolean {
+  return (
+    message.role === "user" &&
+    !message.synthetic &&
+    !message.compaction &&
+    !message.shell &&
+    !message.switch &&
+    !message.failure
+  );
+}
+
+function timeValue(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
+ * Per-prompt footer measurements keyed by the message index that opened the
+ * turn. Throughput follows the reference session-turn rule: every assistant
+ * step of the turn must report its streamed boundary, and tool execution or the
+ * wait for the first token never enters the divisor. Older history without
+ * those fields leaves throughput unset instead of inventing a number.
+ */
+export function turnUsageByPrompt(messages: Message[]): Map<number, TurnUsage> {
+  const turns = new Map<number, TurnUsage>();
+  let promptIndex = -1;
+  let promptAt: number | undefined;
+  let endedAt: number | undefined;
+  let output = 0;
+  let streamedMs = 0;
+  let steps = 0;
+  let timedSteps = 0;
+
+  const settle = () => {
+    if (promptIndex < 0) return;
+    const usage: TurnUsage = {};
+    if (promptAt !== undefined && endedAt !== undefined) {
+      usage.durationMs = Math.max(0, endedAt - promptAt);
+    }
+    if (steps > 0 && timedSteps === steps && output > 0 && streamedMs > 0) {
+      usage.tokensPerSecond = output / (streamedMs / 1000);
+    }
+    if (usage.durationMs !== undefined || usage.tokensPerSecond !== undefined) {
+      turns.set(promptIndex, usage);
+    }
+  };
+
+  messages.forEach((message, index) => {
+    if (opensTurn(message)) {
+      settle();
+      promptIndex = index;
+      promptAt = timeValue(message.created);
+      endedAt = undefined;
+      output = 0;
+      streamedMs = 0;
+      steps = 0;
+      timedSteps = 0;
+      return;
+    }
+    if (message.role !== "assistant" || message.failure) return;
+    steps += 1;
+    output += (message.outputTokens ?? 0) + (message.reasoningTokens ?? 0);
+    const streamedAt = timeValue(message.streamed);
+    const firstAt = timeValue(message.firstToken ?? message.started);
+    if (streamedAt !== undefined && firstAt !== undefined) {
+      streamedMs += Math.max(0, streamedAt - firstAt);
+      timedSteps += 1;
+    }
+    // Older steps predate Completed, but their record time already marks when
+    // the reply landed, so the turn keeps a duration.
+    const completedAt = timeValue(message.completed) ?? timeValue(message.created);
+    if (completedAt !== undefined) endedAt = Math.max(endedAt ?? completedAt, completedAt);
+  });
+  settle();
+  return turns;
 }
 
 /** chatKey scopes a session to its workspace; IDs are only unique per core. */

@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@lingzhu/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@lingzhu/ui/dialog";
-import type { ChatState, EntryAttachment, MessageSwitch, PromptComment, TimelineDetailInput, TimelineEntry, ToolRun } from "@lingzhu/ui/types";
+import type { ChatState, EntryAttachment, MessageSwitch, PromptComment, TimelineDetailInput, TimelineEntry, ToolRun, TurnUsage } from "@lingzhu/ui/types";
 import { capitalize } from "@lingzhu/ui/text";
 import { t, useT } from "@lingzhu/ui/i18n";
 import { formatDuration, formatMessageTime } from "@lingzhu/ui/format";
@@ -673,16 +673,18 @@ export function Messages({
     target.scrollIntoView({ block: "center" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchOpen, needle, hit, hits.length, chat.entries]);
-  // Every finished turn's final assistant text carries its own footer, so
-  // switching models later never rewrites old replies.
+  // Every finished turn's final assistant text carries its own footer, so a
+  // later run never rewrites what an earlier turn measured.
   const turnFooterRows = useMemo(() => {
-    const found = new Set<number>();
+    const found = new Map<number, TurnUsage | undefined>();
     let lastInTurn = -1;
+    let turn: TurnUsage | undefined;
     let turnRunning = false;
     rows.forEach((row, index) => {
       if (row.entry?.role === "user") {
-        if (lastInTurn >= 0 && !turnRunning) found.add(lastInTurn);
+        if (lastInTurn >= 0 && !turnRunning) found.set(lastInTurn, turn);
         lastInTurn = -1;
+        turn = row.entry.turn;
         turnRunning = false;
         return;
       }
@@ -690,16 +692,14 @@ export function Messages({
       if (row.retry || row.error) turnRunning = true;
     });
     const open = chat.running || Boolean(chat.retry) || Boolean(chat.error);
-    if (lastInTurn >= 0 && !open) found.add(lastInTurn);
+    if (lastInTurn >= 0 && !open) found.set(lastInTurn, turn);
     return found;
   }, [rows, chat.running, chat.retry, chat.error]);
-  const seconds = chat.lastRunMs ? chat.lastRunMs / 1000 : 0;
-  const speed = !chat.running && seconds > 0 && chat.usage?.output ? chat.usage.output / seconds : undefined;
   // A turn's sources scan its tool arguments and outputs, so they are collected
   // once per transcript instead of once per footer on every render.
   const sourcesByRow = useMemo(() => {
     const found = new Map<number, SourceItem[]>();
-    for (const index of turnFooterRows) {
+    for (const index of turnFooterRows.keys()) {
       const sources = turnSources(rows, index);
       if (sources.length > 0) found.set(index, sources);
     }
@@ -721,9 +721,8 @@ export function Messages({
       canUndo={canUndo}
       foldLongMessages={foldLongMessages}
       running={chat.running}
-      lastRunMs={chat.lastRunMs}
       lastRunStatus={chat.lastRunStatus}
-      speed={speed}
+      turn={turnFooterRows.get(index)}
       workspace={workspace}
       runningSubagents={runningSubagents}
       shellOutput={shellOutput}
@@ -1351,9 +1350,8 @@ const TimelineRowView = memo(function TimelineRowView({
   canUndo,
   foldLongMessages,
   running,
-  lastRunMs,
   lastRunStatus,
-  speed,
+  turn,
   workspace,
   runningSubagents,
   shellOutput,
@@ -1378,9 +1376,8 @@ const TimelineRowView = memo(function TimelineRowView({
   canUndo?: boolean;
   foldLongMessages?: boolean;
   running: boolean;
-  lastRunMs?: number;
   lastRunStatus?: ChatState["lastRunStatus"];
-  speed?: number;
+  turn?: TurnUsage;
   workspace?: string;
   runningSubagents?: ReadonlySet<string>;
   shellOutput?: (tool: ToolRun) => ShellOutputSource | undefined;
@@ -1451,7 +1448,7 @@ const TimelineRowView = memo(function TimelineRowView({
 
   const entry = row.entry!;
   const isUser = entry.role === "user";
-  const metaOptions = { showAgent, modelLabel, modelName, running, lastRunMs, lastRunStatus, speed };
+  const metaOptions = { showAgent, modelLabel, modelName, running, lastRunStatus, turn };
   return (
     <EntryView
       entry={entry}
@@ -1483,10 +1480,6 @@ function entryMeta(
     showAgent?: boolean;
     modelLabel?: string;
     modelName?: (provider: string, model: string) => string;
-    running: boolean;
-    lastRunMs?: number;
-    lastRunStatus?: ChatState["lastRunStatus"];
-    speed?: number;
   },
 ): string[] {
   // Agent and model come from the message itself. A message recorded before
@@ -1501,7 +1494,7 @@ function entryMeta(
   return [agent, model];
 }
 
-/** The footer of a finished turn: labels plus how long it took and how fast. */
+/** The footer of a finished turn: labels plus its own duration and throughput. */
 function turnFooterMeta(
   entry: TimelineEntry,
   options: {
@@ -1509,16 +1502,17 @@ function turnFooterMeta(
     modelLabel?: string;
     modelName?: (provider: string, model: string) => string;
     running: boolean;
-    lastRunMs?: number;
     lastRunStatus?: ChatState["lastRunStatus"];
-    speed?: number;
+    turn?: TurnUsage;
   },
 ): string[] {
   return [
     ...entryMeta(entry, options),
-    !options.running && options.lastRunMs ? formatDuration(options.lastRunMs) : "",
+    !options.running && options.turn?.durationMs ? formatDuration(options.turn.durationMs) : "",
     !options.running && options.lastRunStatus === "stopped" ? t("interrupted") : "",
-    options.speed ? `${options.speed.toFixed(1)} tok/s` : "",
+    options.turn?.tokensPerSecond
+      ? t("tokensPerSecond", { value: options.turn.tokensPerSecond.toFixed(1) })
+      : "",
   ].filter(Boolean);
 }
 

@@ -217,6 +217,39 @@ describe("timeline surfaces", () => {
     expect(screen.getByText("Interrupted")).toBeTruthy();
   });
 
+  test("each finished turn footer keeps its own duration and throughput", () => {
+    render(
+      <TooltipProvider>
+        <Messages
+          chat={chat([
+            { key: "u1", role: "user", text: "first", turn: { durationMs: 4200, tokensPerSecond: 12.3 } },
+            { key: "a1", role: "assistant", text: "one" },
+            { key: "u2", role: "user", text: "second", turn: { durationMs: 12000, tokensPerSecond: 45.6 } },
+            { key: "a2", role: "assistant", text: "two" },
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("4.2s")).toBeTruthy();
+    expect(screen.getByText("12.3 tok/s")).toBeTruthy();
+    expect(screen.getByText("12.0s")).toBeTruthy();
+    expect(screen.getByText("45.6 tok/s")).toBeTruthy();
+  });
+
+  test("a turn without recorded step timing hides the throughput", () => {
+    render(
+      <TooltipProvider>
+        <Messages
+          chat={chat([
+            { key: "u1", role: "user", text: "hello" },
+            { key: "a1", role: "assistant", text: "done", model: "gpt-5" },
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByText(/tok\/s/)).toBeNull();
+  });
+
   test("only the final assistant text offers copy", () => {
     render(
       <TooltipProvider>

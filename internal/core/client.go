@@ -114,6 +114,15 @@ type Message struct {
 	SyntheticSources     []string `json:"syntheticSources,omitempty"`
 	// Reasoning is UI-only provider reasoning attached to an assistant message.
 	Reasoning string `json:"reasoning,omitempty"`
+	// Started, FirstToken, Streamed and Completed time one model step; clients
+	// divide output tokens by FirstToken..Streamed for per-turn throughput.
+	Started    string `json:"started,omitempty"`
+	FirstToken string `json:"firstToken,omitempty"`
+	Streamed   string `json:"streamed,omitempty"`
+	Completed  string `json:"completed,omitempty"`
+	// OutputTokens and ReasoningTokens are the provider's report for this step.
+	OutputTokens    int `json:"outputTokens,omitempty"`
+	ReasoningTokens int `json:"reasoningTokens,omitempty"`
 	// Created is the durable time the message entered the conversation. It is
 	// UI metadata; core prompts are built from the messages themselves.
 	Created time.Time `json:"created,omitempty"`
