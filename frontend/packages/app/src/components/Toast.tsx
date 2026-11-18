@@ -99,7 +99,7 @@ export function Toast({ title, body, tone = "info", target, onOpen, onDone, hold
         onMouseLeave={release}
         onFocus={pause}
         onBlur={release}
-        className={`notice-arrive pointer-events-auto grid w-full max-w-[360px] grid-cols-[28px_minmax(0,1fr)_20px] items-start gap-3 rounded-xl border-[0.5px] border-border-weak bg-bg-layer-01 p-3 text-start shadow-elevation-floating ${
+        className={`notice-arrive pointer-events-auto grid w-full max-w-[360px] grid-cols-[28px_minmax(0,1fr)_20px] items-center gap-3 rounded-xl border-[0.5px] border-border-weak bg-bg-layer-01 p-3 text-start shadow-elevation-floating ${
           openable ? "interactive cursor-pointer" : ""
         }`}
       >
