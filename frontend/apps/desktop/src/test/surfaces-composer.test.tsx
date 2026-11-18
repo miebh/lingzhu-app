@@ -28,7 +28,7 @@ describe("composer surfaces", () => {
               id: "p",
               name: "Provider",
               ready: true,
-              models: [{ id: "m", name: "Model A", enabled: true, contextWindow: 1000 }],
+              models: [{ id: "m", name: "Model A", contextWindow: 1000 }],
             } as never,
           ]}
           provider="p"
@@ -173,7 +173,6 @@ describe("composer surfaces", () => {
                 {
                   id: "m",
                   name: "Model A",
-                  enabled: true,
                   contextWindow: 1000,
                   variants: { max: {}, high: {}, low: {} },
                 },
@@ -213,7 +212,7 @@ describe("composer surfaces", () => {
               id: "p",
               name: "Provider",
               ready: true,
-              models: [{ id: "m", name: "Model A", enabled: true, contextWindow: 1000, variants: { high: {} } }],
+              models: [{ id: "m", name: "Model A", contextWindow: 1000, variants: { high: {} } }],
             } as never,
           ]}
           provider="p"
@@ -260,7 +259,7 @@ describe("composer surfaces", () => {
               name: "Provider",
               ready: true,
               models: [
-                { id: "m", name: "Model A", enabled: true, contextWindow: 1000, variants: { low: {}, high: {} } },
+                { id: "m", name: "Model A", contextWindow: 1000, variants: { low: {}, high: {} } },
               ],
             } as never,
           ]}

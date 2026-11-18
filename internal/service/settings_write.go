@@ -126,7 +126,6 @@ func applySettingsInput(file document, input SettingsInput) {
 				"id":             modelID,
 				"name":           name,
 				"context_window": item.ContextWindow,
-				"enabled":        item.Enabled,
 			}
 			if item.MaxOutputTokens > 0 {
 				model["max_output_tokens"] = item.MaxOutputTokens
@@ -213,7 +212,6 @@ func settingsInputFromSettings(settings AppSettings) SettingsInput {
 				Name:            model.Name,
 				ContextWindow:   model.ContextWindow,
 				MaxOutputTokens: model.MaxOutputTokens,
-				Enabled:         model.Enabled,
 				ToolCall:        model.ToolCall,
 				Reasoning:       model.Reasoning,
 				Attachment:      model.Attachment,
@@ -226,51 +224,4 @@ func settingsInputFromSettings(settings AppSettings) SettingsInput {
 		input.Providers = append(input.Providers, entry)
 	}
 	return input
-}
-
-// applyModelVisibilityInput flips the flags on a save payload.
-func applyModelVisibilityInput(input *SettingsInput, entries []ModelVisibility) {
-	for i := range input.Providers {
-		for j := range input.Providers[i].Models {
-			for _, entry := range entries {
-				if entry.Provider == input.Providers[i].ID && entry.Model == input.Providers[i].Models[j].ID {
-					input.Providers[i].Models[j].Enabled = entry.Enabled
-				}
-			}
-		}
-	}
-}
-
-// applyModelVisibility flips the picker flag in place and reports whether the
-// file changed. Unknown providers or models are ignored.
-func applyModelVisibility(file document, entries []ModelVisibility) bool {
-	providers := file.object("providers")
-	changed := false
-	for _, entry := range entries {
-		providerID := strings.TrimSpace(entry.Provider)
-		modelID := strings.TrimSpace(entry.Model)
-		if providerID == "" || modelID == "" {
-			continue
-		}
-		provider, ok := asDocument(providers[providerID])
-		if !ok {
-			continue
-		}
-		models, _ := provider["models"].([]any)
-		for _, item := range models {
-			model, ok := asDocument(item)
-			if !ok {
-				continue
-			}
-			if id := strings.TrimSpace(model.str("id")); id != modelID {
-				continue
-			}
-			if current, ok := model["enabled"].(bool); ok && current == entry.Enabled {
-				continue
-			}
-			model["enabled"] = entry.Enabled
-			changed = true
-		}
-	}
-	return changed
 }

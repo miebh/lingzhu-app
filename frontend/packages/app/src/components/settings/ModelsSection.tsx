@@ -12,26 +12,48 @@ import { Button } from "@lingzhu/ui/button";
 import { ProviderLogo } from "./ProviderLogo";
 import { SettingsRow } from "./primitives";
 import { t } from "@lingzhu/ui/i18n";
-import type { CoreSettingsScope } from "./types";
+import type { AppPreferences, ProviderSettings } from "@lingzhu/ui/types";
+
+const modelKey = (providerID: string, modelID: string) => `${providerID}\u0000${modelID}`;
 
 /**
  * Models page: provider groups whose headers sit outside the row card, each
- * model carrying only a visibility switch, matching the reference catalog.
+ * model carrying only a visibility switch. The switches edit the local
+ * preference the picker reads, so they never rewrite the core config.
  */
 export function ModelsSection({
-  scope,
+  providers,
+  preferences,
+  onSavePreferences,
 }: {
-  scope: CoreSettingsScope;
-  onAddProvider: () => void;
+  providers: ProviderSettings[];
+  preferences: AppPreferences;
+  onSavePreferences: (preferences: AppPreferences) => void;
 }) {
-  const draft = scope.draft;
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const needle = query.trim().toLowerCase();
 
+  const hidden = useMemo(
+    () => new Set(preferences.hiddenModels.map((item) => modelKey(item.provider, item.model))),
+    [preferences.hiddenModels],
+  );
+
+  const shown = (providerID: string, modelID: string) => !hidden.has(modelKey(providerID, modelID));
+
+  const setModelsVisible = (providerID: string, modelIDs: string[], visible: boolean) => {
+    const next = new Map(preferences.hiddenModels.map((item) => [modelKey(item.provider, item.model), item]));
+    for (const modelID of modelIDs) {
+      const key = modelKey(providerID, modelID);
+      if (visible) next.delete(key);
+      else next.set(key, { provider: providerID, model: modelID });
+    }
+    onSavePreferences({ ...preferences, hiddenModels: [...next.values()] });
+  };
+
   const groups = useMemo(
     () =>
-      draft.providers
+      providers
         .map((provider) => ({
           provider,
           models: provider.models.filter(
@@ -44,55 +66,10 @@ export function ModelsSection({
           ),
         }))
         .filter((group) => group.models.length > 0),
-    [draft.providers, needle],
+    [providers, needle],
   );
 
-  const total = draft.providers.reduce((count, provider) => count + provider.models.length, 0);
-
-  const toggleModel = (providerID: string, modelID: string, enabled: boolean) => {
-    const providers = draft.providers.map((provider) =>
-      provider.id !== providerID
-        ? provider
-        : {
-            ...provider,
-            models: provider.models.map((model) => (model.id === modelID ? { ...model, enabled } : model)),
-          },
-    );
-    let selection: Partial<CoreSettingsScope["draft"]> = {};
-    if (!enabled && draft.provider === providerID && draft.model === modelID) {
-      const enabledModels = providers.flatMap((provider) =>
-        provider.models
-          .filter((model) => model.enabled !== false)
-          .map((model) => ({ provider: provider.id, model: model.id, ready: provider.ready })),
-      );
-      const next = enabledModels.find((item) => item.ready) ?? enabledModels[0];
-      if (next) selection = { provider: next.provider, model: next.model };
-    }
-    scope.updateAndCommit({ providers, ...selection });
-  };
-
-  const setProviderEnabled = (providerID: string, enabled: boolean) => {
-    const providers = draft.providers.map((provider) =>
-      provider.id !== providerID
-        ? provider
-        : {
-            ...provider,
-            models: provider.models.map((model) => ({ ...model, enabled })),
-          },
-    );
-    let selection: Partial<CoreSettingsScope["draft"]> = {};
-    const current = providers.find((provider) => provider.id === draft.provider);
-    if (!enabled && current && current.models.some((model) => model.id === draft.model)) {
-      const candidates = providers.flatMap((provider) =>
-        provider.models
-          .filter((model) => model.enabled !== false)
-          .map((model) => ({ provider: provider.id, model: model.id, ready: provider.ready })),
-      );
-      const next = candidates.find((item) => item.ready) ?? candidates[0];
-      if (next) selection = { provider: next.provider, model: next.model };
-    }
-    scope.updateAndCommit({ providers, ...selection });
-  };
+  const total = providers.reduce((count, provider) => count + provider.models.length, 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -140,10 +117,18 @@ export function ModelsSection({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="bottom" align="end">
-                  <DropdownMenuItem onSelect={() => setProviderEnabled(group.provider.id, true)}>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      setModelsVisible(group.provider.id, group.provider.models.map((model) => model.id), true)
+                    }
+                  >
                     {t("enableAll")}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setProviderEnabled(group.provider.id, false)}>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      setModelsVisible(group.provider.id, group.provider.models.map((model) => model.id), false)
+                    }
+                  >
                     {t("disableAll")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -156,8 +141,8 @@ export function ModelsSection({
                   <SettingsRow key={`${group.provider.id}:${model.id}`} title={model.name || model.id} catalog>
                     <Switch
                       aria-label={t("showCategory", { name: model.name || model.id })}
-                      checked={model.enabled !== false}
-                      onCheckedChange={(checked) => toggleModel(group.provider.id, model.id, checked)}
+                      checked={shown(group.provider.id, model.id)}
+                      onCheckedChange={(checked) => setModelsVisible(group.provider.id, [model.id], checked)}
                     />
                   </SettingsRow>
                 ))}

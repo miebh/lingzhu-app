@@ -74,7 +74,6 @@ export function ProviderDialog({
               name: model.name || existing?.name || model.id,
               contextWindow: String(model.contextWindow || existing?.contextWindow || 0),
               maxOutputTokens: model.maxOutputTokens ? String(model.maxOutputTokens) : existing?.maxOutputTokens ?? "",
-              enabled: existing?.enabled ?? true,
               toolCall: model.toolCall === false ? false : existing?.toolCall,
               reasoning: model.reasoning ? true : existing?.reasoning,
               attachment: model.attachment ? true : existing?.attachment,
@@ -140,7 +139,7 @@ export function ProviderDialog({
     }
     setError(undefined);
     setNewModel("");
-    update({ models: [...draft.models, { id, name: id, contextWindow: "128000", enabled: true, options: "", variants: "" }] });
+    update({ models: [...draft.models, { id, name: id, contextWindow: "128000", options: "", variants: "" }] });
   };
 
   const submit = () => {

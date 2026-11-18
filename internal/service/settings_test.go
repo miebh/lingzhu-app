@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -77,7 +76,7 @@ func TestApplySettingsClearsKey(t *testing.T) {
 			ID:       "p",
 			BaseURL:  "https://p.test/v1",
 			ClearKey: true,
-			Models:   []ModelInput{{ID: "m", Enabled: true}},
+			Models:   []ModelInput{{ID: "m"}},
 		}},
 	})
 	providers, _ := asDocument(file["providers"])
@@ -97,7 +96,7 @@ func TestValidateRejectsModelOutsideProvider(t *testing.T) {
 		Providers: []ProviderInput{{
 			ID:      "p",
 			BaseURL: "https://p.test/v1",
-			Models:  []ModelInput{{ID: "m", Enabled: true}},
+			Models:  []ModelInput{{ID: "m"}},
 		}},
 	})
 	if err == nil || !strings.Contains(err.Error(), "has no model") {
@@ -152,111 +151,5 @@ func TestTestProviderRejectsBadKey(t *testing.T) {
 	}
 	if _, err := service.TestProvider("p", server.URL, "bad", ""); err == nil {
 		t.Fatal("want key rejection")
-	}
-}
-
-func TestModelVisibilityDefaultsTrueAndRoundTrips(t *testing.T) {
-	file := document{
-		"provider": "p",
-		"model":    "m",
-		"providers": map[string]any{
-			"p": map[string]any{
-				"base_url": "https://p.test/v1",
-				"api_key":  "key",
-				"models":   []any{map[string]any{"id": "m"}},
-			},
-		},
-	}
-	settings := buildAppSettings("config.json", file)
-	if !settings.Providers[0].Models[0].Enabled {
-		t.Fatal("models without an enabled field should stay visible")
-	}
-
-	applySettingsInput(file, SettingsInput{
-		Provider:      "p",
-		Model:         "m",
-		MaxSteps:      4,
-		ContextWindow: 1000,
-		CompactKeep:   100,
-		Providers: []ProviderInput{{
-			ID:      "p",
-			BaseURL: "https://p.test/v1",
-			Models:  []ModelInput{{ID: "m", Enabled: false}},
-		}},
-	})
-	providers, _ := asDocument(file["providers"])
-	entry, _ := asDocument(providers["p"])
-	models, _ := entry["models"].([]any)
-	model, _ := asDocument(models[0])
-	if model["enabled"] != false {
-		t.Fatalf("visibility was not written: %+v", model)
-	}
-}
-
-func TestApplyModelVisibilityOnlyChangesFlag(t *testing.T) {
-	file := document{
-		"provider": "p",
-		"model":    "m",
-		"providers": map[string]any{
-			"p": map[string]any{
-				"base_url": "https://p.test/v1",
-				"api_key":  "key",
-				"models": []any{
-					map[string]any{"id": "m", "name": "M"},
-					map[string]any{"id": "n", "name": "N", "enabled": true},
-				},
-			},
-		},
-	}
-	if !applyModelVisibility(file, []ModelVisibility{
-		{Provider: "p", Model: "m", Enabled: false},
-		{Provider: "missing", Model: "m", Enabled: false},
-	}) {
-		t.Fatal("want the file to change")
-	}
-	providers, _ := asDocument(file["providers"])
-	entry, _ := asDocument(providers["p"])
-	models, _ := entry["models"].([]any)
-	first, _ := asDocument(models[0])
-	second, _ := asDocument(models[1])
-	if first["enabled"] != false {
-		t.Fatalf("visibility was not written: %+v", first)
-	}
-	if second["enabled"] != true {
-		t.Fatalf("unrelated model changed: %+v", second)
-	}
-	if entry["api_key"] != "key" || entry["base_url"] != "https://p.test/v1" {
-		t.Fatalf("provider fields changed: %+v", entry)
-	}
-	if applyModelVisibility(file, []ModelVisibility{{Provider: "p", Model: "m", Enabled: false}}) {
-		t.Fatal("an unchanged flag should not rewrite the file")
-	}
-}
-
-func TestSaveModelVisibilityWritesConfigWithoutRestart(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(path, []byte(`{"provider":"p","model":"m","providers":{"p":{"base_url":"https://p.test/v1","api_key":"key","models":[{"id":"m","name":"M"},{"id":"n","name":"N"}]}}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	service := &CoreService{configPath: path}
-	if err := service.SaveModelVisibility([]ModelVisibility{{Provider: "p", Model: "m", Enabled: false}}); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	file := document{}
-	if err := json.Unmarshal(data, &file); err != nil {
-		t.Fatal(err)
-	}
-	settings := buildAppSettings(path, file)
-	if settings.Providers[0].Models[0].Enabled {
-		t.Fatal("visibility was not persisted")
-	}
-	providers, _ := asDocument(file["providers"])
-	provider, _ := asDocument(providers["p"])
-	if provider["api_key"] != "key" {
-		t.Fatal("visibility write dropped the stored key")
 	}
 }

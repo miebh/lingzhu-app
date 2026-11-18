@@ -51,7 +51,6 @@ type ModelSettings struct {
 	Name            string                    `json:"name"`
 	ContextWindow   int                       `json:"contextWindow"`
 	MaxOutputTokens int                       `json:"maxOutputTokens,omitempty"`
-	Enabled         bool                      `json:"enabled"`
 	ToolCall        *bool                     `json:"toolCall,omitempty"`
 	Reasoning       bool                      `json:"reasoning"`
 	Attachment      bool                      `json:"attachment"`
@@ -108,7 +107,6 @@ type ModelInput struct {
 	Name            string                    `json:"name"`
 	ContextWindow   int                       `json:"contextWindow"`
 	MaxOutputTokens int                       `json:"maxOutputTokens,omitempty"`
-	Enabled         bool                      `json:"enabled"`
 	ToolCall        *bool                     `json:"toolCall,omitempty"`
 	Reasoning       bool                      `json:"reasoning"`
 	Attachment      bool                      `json:"attachment"`
@@ -116,14 +114,6 @@ type ModelInput struct {
 	Modalities      *ModelModalitiesSettings  `json:"modalities,omitempty"`
 	Options         map[string]any            `json:"options,omitempty"`
 	Variants        map[string]map[string]any `json:"variants,omitempty"`
-}
-
-// ModelVisibility is one model's picker visibility. The core never reads this
-// presentation flag, so changing it does not require a core restart.
-type ModelVisibility struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-	Enabled  bool   `json:"enabled"`
 }
 
 func buildAppSettings(configPath string, file document) AppSettings {
@@ -192,16 +182,11 @@ func readProviderSettings(file document) ([]ProviderSettings, string, string) {
 				modelName = modelID
 			}
 			modelName = normalizeModelLabel(modelName)
-			enabled := true
-			if value, ok := model["enabled"].(bool); ok {
-				enabled = value
-			}
 			models = append(models, ModelSettings{
 				ID:              modelID,
 				Name:            modelName,
 				ContextWindow:   model.count("context_window", fallbackWindow),
 				MaxOutputTokens: model.int("max_output_tokens", 0),
-				Enabled:         enabled,
 				ToolCall:        model.boolPtr("tool_call"),
 				Reasoning:       model.boolean("reasoning"),
 				Attachment:      model.boolean("attachment"),

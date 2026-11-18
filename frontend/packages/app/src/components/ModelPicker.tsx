@@ -68,11 +68,11 @@ const uniqueRows = (rows: Row[]) => {
 };
 
 /** One row per model; its reasoning levels live in the flyout beside the active row. */
-function rowsFor(provider: ProviderSettings): Row[] {
+function rowsFor(provider: ProviderSettings, hidden: Set<string>): Row[] {
   const blocked = new Set(provider.blacklist ?? []);
   const allowed = new Set(provider.whitelist ?? []);
   return provider.models.flatMap((model) => {
-    if (model.enabled === false || blocked.has(model.id)) return [];
+    if (blocked.has(model.id) || hidden.has(optionKey(provider.id, model.id))) return [];
     if (allowed.size > 0 && !allowed.has(model.id)) return [];
     return [{ key: optionKey(provider.id, model.id), provider, model }];
   });
@@ -113,7 +113,12 @@ export function ModelPicker({ providers, provider, model, onSelect, onManageMode
   const selectedModel = selectedProvider?.models.find((item) => item.id === current.model);
   const label = selectedModel ? modelLabel(selectedModel) : model || "Default model";
 
-  const allRows = useMemo(() => new Map(providers.map((item) => [item.id, rowsFor(item)])), [providers]);
+  const allRows = useMemo(() => {
+    const hidden = new Set(
+      preferences.hiddenModels.map((item) => optionKey(item.provider, item.model)),
+    );
+    return new Map(providers.map((item) => [item.id, rowsFor(item, hidden)]));
+  }, [providers, preferences.hiddenModels]);
   const rowsByKey = useMemo(
     () => new Map([...allRows.values()].flat().map((row) => [row.key, row])),
     [allRows],

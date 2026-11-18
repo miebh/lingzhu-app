@@ -212,7 +212,6 @@ export interface ModelSettings {
   name: string;
   contextWindow: number;
   maxOutputTokens?: number;
-  enabled: boolean;
   toolCall?: boolean;
   reasoning?: boolean;
   attachment?: boolean;
@@ -232,13 +231,6 @@ export interface ModelCost {
 export interface ModelModalities {
   input?: string[];
   output?: string[];
-}
-
-/** Picker visibility for one model; saved without restarting a core. */
-export interface ModelVisibility {
-  provider: string;
-  model: string;
-  enabled: boolean;
 }
 
 /** Settings payload; an empty apiKey keeps the stored key unless clearKey is set. */
@@ -271,7 +263,6 @@ export interface ModelInput {
   name: string;
   contextWindow: number;
   maxOutputTokens?: number;
-  enabled: boolean;
   toolCall?: boolean;
   reasoning?: boolean;
   attachment?: boolean;
@@ -358,6 +349,8 @@ export interface AppPreferences {
   activeProviderAccounts: Record<string, string>;
   favoriteModels: ModelSelection[];
   recentModels: ModelSelection[];
+  /** Models hidden from the picker; a local preference, never core config. */
+  hiddenModels: ModelSelection[];
   pinnedSessions: string[];
   appearance: AppearancePreferences;
   notifications: NotificationPreferences;

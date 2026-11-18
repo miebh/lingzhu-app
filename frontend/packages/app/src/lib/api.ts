@@ -38,7 +38,6 @@ import type {
   MCPResourceContent,
   MCPToolResult,
   Message,
-  ModelVisibility,
   NoticeTarget,
   OAuthAuthorization,
   OAuthStatus,
@@ -377,7 +376,6 @@ export const api = {
 
   settings: (): Promise<AppSettings> => call.Settings(),
   saveSettings: (input: SettingsInput): Promise<string[]> => call.SaveSettings(input),
-  saveModelVisibility: (entries: ModelVisibility[]): Promise<void> => call.SaveModelVisibility(entries),
   testProvider: (providerID: string, baseUrl: string, apiKey: string, apiKeyEnv: string): Promise<string> =>
     call.TestProvider(providerID, baseUrl, apiKey, apiKeyEnv),
   presets: (): Promise<ProviderPreset[]> => call.ProviderPresets(),
@@ -414,6 +412,11 @@ export const api = {
   /** Core process lifecycle: restarting, ready or failed. */
   onCoreStatus(handler: (status: CoreStatus) => void): () => void {
     return Events.On("lingzhu:core", (payload: any) => handler(payload.data as CoreStatus));
+  },
+
+  /** The provider catalog changed; the payload is the projected settings. */
+  onCatalog(handler: (settings: AppSettings) => void): () => void {
+    return Events.On("lingzhu:catalog", (payload: any) => handler(payload.data as AppSettings));
   },
 
   /** Starts a downloaded installer and quits so it can replace the binaries. */

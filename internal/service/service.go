@@ -58,6 +58,8 @@ type CoreService struct {
 	emitEvent func(EventEnvelope)
 	// emitCoreStatus is the lifecycle event seam, matching emitEvent.
 	emitCoreStatus func(CoreStatus)
+	// emitCatalogSettings is the catalog event seam, matching emitEvent.
+	emitCatalogSettings func(AppSettings)
 	// notifier raises desktop notifications; nil disables the channel.
 	notifier *notifications.NotificationService
 	// noticeOnce starts the toast worker; noticeQueue carries its pushes.
@@ -167,6 +169,7 @@ type AppPreferences struct {
 	ActiveProviderAccounts map[string]string               `json:"activeProviderAccounts"`
 	FavoriteModels         []ModelSelection                `json:"favoriteModels"`
 	RecentModels           []ModelSelection                `json:"recentModels"`
+	HiddenModels           []ModelSelection                `json:"hiddenModels"`
 	PinnedSessions         []string                        `json:"pinnedSessions"`
 	Appearance             AppearancePreferences           `json:"appearance"`
 	Notifications          NotificationPreferences         `json:"notifications"`
@@ -343,6 +346,10 @@ func (s *CoreService) startBackground(ctx context.Context) {
 	// so a model magpie added is usable on the first prompt instead of only
 	// after a manual "sync models".
 	s.syncGatewayConfig()
+
+	// Keep following the gateway while the app runs; its dashboard changes do
+	// not emit anything this app could subscribe to.
+	go s.watchGatewayModels(ctx)
 
 	// A build installed by a self-update has to prove it works: the installer's
 	// watchdog rolls back unless this app confirms. Only a reachable core counts

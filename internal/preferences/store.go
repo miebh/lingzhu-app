@@ -92,6 +92,7 @@ type Preferences struct {
 	ActiveProviderAccounts map[string]string               `json:"activeProviderAccounts"`
 	Favorites              []Selection                     `json:"favoriteModels"`
 	Recent                 []Selection                     `json:"recentModels"`
+	HiddenModels           []Selection                     `json:"hiddenModels"`
 	Pinned                 []string                        `json:"pinnedSessions"`
 	Appearance             Appearance                      `json:"appearance"`
 	Notifications          Notifications                   `json:"notifications"`
@@ -227,6 +228,7 @@ func Normalize(prefs Preferences) Preferences {
 	}
 	prefs.Favorites = normalizeSelections(prefs.Favorites, 50)
 	prefs.Recent = normalizeSelections(prefs.Recent, 8)
+	prefs.HiddenModels = normalizeSelections(prefs.HiddenModels, 1000)
 	prefs.Pinned = normalizePinned(prefs.Pinned, 200)
 	if prefs.ProjectNames == nil {
 		prefs.ProjectNames = map[string]string{}

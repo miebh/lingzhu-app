@@ -12,8 +12,8 @@ import (
 // must leave it, so the core's catalog follows the gateway.
 func TestReconcileGatewayModelsAddsAndRemoves(t *testing.T) {
 	current := []ModelSettings{
-		{ID: "old/a", Name: "A", ContextWindow: 1000, Enabled: true},
-		{ID: "kept/b", Name: "B", ContextWindow: 2000, Enabled: false},
+		{ID: "old/a", Name: "A", ContextWindow: 1000},
+		{ID: "kept/b", Name: "B", ContextWindow: 2000},
 	}
 	synced := []string{"old/a", "kept/b"}
 	models := []PresetModel{
@@ -25,14 +25,14 @@ func TestReconcileGatewayModelsAddsAndRemoves(t *testing.T) {
 	if len(out) != 2 {
 		t.Fatalf("expected the gateway's two models, got %+v", out)
 	}
-	if out[0].ID != "kept/b" || out[0].ContextWindow != 3000 || out[0].Enabled {
-		t.Fatalf("an existing model must keep its switch and take new metadata: %+v", out[0])
+	if out[0].ID != "kept/b" || out[0].ContextWindow != 3000 {
+		t.Fatalf("an existing model must take new metadata: %+v", out[0])
 	}
 	if out[0].Name != "B · Gateway" {
 		t.Fatalf("a plain stored name should follow the gateway label: %+v", out[0])
 	}
-	if out[1].ID != "new/c" || out[1].ContextWindow != 4000 || !out[1].Enabled || out[1].MaxOutputTokens != 8192 {
-		t.Fatalf("a new model must arrive enabled with its metadata: %+v", out[1])
+	if out[1].ID != "new/c" || out[1].ContextWindow != 4000 || out[1].MaxOutputTokens != 8192 {
+		t.Fatalf("a new model must arrive with its metadata: %+v", out[1])
 	}
 }
 
@@ -40,8 +40,8 @@ func TestReconcileGatewayModelsAddsAndRemoves(t *testing.T) {
 // not listing it must not remove it.
 func TestReconcileGatewayModelsKeepsUserAddedModel(t *testing.T) {
 	current := []ModelSettings{
-		{ID: "gateway/a", Name: "A · Gateway", Enabled: true},
-		{ID: "hand/b", Name: "My B", Enabled: true},
+		{ID: "gateway/a", Name: "A · Gateway"},
+		{ID: "hand/b", Name: "My B"},
 	}
 	synced := []string{"gateway/a"}
 	models := []PresetModel{{ID: "gateway/a", Name: "A · Gateway"}}
@@ -59,8 +59,8 @@ func TestReconcileGatewayModelsKeepsUserAddedModel(t *testing.T) {
 // a withdrawn model is recognised by its gateway label instead.
 func TestReconcileGatewayModelsJudgesUnrecordedConfigByLabel(t *testing.T) {
 	current := []ModelSettings{
-		{ID: "gone/a", Name: "A · Old Provider", Enabled: true},
-		{ID: "hand/b", Name: "My B", Enabled: true},
+		{ID: "gone/a", Name: "A · Old Provider"},
+		{ID: "hand/b", Name: "My B"},
 	}
 	models := []PresetModel{{ID: "new/c", Name: "C · Gateway"}}
 
@@ -126,14 +126,14 @@ func TestSyncGatewayModelsWritesFileAndRepairsSelection(t *testing.T) {
 				"base_url": gateway.URL + "/v1",
 				"api_key":  "magpie-lingzhu",
 				"models": []any{
-					map[string]any{"id": "old/a", "name": "A", "context_window": 1000, "enabled": true},
+					map[string]any{"id": "old/a", "name": "A", "context_window": 1000},
 				},
 				"gateway_models": []any{"old/a"},
 			},
 		},
 	}
 
-	if !syncGatewayProvider(file, gateway.URL+"/v1") {
+	if !syncGatewayProvider(file, gateway.URL+"/v1", false) {
 		t.Fatal("expected the file to change")
 	}
 	entry, _ := asDocument(file.object("providers")["magpie"])
@@ -169,10 +169,10 @@ func TestSyncGatewayModelsIsIdempotent(t *testing.T) {
 			},
 		},
 	}
-	if !syncGatewayProvider(file, gateway.URL+"/v1") {
+	if !syncGatewayProvider(file, gateway.URL+"/v1", false) {
 		t.Fatal("the first sync should write")
 	}
-	if syncGatewayProvider(file, gateway.URL+"/v1") {
+	if syncGatewayProvider(file, gateway.URL+"/v1", false) {
 		t.Fatal("a second sync with no gateway change must not write again")
 	}
 }
@@ -189,7 +189,7 @@ func TestSyncGatewayModelsIgnoresOtherProviders(t *testing.T) {
 			},
 		},
 	}
-	if syncGatewayProvider(file, "http://127.0.0.1:1/v1") {
+	if syncGatewayProvider(file, "http://127.0.0.1:1/v1", false) {
 		t.Fatal("a non-gateway provider must not change")
 	}
 }

@@ -35,6 +35,7 @@ export const defaultPreferences: AppPreferences = {
   activeProviderAccounts: {},
   favoriteModels: [],
   recentModels: [],
+  hiddenModels: [],
   pinnedSessions: [],
   appearance: {
     fontFamily: "",
@@ -106,6 +107,7 @@ export function normalizePreferences(value: Partial<AppPreferences> | null | und
     activeProviderAccounts: normalizeNames(input.activeProviderAccounts),
     favoriteModels: Array.isArray(input.favoriteModels) ? input.favoriteModels : [],
     recentModels: Array.isArray(input.recentModels) ? input.recentModels : [],
+    hiddenModels: Array.isArray(input.hiddenModels) ? input.hiddenModels : [],
     pinnedSessions: Array.isArray(input.pinnedSessions)
       ? input.pinnedSessions.filter((id): id is string => typeof id === "string")
       : [],

@@ -138,7 +138,7 @@ func TestEnrichProviderModelsUsesGatewayLabels(t *testing.T) {
 		"magpie": map[string]any{"api_key": "test-key"},
 	}}
 
-	enrichProviderModels(&settings, file, server.URL+"/v1")
+	enrichProviderModels(&settings, file, server.URL+"/v1", false)
 	if model := settings.Providers[0].Models[0]; model.Name != "DeepSeek Chat · Trae CN" || model.ContextWindow != 1000 ||
 		model.MaxOutputTokens != 8192 || model.ToolCall == nil || *model.ToolCall || !model.Reasoning || !model.Attachment ||
 		model.Variants["high"]["reasoning_effort"] != "high" {

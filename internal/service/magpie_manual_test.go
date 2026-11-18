@@ -22,7 +22,7 @@ func TestSyncRealGatewayConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings := buildAppSettings(path, file)
-	enrichMagpieModels(&settings, file)
+	enrichMagpieModels(&settings, file, false)
 	for _, provider := range settings.Providers {
 		if !provider.DynamicModels {
 			continue

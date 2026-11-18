@@ -17,7 +17,7 @@ import {
 import { Button } from "@lingzhu/ui/button";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
-import type { AppInfo, AppPreferences, WorkspaceInfo } from "@lingzhu/ui/types";
+import type { AppInfo, AppPreferences, ProviderSettings, WorkspaceInfo } from "@lingzhu/ui/types";
 import { AboutSection } from "./AboutSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { ExtensionsSection } from "./ExtensionsSection";
@@ -33,6 +33,7 @@ import { SettingsSelect } from "./primitives";
 import { ShortcutsSection } from "./ShortcutsSection";
 import { WorktreesSection } from "./WorktreesSection";
 import { useCoreConfig } from "./useCoreConfig";
+import { useCatalog } from "../../app/useApp";
 import { t, useT, type MessageKey } from "@lingzhu/ui/i18n";
 import type { SettingsSectionID } from "../../lib/settings";
 
@@ -72,6 +73,8 @@ const GROUPS: { label?: string; items: SectionItem[] }[] = [
 ];
 
 const SECTIONS = GROUPS.flatMap((group) => group.items);
+
+const EMPTY_PROVIDERS: ProviderSettings[] = [];
 
 function localizedGroups() {
   return GROUPS.map((group) => ({
@@ -134,6 +137,7 @@ export function SettingsPage({
   onRestartWorkspace,
 }: Props) {
   const tr = useT();
+  const catalog = useCatalog();
   const {
     draft,
     settingsError,
@@ -401,8 +405,9 @@ export function SettingsPage({
                     )}
                     {item.id === "models" && (
                       <ModelsSection
-                        scope={{ draft, busy, update, commit, updateAndCommit }}
-                        onAddProvider={() => onSectionChange("providers")}
+                        providers={catalog?.providers ?? EMPTY_PROVIDERS}
+                        preferences={preferences}
+                        onSavePreferences={savePreferences}
                       />
                     )}
                     {item.id === "servers" && (

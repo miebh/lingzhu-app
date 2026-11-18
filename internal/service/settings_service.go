@@ -15,64 +15,67 @@ import (
 	"lingzhu-app/internal/version"
 )
 
-// syncGatewayConfig reconciles gateway-backed providers with the models the
-// local gateway advertises and writes the result, so a model magpie added or
-// withdrew is reflected in the core's catalog. A gateway that is down, or a
-// config with no gateway provider, leaves the file untouched.
+// syncGatewayConfig reconciles gateway-backed providers once before cores
+// start, so the first prompt resolves the gateway's current models.
 func (s *CoreService) syncGatewayConfig() {
+	_, _ = s.refreshGatewayConfig(false, false)
+}
+
+// refreshGatewayConfig reconciles gateway-backed providers with the models the
+// local gateway advertises and writes a changed list. It reports the document
+// it worked on and whether the file changed. The read, the fetch and the write
+// share the config lock, so a settings save cannot interleave with it.
+func (s *CoreService) refreshGatewayConfig(force bool, restart bool) (document, bool) {
 	s.configMu.Lock()
-	defer s.configMu.Unlock()
 	file, err := s.readConfigFile()
 	if err != nil || len(file) == 0 {
-		return
+		s.configMu.Unlock()
+		return file, false
 	}
-	if !syncGatewayModels(file) {
-		return
+	if !syncGatewayModels(file, force) {
+		s.configMu.Unlock()
+		return file, false
 	}
-	if err := writeConfigFile(s.configFilePath(), file); err != nil {
-		fmt.Printf("sync gateway models: %v\n", err)
-	}
-}
-
-// Settings returns the editable subset of the shared config file. Providers
-// pointing at the local magpie gateway follow its current catalog: the read
-// reconciles them in memory, and a change is persisted so the next core start
-// uses the same list.
-func (s *CoreService) Settings() (AppSettings, error) {
-	file, err := s.readConfigFile()
-	if err != nil {
-		return AppSettings{}, err
-	}
-	s.persistGatewaySync(file)
-	settings := buildAppSettings(s.configFilePath(), file)
-	enrichMagpieModels(&settings, file)
-	enrichCatalogModels(&settings)
-	return settings, nil
-}
-
-// persistGatewaySync writes the gateway reconciliation when it changed the file
-// and restarts the cores this app owns, so the catalog the model picker shows
-// is the one a prompt resolves. A running session keeps the old list until its
-// turn ends: restarting a core under it would drop the turn.
-func (s *CoreService) persistGatewaySync(file document) {
-	if !syncGatewayModels(file) {
-		return
-	}
-	s.configMu.Lock()
-	err := writeConfigFile(s.configFilePath(), file)
+	err = writeConfigFile(s.configFilePath(), file)
 	s.configMu.Unlock()
 	if err != nil {
-		return
+		fmt.Printf("sync gateway models: %v\n", err)
+		return file, false
+	}
+	if !restart {
+		return file, true
 	}
 	s.mu.Lock()
 	busy := len(s.streams) > 0
 	s.mu.Unlock()
 	if busy {
-		return
+		return file, true
 	}
 	go func() {
 		s.restartWorkspaces()
 	}()
+	return file, true
+}
+
+// Settings returns the editable subset of the shared config file. It is a pure
+// read: gateway-backed providers follow magpie's catalog in the projection, but
+// the file is not rewritten and no core is restarted, so a painter or a dialog
+// can call it freely.
+func (s *CoreService) Settings() (AppSettings, error) {
+	file, err := s.readConfigFile()
+	if err != nil {
+		return AppSettings{}, err
+	}
+	return s.projectSettings(file), nil
+}
+
+// projectSettings renders a config document as the client sees it. Catalog
+// enrichment only adds metadata the file omits; it never changes availability.
+func (s *CoreService) projectSettings(file document) AppSettings {
+	settings := buildAppSettings(s.configFilePath(), file)
+	enrichMagpieModels(&settings, file, false)
+	enrichCatalogModels(&settings)
+	return settings
 }
 
 // SaveSettings validates and writes the shared config file, then restarts the
@@ -109,27 +112,6 @@ func (s *CoreService) SaveSettings(input SettingsInput) ([]string, error) {
 	s.mu.Unlock()
 
 	return s.restartWorkspaces(), nil
-}
-
-// SaveModelVisibility persists which models appear in the picker. The core
-// ignores this presentation-only field, so the change never restarts a core and
-// stays available while a session is running.
-func (s *CoreService) SaveModelVisibility(entries []ModelVisibility) error {
-	if len(entries) == 0 {
-		return nil
-	}
-	s.configMu.Lock()
-	defer s.configMu.Unlock()
-
-	file, err := s.readConfigFile()
-	if err != nil {
-		return err
-	}
-
-	if !applyModelVisibility(file, entries) {
-		return nil
-	}
-	return writeConfigFile(s.configFilePath(), file)
 }
 
 // Preferences returns the local app preferences; it never touches core config.
@@ -170,6 +152,7 @@ func (s *CoreService) Preferences() AppPreferences {
 		ActiveProviderAccounts: prefs.ActiveProviderAccounts,
 		FavoriteModels:         appSelections(prefs.Favorites),
 		RecentModels:           appSelections(prefs.Recent),
+		HiddenModels:           appSelections(prefs.HiddenModels),
 		PinnedSessions:         append([]string{}, prefs.Pinned...),
 		Appearance: AppearancePreferences{
 			FontFamily:      prefs.Appearance.FontFamily,
@@ -237,6 +220,7 @@ func (s *CoreService) SavePreferences(input AppPreferences) error {
 		ActiveProviderAccounts: input.ActiveProviderAccounts,
 		Favorites:              prefSelections(input.FavoriteModels),
 		Recent:                 prefSelections(input.RecentModels),
+		HiddenModels:           prefSelections(input.HiddenModels),
 		Pinned:                 append([]string{}, input.PinnedSessions...),
 		Appearance: preferences.Appearance{
 			FontFamily:      input.Appearance.FontFamily,

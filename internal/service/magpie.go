@@ -217,15 +217,20 @@ var magpieCatalogCache struct {
 	models []PresetModel
 }
 
-func magpieCatalog(baseURL, key string) []PresetModel {
+// magpieCatalog reads a gateway's catalog. A forced read bypasses the
+// short-lived cache, so a model magpie just added or withdrew is visible on the
+// next explicit refresh instead of after the cache expires.
+func magpieCatalog(baseURL, key string, force bool) []PresetModel {
 	cacheKey := baseURL + "\x00" + key
-	magpieCatalogCache.Lock()
-	if magpieCatalogCache.key == cacheKey && time.Since(magpieCatalogCache.at) < 30*time.Second {
-		models := magpieCatalogCache.models
+	if !force {
+		magpieCatalogCache.Lock()
+		if magpieCatalogCache.key == cacheKey && time.Since(magpieCatalogCache.at) < 30*time.Second {
+			models := magpieCatalogCache.models
+			magpieCatalogCache.Unlock()
+			return models
+		}
 		magpieCatalogCache.Unlock()
-		return models
 	}
-	magpieCatalogCache.Unlock()
 
 	models, err := fetchProviderModelsWithin(baseURL, key, 2*time.Second)
 	if err != nil {
@@ -242,12 +247,13 @@ func magpieCatalog(baseURL, key string) []PresetModel {
 // enrichMagpieModels refreshes the names and windows of every provider that
 // points at the local gateway, so an existing config follows magpie's labels
 // (provider names included) without being rewritten. Errors are ignored: a
-// gateway that is down leaves the stored projection untouched.
-func enrichMagpieModels(settings *AppSettings, file document) {
-	enrichProviderModels(settings, file, magpieGatewayURL()+"/v1")
+// gateway that is down leaves the stored projection untouched. A forced read
+// bypasses the short-lived gateway cache.
+func enrichMagpieModels(settings *AppSettings, file document, force bool) {
+	enrichProviderModels(settings, file, magpieGatewayURL()+"/v1", force)
 }
 
-func enrichProviderModels(settings *AppSettings, file document, gateway string) {
+func enrichProviderModels(settings *AppSettings, file document, gateway string, force bool) {
 	gateway = strings.TrimRight(gateway, "/")
 	for i := range settings.Providers {
 		provider := &settings.Providers[i]
@@ -258,7 +264,7 @@ func enrichProviderModels(settings *AppSettings, file document, gateway string) 
 		if key == "" {
 			key = "magpie-" + magpieAppID
 		}
-		models := magpieCatalog(provider.BaseURL, key)
+		models := magpieCatalog(provider.BaseURL, key, force)
 		if len(models) == 0 {
 			continue
 		}
@@ -323,7 +329,6 @@ func reconcileGatewayModels(current []ModelSettings, synced []string, models []P
 			Name:            model.Name,
 			ContextWindow:   model.ContextWindow,
 			MaxOutputTokens: model.MaxOutputTokens,
-			Enabled:         true,
 			ToolCall:        model.ToolCall,
 			Reasoning:       model.Reasoning,
 			Attachment:      model.Attachment,
@@ -402,13 +407,14 @@ func refreshGatewayModel(item ModelSettings, model PresetModel) ModelSettings {
 // The write is what makes a new gateway model reachable: reading the settings
 // only projects the reconciliation, so the core keeps its old catalog until the
 // file changes and the cores restart.
-func syncGatewayModels(file document) bool {
-	return syncGatewayProvider(file, magpieGatewayURL()+"/v1")
+func syncGatewayModels(file document, force bool) bool {
+	return syncGatewayProvider(file, magpieGatewayURL()+"/v1", force)
 }
 
 // syncGatewayProvider reconciles gateway-backed providers against one gateway
-// URL. It is the testable form of syncGatewayModels.
-func syncGatewayProvider(file document, gateway string) bool {
+// URL. It is the testable form of syncGatewayModels. A forced read bypasses the
+// short-lived gateway cache.
+func syncGatewayProvider(file document, gateway string, force bool) bool {
 	gateway = strings.TrimRight(gateway, "/")
 	providers := file.object("providers")
 	if len(providers) == 0 {
@@ -432,7 +438,7 @@ func syncGatewayProvider(file document, gateway string) bool {
 		if key == "" {
 			key = "magpie-" + magpieAppID
 		}
-		models := magpieCatalog(entry.str("base_url"), key)
+		models := magpieCatalog(entry.str("base_url"), key, force)
 		if len(models) == 0 {
 			continue
 		}
@@ -446,10 +452,6 @@ func syncGatewayProvider(file document, gateway string) bool {
 			if name == "" {
 				name = modelID
 			}
-			enabled := true
-			if value, ok := item["enabled"].(bool); ok {
-				enabled = value
-			}
 			window, _ := item.numeric("context_window")
 			maxOutput, _ := item.numeric("max_output_tokens")
 			current = append(current, ModelSettings{
@@ -457,7 +459,6 @@ func syncGatewayProvider(file document, gateway string) bool {
 				Name:            normalizeModelLabel(name),
 				ContextWindow:   window,
 				MaxOutputTokens: maxOutput,
-				Enabled:         enabled,
 				ToolCall:        item.boolPtr("tool_call"),
 				Reasoning:       item.boolean("reasoning"),
 				Attachment:      item.boolean("attachment"),
@@ -538,13 +539,6 @@ func sameModels(stored any, models []ModelSettings) bool {
 			(ok && output != model.MaxOutputTokens) {
 			return false
 		}
-		enabled := true
-		if value, ok := entry["enabled"].(bool); ok {
-			enabled = value
-		}
-		if enabled != model.Enabled {
-			return false
-		}
 	}
 	return true
 }
@@ -574,7 +568,6 @@ func modelDocuments(models []ModelSettings) []any {
 			"id":             modelID,
 			"name":           normalizeModelLabel(name),
 			"context_window": item.ContextWindow,
-			"enabled":        item.Enabled,
 		}
 		if item.MaxOutputTokens > 0 {
 			model["max_output_tokens"] = item.MaxOutputTokens

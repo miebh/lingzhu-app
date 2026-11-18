@@ -16,6 +16,9 @@ let started = false;
 async function reloadAfterCore() {
   await useWorkspaceStore.getState().refresh();
   await useWorkspaceStore.getState().prefetchSessions();
+  // The core was started from a config the startup gateway sync may have
+  // rewritten, so the catalog the picker shows has to follow it.
+  void useCatalogStore.getState().reload();
 }
 
 /**
@@ -71,6 +74,10 @@ export function startApp() {
   });
 
   void useCatalogStore.getState().reload();
+
+  // The service watches the gateway and pushes the projected catalog whenever
+  // it changes, so no dialog has to fetch a fresh copy when it opens.
+  api.onCatalog((settings) => useCatalogStore.getState().adopt(settings));
 
   // Preferences decide the startup workspace, so the first read waits for them.
   void usePreferencesStore

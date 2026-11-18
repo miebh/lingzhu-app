@@ -145,6 +145,106 @@ func TestSyncGatewayConfigSurvivesGatewayDown(t *testing.T) {
 	}
 }
 
+// A settings read projects the gateway's current catalog, so a config with a
+// stale gateway list must not be rewritten just because a dialog opened.
+func TestSettingsProjectionDoesNotWrite(t *testing.T) {
+	gateway := gatewayServer(t, []map[string]any{
+		{"id": "new/c", "display_name": "C", "context_window": 4000},
+	})
+	resetMagpieCatalog(t)
+	pointMagpieAt(t, gateway)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	writeDocument(t, path, document{
+		"provider": "magpie",
+		"model":    "old/a",
+		"providers": map[string]any{
+			"magpie": map[string]any{
+				"base_url": gateway + "/v1",
+				"api_key":  "magpie-lingzhu",
+				"models": []any{
+					map[string]any{"id": "old/a", "name": "A", "context_window": 1000},
+				},
+				"gateway_models": []any{"old/a"},
+			},
+		},
+	})
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	service := &CoreService{configPath: path}
+	settings, err := service.Settings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(settings.Providers) != 1 || len(settings.Providers[0].Models) != 1 ||
+		settings.Providers[0].Models[0].ID != "new/c" {
+		t.Fatalf("the read should project the gateway's list: %+v", settings.Providers)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("a settings read must not rewrite the config")
+	}
+}
+
+// A discovery pass reconciles the gateway, persists the result, and pushes the
+// projection; a second pass with the same answer stays quiet.
+func TestPollGatewayModelsWritesAndEmitsOnce(t *testing.T) {
+	gateway := gatewayServer(t, []map[string]any{
+		{"id": "new/c", "display_name": "C", "context_window": 4000},
+	})
+	resetMagpieCatalog(t)
+	pointMagpieAt(t, gateway)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	writeDocument(t, path, document{
+		"provider": "magpie",
+		"model":    "old/a",
+		"providers": map[string]any{
+			"magpie": map[string]any{
+				"base_url": gateway + "/v1",
+				"api_key":  "magpie-lingzhu",
+				"models": []any{
+					map[string]any{"id": "old/a", "name": "A", "context_window": 1000},
+				},
+				"gateway_models": []any{"old/a"},
+			},
+		},
+	})
+
+	service := &CoreService{configPath: path}
+	var emitted []AppSettings
+	service.emitCatalogSettings = func(settings AppSettings) { emitted = append(emitted, settings) }
+
+	service.pollGatewayModels()
+
+	stored := readDocument(t, path)
+	entry, _ := asDocument(stored.object("providers")["magpie"])
+	models := entry.objects("models")
+	if len(models) != 1 || models[0].str("id") != "new/c" {
+		t.Fatalf("the pass should store the gateway's list: %+v", models)
+	}
+	if stored.str("model") != "new/c" {
+		t.Fatalf("the pass should repair the default model: %q", stored.str("model"))
+	}
+	if len(emitted) != 1 || len(emitted[0].Providers) != 1 ||
+		len(emitted[0].Providers[0].Models) != 1 || emitted[0].Providers[0].Models[0].ID != "new/c" {
+		t.Fatalf("a changed catalog should be pushed once: %+v", emitted)
+	}
+
+	service.pollGatewayModels()
+	if len(emitted) != 1 {
+		t.Fatalf("an unchanged catalog should not be pushed again: %+v", emitted)
+	}
+}
+
 // A manual save must keep the sync's bookkeeping, so the next sync still knows
 // which models came from the gateway.
 func TestSaveSettingsKeepsGatewayBookkeeping(t *testing.T) {
@@ -157,7 +257,7 @@ func TestSaveSettingsKeepsGatewayBookkeeping(t *testing.T) {
 			"magpie": map[string]any{
 				"base_url":       "http://127.0.0.1:3425/v1",
 				"api_key":        "magpie-lingzhu",
-				"models":         []any{map[string]any{"id": "a/one", "name": "One", "enabled": true}},
+				"models":         []any{map[string]any{"id": "a/one", "name": "One"}},
 				"gateway_models": []any{"a/one", "withdrawn/b"},
 			},
 		},

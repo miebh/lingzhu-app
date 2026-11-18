@@ -35,7 +35,6 @@ export interface ModelDraft {
   name: string;
   contextWindow: string;
   maxOutputTokens?: string;
-  enabled: boolean;
   /** Tools are on unless the catalog says the model takes none. */
   toolCall?: boolean;
   reasoning?: boolean;
@@ -59,7 +58,6 @@ export function modelDraftFromPreset(model: PresetModel): ModelDraft {
     name: model.name,
     contextWindow: String(model.contextWindow),
     maxOutputTokens: model.maxOutputTokens ? String(model.maxOutputTokens) : "",
-    enabled: true,
     toolCall: model.toolCall === false ? false : undefined,
     reasoning: model.reasoning ? true : undefined,
     attachment: model.attachment ? true : undefined,

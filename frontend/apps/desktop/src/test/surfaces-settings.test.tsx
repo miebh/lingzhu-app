@@ -75,49 +75,37 @@ describe("settings surfaces", () => {
     expect(save.mock.calls[0][0].notifications.agent).toBe(false);
   });
 
-  test("models page can disable every model in a provider", async () => {
-    const updateAndCommit = vi.fn();
+  test("models page hides every model in a provider", async () => {
+    const save = vi.fn();
     const provider = {
       id: "p",
       name: "Provider",
       baseUrl: "",
-      apiKey: "",
-      apiKeyEnv: "",
       apiKeySet: false,
-      clearKey: false,
+      apiKeyEnv: "",
       ready: true,
+      blacklist: [],
+      whitelist: [],
       models: [
-        { id: "a", name: "A", contextWindow: "1000", enabled: true },
-        { id: "b", name: "B", contextWindow: "1000", enabled: true },
+        { id: "a", name: "A", contextWindow: 1000 },
+        { id: "b", name: "B", contextWindow: 1000 },
       ],
     };
     render(
       <ModelsSection
-        scope={{
-          draft: {
-            provider: "p",
-            model: "a",
-            providers: [provider],
-            maxSteps: "16",
-            contextWindow: "128000",
-            compactKeep: "15000",
-            systemPrompt: "",
-            shell: "",
-            permission: [],
-          },
-          busy: false,
-          update: vi.fn(),
-          commit: vi.fn(),
-          updateAndCommit,
-        }}
-        onAddProvider={() => undefined}
+        providers={[provider]}
+        preferences={{ ...defaultPreferences, hiddenModels: [] }}
+        onSavePreferences={save}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Actions for Provider" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Disable all" }));
-    expect(updateAndCommit).toHaveBeenCalled();
-    const next = updateAndCommit.mock.calls[0][0];
-    expect(next.providers[0].models.every((model: { enabled: boolean }) => model.enabled === false)).toBe(true);
+    expect(save).toHaveBeenCalled();
+    const next = save.mock.calls[0][0];
+    expect(next.hiddenModels).toEqual([
+      { provider: "p", model: "a" },
+      { provider: "p", model: "b" },
+    ]);
   });
 
   test("project settings save a name and auto-approve", async () => {
@@ -291,27 +279,21 @@ describe("settings surfaces", () => {
   test("model catalog groups collapse from their header", async () => {
     render(
       <ModelsSection
-        scope={{
-          draft: {
-            provider: "p",
-            model: "m",
-            providers: [
-              {
-                id: "p",
-                name: "Provider",
-                baseUrl: "https://api.example.com/v1",
-                apiKeySet: true,
-                ready: true,
-                models: [{ id: "m", name: "Model A", enabled: true, contextWindow: 1000 }],
-              },
-            ],
+        providers={[
+          {
+            id: "p",
+            name: "Provider",
+            baseUrl: "https://api.example.com/v1",
+            apiKeySet: true,
+            apiKeyEnv: "",
+            ready: true,
+            blacklist: [],
+            whitelist: [],
+            models: [{ id: "m", name: "Model A", contextWindow: 1000 }],
           },
-          busy: false,
-          update: () => undefined,
-          commit: () => undefined,
-          updateAndCommit: () => undefined,
-        } as never}
-        onAddProvider={() => undefined}
+        ]}
+        preferences={{ ...defaultPreferences, hiddenModels: [] }}
+        onSavePreferences={() => undefined}
       />,
     );
     const header = screen.getAllByRole("button", { name: /^Provider$/ })[0];
