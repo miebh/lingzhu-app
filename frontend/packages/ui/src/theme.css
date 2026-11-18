@@ -57,8 +57,10 @@
     monospace;
   --font-terminal: var(--font-mono);
 
-  /* Reference medium weight: 530 across Inter's variable axis. */
+  /* Weight ramp across Inter's variable axis: regular / medium / bold. */
+  --font-weight-regular: 440;
   --font-weight-medium: 530;
+  --font-weight-bold: 670;
 
   /* Type roles: caption / meta / body / reading. Line heights sit on a 4px grid. */
   --text-caption: 11px;
@@ -4065,6 +4067,13 @@
     transition: none;
     animation: none;
   }
+}
+
+/* Assistant prose reads at the reference regular weight (440), inherited by
+   paragraphs, lists and blockquotes so replies are not lighter than user
+   bubbles. */
+.markdown-body {
+  font-weight: var(--font-weight-regular);
 }
 
 /* Streaming replies reveal new words with the reference's short entrance. */
