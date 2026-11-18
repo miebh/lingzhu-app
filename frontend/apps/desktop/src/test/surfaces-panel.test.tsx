@@ -303,7 +303,53 @@ describe("side panel surfaces", () => {
     await waitFor(() => expect(screen.getAllByText(/a\.ts/).length).toBeGreaterThan(0));
   });
 
-  test("the side panel keeps its exit animation mounted until it closes", () => {
+  test("switching tabs keeps a visited pane mounted instead of reading it again", async () => {
+    const diff = vi.mocked(api.sessionDiff).mockResolvedValue({
+      base: "",
+      head: "",
+      diffs: [{ file: "a.ts", patch: "@@ -1 +1 @@\n-old\n+new", additions: 1, deletions: 1, status: "modified" }],
+    } as never);
+    vi.mocked(api.files).mockResolvedValue({
+      entries: [{ path: "app.ts", name: "app.ts", type: "file", size: 1, modified: "" }],
+    } as never);
+
+    function Harness() {
+      const [active, setActive] = useState<SidePanelTab["id"]>("review");
+      return (
+        <SessionSidePanel
+          open
+          workspace="."
+          sessionID="s1"
+          tabs={[
+            { id: "review", label: "Review" },
+            { id: "files", label: "Files" },
+          ]}
+          active={active}
+          onSelect={setActive}
+          onCloseTab={() => undefined}
+          onClose={() => undefined}
+          onSendReview={() => undefined}
+        />
+      );
+    }
+
+    render(<Harness />);
+    await waitFor(() => expect(screen.getAllByText(/a\.ts/).length).toBeGreaterThan(0));
+    expect(diff).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole("tab", { name: /Files/ }));
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    // Coming back reuses the mounted Review pane, so the diff is not read again
+    // and no loading state flashes.
+    await userEvent.click(screen.getByRole("tab", { name: /Review/ }));
+    await waitFor(() => expect(screen.getAllByText(/a\.ts/).length).toBeGreaterThan(0));
+    expect(diff).toHaveBeenCalledTimes(1);
+    // The hidden Files view stays in the tree with its listing.
+    expect(screen.getByText("app.ts")).toBeTruthy();
+  });
+
+  test("the side panel stays mounted while it closes", () => {
     const { rerender } = render(
       <SessionSidePanel
         open
@@ -338,7 +384,9 @@ describe("side panel surfaces", () => {
     );
     const panel = screen.getByLabelText("Review and files");
     expect(panel.getAttribute("data-open")).toBe("false");
-    expect(panel.className).toContain("side-panel-exit");
+    // Its width travels back to zero over the next frames; the chat gets the
+    // room once the flight lands, not on the toggle.
+    expect(panel.className).toContain("pointer-events-none");
   });
 
   test("the side panel resizes from its edge handle", () => {

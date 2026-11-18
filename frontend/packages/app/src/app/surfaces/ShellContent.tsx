@@ -52,9 +52,13 @@ export function ShellContent() {
   const settingsOpen = view.settingsOpen;
   const [panelMounted, setPanelMounted] = useState(panelOpen);
   const [settingsMounted, setSettingsMounted] = useState(settingsOpen);
+  // The panel mounts, closed, as soon as a session is on screen. Its chunk and
+  // first render are then already paid for when the toggle is first used, so
+  // the first open is a width flight rather than an import followed by a snap.
+  const sessionOnScreen = Boolean(activeId) && !atHome;
   useEffect(() => {
-    if (panelOpen) setPanelMounted(true);
-  }, [panelOpen]);
+    if (panelOpen || sessionOnScreen) setPanelMounted(true);
+  }, [panelOpen, sessionOnScreen]);
   useEffect(() => {
     if (settingsOpen) setSettingsMounted(true);
   }, [settingsOpen]);

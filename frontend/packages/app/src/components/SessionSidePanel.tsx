@@ -47,6 +47,13 @@ import {
   panelRowHoldsBoth,
   readSidePanelWidth,
 } from "../lib/panelWidth";
+import {
+  panelContentOpacity,
+  panelSpring,
+  prefersReducedMotion,
+  stepPanelSpring,
+  type PanelSpring,
+} from "../lib/panelMotion";
 
 function iconFor(id: SidePanelTabID) {
   if (isFilePanelTab(id)) return FileText;
@@ -236,18 +243,27 @@ export function SessionSidePanel({
   // still fits beside the transcript; undefined until the first measurement.
   const [rowWidth, setRowWidth] = useState<number>();
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
-  // Closing keeps the pane mounted for its exit animation, so the chat width
-  // travels back instead of snapping the moment the toggle flips.
-  const [mounted, setMounted] = useState(open);
-  useEffect(() => {
-    if (open) {
-      setMounted(true);
-      return;
-    }
-    if (!mounted) return;
-    const timer = window.setTimeout(() => setMounted(false), 160);
-    return () => window.clearTimeout(timer);
-  }, [open, mounted]);
+  // Closing keeps the pane mounted while its width travels back to zero, so the
+  // transcript gets its room on the last frame instead of the toggle's.
+  const [present, setPresent] = useState(open);
+  // The inner surface, held at the open width while the panel travels so its
+  // text wraps once instead of on every frame.
+  const contentBox = useRef<HTMLDivElement>(null);
+  // The width last written to the aside, where the next flight starts from.
+  const paintedWidth = useRef(0);
+  // Where the running flight is heading; a resize mid-flight retargets it.
+  const flightTarget = useRef(0);
+  const flight = useRef<{ spring: PanelSpring; frame: number; last: number } | undefined>(undefined);
+  // The open width, read by flight frames that outlive this render.
+  const openWidth = useRef(0);
+  // A panel first shown already open appears at its width; only toggles travel.
+  const paintedOnce = useRef(false);
+  // Whether the component has committed a render already, so a panel mounted
+  // closed and opened later still travels on its first open.
+  const renderedBefore = useRef(false);
+  // Views the panel has shown stay mounted while their tab is open, so coming
+  // back shows the same diff or tree instead of reading it again.
+  const [visited, setVisited] = useState<SidePanelTabID[]>(() => (active ? [active] : []));
 
   // The transcript keeps its minimum and the panel takes what is left: the
   // shown width is clamped to the row rather than shrinking the chat under its
@@ -303,8 +319,6 @@ export function SessionSidePanel({
     };
   }, [clamp]);
 
-  if (!mounted || !workspace || !sessionID) return null;
-
   // Below the row width that holds both minimums the panel stops taking space
   // from the transcript and floats over it, so the chat never drops under its
   // own minimum while the window narrows.
@@ -315,6 +329,138 @@ export function SessionSidePanel({
   const maxWidth = overlay
     ? undefined
     : `max(${SIDE_PANEL_WIDTH_MIN}px, 100% - ${PANEL_ROW_GAP + CHAT_PANEL_WIDTH_MIN}px)`;
+  const visible = present || open;
+
+  // Every view the user has visited stays in the tree while its tab is open; a
+  // tab that closes drops its view.
+  const paneIDs = (active && !visited.includes(active) ? [...visited, active] : visited).filter(
+    (id) => id === active || tabs.some((tab) => tab.id === id),
+  );
+
+  useEffect(() => {
+    if (!active) return;
+    setVisited((current) => (current.includes(active) ? current : [...current, active]));
+  }, [active]);
+
+  // Runs after the first commit, before any later toggle can use it.
+  useEffect(() => {
+    renderedBefore.current = true;
+  }, []);
+
+  const stopFlight = useCallback(() => {
+    if (flight.current) window.cancelAnimationFrame(flight.current.frame);
+    flight.current = undefined;
+  }, []);
+
+  useEffect(() => stopFlight, [stopFlight]);
+
+  // Shows `target` at once: writes the real box size and lets the contents wrap
+  // with the panel again. A closed landing also removes the pane.
+  const settle = useCallback(
+    (target: number) => {
+      stopFlight();
+      const element = aside.current;
+      if (element) {
+        element.style.width = `${target}px`;
+        element.style.overflow = "";
+      }
+      if (contentBox.current) {
+        contentBox.current.style.width = "";
+        contentBox.current.style.opacity = "";
+      }
+      paintedWidth.current = target;
+      if (target === 0) setPresent(false);
+    },
+    [stopFlight],
+  );
+
+  // Runs the panel's width along the shared spring. The contents keep the open
+  // width, so the shrinking box clips them rather than rewrapping them, and they
+  // fade only across the last 15% of the travel.
+  const fly = useCallback(
+    (target: number) => {
+      const element = aside.current;
+      if (!element || prefersReducedMotion()) {
+        settle(target);
+        return;
+      }
+      const box = contentBox.current;
+      element.style.overflow = "hidden";
+      // Start the first frame where the last one left off, so a panel that
+      // mounts open cannot paint at its content width for a moment.
+      element.style.width = `${paintedWidth.current}px`;
+      if (box) {
+        box.style.width = `${openWidth.current}px`;
+        box.style.opacity = `${panelContentOpacity(paintedWidth.current, openWidth.current)}`;
+      }
+      const state = { spring: panelSpring(paintedWidth.current, openWidth.current), frame: 0, last: performance.now() };
+      flight.current = state;
+      const step = (time: number) => {
+        if (flight.current !== state) return;
+        const dt = Math.min(0.064, Math.max(1 / 240, (time - state.last) / 1000));
+        state.last = time;
+        const goal = flightTarget.current;
+        const resting = stepPanelSpring(state.spring, goal, dt);
+        const value = Math.max(0, state.spring.value);
+        element.style.width = `${value}px`;
+        paintedWidth.current = value;
+        if (box) box.style.opacity = `${panelContentOpacity(value, openWidth.current)}`;
+        if (!resting) {
+          state.frame = window.requestAnimationFrame(step);
+          return;
+        }
+        settle(goal);
+      };
+      state.frame = window.requestAnimationFrame(step);
+    },
+    [settle],
+  );
+
+  // Toggling flies the width; opening also brings the pane into the tree so its
+  // close can travel. A panel first shown already open has no flight to make.
+  useLayoutEffect(() => {
+    const element = aside.current;
+    if (!element) return;
+    const target = open ? width : 0;
+    openWidth.current = width;
+    flightTarget.current = target;
+    if (open) setPresent(true);
+    if (!paintedOnce.current) {
+      paintedOnce.current = true;
+      // A first paint that is already open, like the app starting with the
+      // panel open, has no travel to make; a panel mounted closed and opened
+      // later flies like any other toggle.
+      if (open && !renderedBefore.current) {
+        settle(target);
+        return;
+      }
+    }
+    // A second toggle mid-flight retargets it: the spring keeps its velocity, so
+    // a reversed close turns around smoothly instead of restarting.
+    if (flight.current) return;
+    if (Math.abs(paintedWidth.current - target) < 0.5) {
+      settle(target);
+      return;
+    }
+    fly(target);
+    // Width rides on a flight only when the panel toggles; a resize at rest is
+    // applied by the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, visible, fly, settle]);
+
+  // A width change at rest, from a drag or the window resizing, applies at once
+  // so the panel follows the pointer and the row rather than chasing them.
+  useLayoutEffect(() => {
+    const element = aside.current;
+    if (!element) return;
+    const target = open ? width : 0;
+    openWidth.current = width;
+    flightTarget.current = target;
+    if (flight.current) return;
+    settle(target);
+  }, [width, open, settle]);
+
+  if (!visible || !workspace || !sessionID) return null;
 
   const renderContent = (tab: SidePanelTabID | undefined, select: (id: SidePanelTabID) => void) => {
     if (!tab) {
@@ -438,16 +584,18 @@ export function SessionSidePanel({
   return (
     <aside
       ref={aside}
-      style={{ width, maxWidth }}
+      // The width is written frame by frame while the panel travels, so React
+      // leaves it alone; maxWidth keeps the row's limit applied in CSS.
+      style={{ maxWidth }}
       aria-label={tr("reviewAndFiles")}
       data-open={open ? "true" : "false"}
       data-overlay={overlay ? "true" : undefined}
       // The panel itself must not clip: the resize handle straddles its start
-      // edge and its pill would be cut in half. The rounded surface is painted
-      // by an inner layer instead.
+      // edge and its pill would be cut in half. Only a flight clips, since its
+      // contents keep the open width and would otherwise paint past the box.
       className={`relative flex h-full min-h-0 shrink-0 flex-col rounded-[10px] bg-bg-base elevation-raised ${
         overlay ? "absolute inset-y-0 end-0 z-30" : ""
-      } ${open ? "side-panel-enter" : "side-panel-exit"}`}
+      } ${open ? "" : "pointer-events-none"}`}
     >
       <div
         role="separator"
@@ -465,7 +613,7 @@ export function SessionSidePanel({
         className="resize-handle-h absolute inset-y-0 -start-2 z-20 w-2 cursor-col-resize"
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px]">
+      <div ref={contentBox} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px]">
         <div
           className="flex h-12 shrink-0 items-center gap-2 border-b-[0.5px] border-border-base bg-bg-raised pl-3"
           style={{ paddingInlineEnd: endInset }}
@@ -502,7 +650,27 @@ export function SessionSidePanel({
         </div>
 
         <div className="flex min-h-0 flex-1">
-          <div className="relative min-h-0 flex-1 overflow-hidden">{renderContent(active, onSelect)}</div>
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            {paneIDs.map((id) => {
+              const shown = id === active;
+              return (
+                <div
+                  key={id}
+                  // Hidden views keep their state and scroll position, so a
+                  // switch back shows the same diff or tree instead of reading
+                  // it again; content-visibility skips their layout and paint.
+                  className="absolute inset-0 flex min-h-0 flex-col"
+                  data-active={shown ? "true" : undefined}
+                  aria-hidden={!shown || undefined}
+                  inert={!shown || undefined}
+                  style={shown ? undefined : { contentVisibility: "hidden" }}
+                >
+                  {renderContent(id, onSelect)}
+                </div>
+              );
+            })}
+            {!active && renderContent(undefined, onSelect)}
+          </div>
         </div>
       </div>
     </aside>
