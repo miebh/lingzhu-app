@@ -4,6 +4,7 @@ vi.mock("@/lib/api", () => ({
   api: {
     remove: vi.fn(),
     interrupt: vi.fn(),
+    sessions: vi.fn(),
   },
 }));
 
@@ -42,5 +43,30 @@ describe("deleteSession", () => {
 
     expect(api.interrupt).not.toHaveBeenCalled();
     expect(useWorkspaceStore.getState().sessionsByWorkspace["/w"]).toEqual([]);
+  });
+});
+
+describe("prefetchSessions", () => {
+  beforeEach(() => {
+    vi.mocked(api.sessions).mockReset();
+  });
+
+  test("loads only the workspaces that never listed their sessions", async () => {
+    vi.mocked(api.sessions).mockResolvedValue([{ id: "s1", title: "Only", updated: "1" }]);
+    useWorkspaceStore.setState({
+      workspaces: [
+        { path: "/loaded", name: "loaded", addr: "a", connected: true, error: "" },
+        { path: "/fresh", name: "fresh", addr: "a", connected: true, error: "" },
+        { path: "/offline", name: "offline", addr: "", connected: false, starting: false, error: "" },
+      ],
+      sessionsByWorkspace: { "/loaded": [] },
+      loadingSessions: {},
+    });
+
+    await useWorkspaceStore.getState().prefetchSessions();
+
+    expect(api.sessions).toHaveBeenCalledTimes(1);
+    expect(api.sessions).toHaveBeenCalledWith("/fresh");
+    expect(useWorkspaceStore.getState().sessionsByWorkspace["/fresh"]).toHaveLength(1);
   });
 });

@@ -178,8 +178,20 @@ export function ProjectsSection({
             />
           </SettingsRow>
           <SettingsRow title={t("status")} description={t("settingsServersDesc")}>
-            <span className={selected.connected ? "text-caption text-state-fg-success" : "text-caption text-state-fg-danger"}>
-              {selected.connected ? t("connected") : t("offline")}
+            <span
+              className={
+                selected.connected && !selected.starting
+                  ? "text-caption text-state-fg-success"
+                  : selected.starting
+                    ? "text-caption text-text-muted"
+                    : "text-caption text-state-fg-danger"
+              }
+            >
+              {selected.connected && !selected.starting
+                ? t("connected")
+                : selected.starting
+                  ? t("starting")
+                  : t("offline")}
             </span>
           </SettingsRow>
           {error && (

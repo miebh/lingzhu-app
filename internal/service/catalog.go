@@ -145,8 +145,13 @@ func fillPresetMetadata(model, source PresetModel) PresetModel {
 
 // enrichCatalogModels fills metadata on providers that came from the public
 // catalog. Existing values win, so a user's edits are never overwritten.
+//
+// It only reads a catalog that is already in memory: this runs on the settings
+// binding, which the window calls while it paints, and parsing the multi-megabyte
+// cache there would be paid by every first read. The background fetch fills the
+// cache; a call that arrives before it finishes simply returns the stored values.
 func enrichCatalogModels(settings *AppSettings) {
-	catalog := cachedCatalogPresets()
+	catalog := loadedCatalogPresets()
 	if len(catalog) == 0 {
 		return
 	}
@@ -224,6 +229,15 @@ func cachedCatalogPresets() []ProviderPreset {
 	}
 	catalogCache.presets = file.Presets
 	catalogCache.at = file.FetchedAt
+	return catalogCache.presets
+}
+
+// loadedCatalogPresets returns the catalog only when it is already in memory.
+// It never reads the cache file, so it stays cheap enough for the first
+// settings read of a cold start; the background fetch warms the cache instead.
+func loadedCatalogPresets() []ProviderPreset {
+	catalogCache.Lock()
+	defer catalogCache.Unlock()
 	return catalogCache.presets
 }
 

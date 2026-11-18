@@ -9,6 +9,16 @@ import { useWorkspaceStore } from "./workspaces";
 let started = false;
 
 /**
+ * Re-reads the workspace list once the core answers and loads the session lists
+ * that have none yet. Both lifecycle states land here: the cold start reports
+ * "started" and a crash recovery reports "ready".
+ */
+async function reloadAfterCore() {
+  await useWorkspaceStore.getState().refresh();
+  await useWorkspaceStore.getState().prefetchSessions();
+}
+
+/**
  * One-time app start: subscribe to core events, then load local state. The
  * guard keeps React strict-mode double mounts from double-subscribing.
  */
@@ -49,7 +59,14 @@ export function startApp() {
     }
     if (status.state === "ready") {
       notify("Core is running again", "info");
-      void useWorkspaceStore.getState().refresh();
+      void reloadAfterCore();
+      return;
+    }
+    if (status.state === "started") {
+      // The window paints before the core answers, so the workspace list it
+      // read at startup still says "starting". Re-read it, then load the
+      // session lists that had nothing to read yet.
+      void reloadAfterCore();
     }
   });
 

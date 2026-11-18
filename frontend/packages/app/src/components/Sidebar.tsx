@@ -1345,9 +1345,11 @@ function WorkspaceRow({ workspace, active, expanded, onToggle, onNew, onSelectSe
       <span className="min-w-0 flex-1 truncate font-[440] text-text-muted transition-colors group-hover/ws:text-text-base group-focus-visible/ws:text-text-base">
         {workspace.name}
       </span>
-      {!workspace.connected && (
+      {workspace.starting ? (
+        <span className="shrink-0 text-caption text-text-muted">{tr("starting")}</span>
+      ) : !workspace.connected ? (
         <span className="shrink-0 text-caption text-state-fg-danger">{tr("offline")}</span>
-      )}
+      ) : null}
       <span
         data-open={menuOpen ? "true" : undefined}
         className="pointer-events-none flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-focus-within/ws:pointer-events-auto group-focus-within/ws:opacity-100 group-hover/ws:pointer-events-auto group-hover/ws:opacity-100 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100"

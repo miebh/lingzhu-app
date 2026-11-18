@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { SessionHeader, SessionPanelToggle } from "../../components/SessionHeader";
 import { api } from "../../lib/api";
 import { contextUsage, modelCost, modelWindow } from "../../lib/contextUsage";
@@ -9,10 +9,21 @@ import { useActiveChatField, useAtHome } from "../hooks";
 import { useShell } from "../ShellProvider";
 import { ComposerDock } from "../features/chat/ComposerDock";
 import { HomePane } from "../features/home/HomePane";
-import { MessagesPane } from "../features/chat/MessagesPane";
 import { NewSessionPane } from "../features/session/NewSessionPane";
-import { SessionPanelPane } from "../features/session/SessionPanelPane";
-import { SettingsPane } from "../features/settings/SettingsPane";
+
+// The transcript, the right-hand panel and the settings overlay are all absent
+// from the first paint (Home is what the app opens on), and together they carry
+// the syntax highlighting, diff and settings trees. Each loads as its own chunk
+// so the window only parses what it is about to show.
+const MessagesPane = lazy(() =>
+  import("../features/chat/MessagesPane").then((m) => ({ default: m.MessagesPane })),
+);
+const SessionPanelPane = lazy(() =>
+  import("../features/session/SessionPanelPane").then((m) => ({ default: m.SessionPanelPane })),
+);
+const SettingsPane = lazy(() =>
+  import("../features/settings/SettingsPane").then((m) => ({ default: m.SettingsPane })),
+);
 
 /** The main pane: session header plus the Home/chat/draft surface and panels. */
 export function ShellContent() {
@@ -34,6 +45,19 @@ export function ShellContent() {
   const atHome = useAtHome();
   const [activeLocation, setActiveLocation] = useState<SessionLocation>();
   const [composerInset, setComposerInset] = useState(0);
+  // Both panes load as their own chunks, so they mount on first open and stay
+  // mounted afterwards: the panel needs that for its exit animation, and
+  // settings must not re-fetch its sections every time it is reopened.
+  const panelOpen = shell.panel.panelOpen;
+  const settingsOpen = view.settingsOpen;
+  const [panelMounted, setPanelMounted] = useState(panelOpen);
+  const [settingsMounted, setSettingsMounted] = useState(settingsOpen);
+  useEffect(() => {
+    if (panelOpen) setPanelMounted(true);
+  }, [panelOpen]);
+  useEffect(() => {
+    if (settingsOpen) setSettingsMounted(true);
+  }, [settingsOpen]);
 
   useEffect(() => {
     setActiveLocation(undefined);
@@ -107,10 +131,11 @@ export function ShellContent() {
               <HomePane />
             ) : activeId && !atHome ? (
               <div className="relative flex min-h-0 flex-1 flex-col">
-                <MessagesPane
-                  bottomInset={composerInset}
-                  header={
-                    <SessionHeader
+                <Suspense fallback={null}>
+                  <MessagesPane
+                    bottomInset={composerInset}
+                    header={
+                      <SessionHeader
                       workspace={activeWorkspace?.name}
                       workspaceIcon={activeWorkspace?.icon}
                       workspaceColor={activeWorkspace?.color}
@@ -143,6 +168,7 @@ export function ShellContent() {
                     />
                   }
                 />
+                </Suspense>
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
                   <div className="pointer-events-auto">
                     <ComposerDock
@@ -170,8 +196,10 @@ export function ShellContent() {
             )}
           </div>
 
-          <SessionPanelPane />
-          {view.settingsOpen && <SettingsPane />}
+          <Suspense fallback={null}>
+            {panelMounted && <SessionPanelPane />}
+            {settingsMounted && <SettingsPane />}
+          </Suspense>
         </div>
       </div>
     </div>

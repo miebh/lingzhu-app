@@ -1036,7 +1036,7 @@ export interface AgentCatalog {
 /** Core health probe payload. */
 /** One core process lifecycle change, pushed on `lingzhu:core`. */
 export interface CoreStatus {
-  state: "restarting" | "ready" | "failed";
+  state: "restarting" | "ready" | "failed" | "started";
   attempt?: number;
   error?: string;
 }
@@ -1543,6 +1543,8 @@ export interface WorkspaceInfo {
   name: string;
   addr: string;
   connected: boolean;
+  /** The core is still attaching this workspace; requests may fail briefly. */
+  starting?: boolean;
   error: string;
   icon?: string;
   color?: string;

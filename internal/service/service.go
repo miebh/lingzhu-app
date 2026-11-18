@@ -92,6 +92,32 @@ type workspaceRuntime struct {
 	Core *core.Core
 	Addr string
 	Err  string
+	// starting marks a workspace the startup pass has registered but not yet
+	// attached, so the window can list every project before any core answers.
+	starting bool
+	// ready closes once the first attach attempt has finished, either way. A
+	// request that arrives while the core is still coming up waits on it
+	// instead of failing with "core is not running".
+	ready     chan struct{}
+	readyOnce sync.Once
+}
+
+// settle closes ready, waking every request that waited for the first attach.
+func (w *workspaceRuntime) settle() {
+	w.readyOnce.Do(func() {
+		if w.ready != nil {
+			close(w.ready)
+		}
+	})
+}
+
+// beginStart marks the workspace as attaching again and gives it a fresh ready
+// channel, so requests that arrive during a restart wait for the new core
+// instead of failing with "core is not running". The caller holds the lock.
+func (w *workspaceRuntime) beginStart() {
+	w.starting = true
+	w.ready = make(chan struct{})
+	w.readyOnce = sync.Once{}
 }
 
 // WorkspaceInfo describes one workspace and its core process.
@@ -100,6 +126,7 @@ type WorkspaceInfo struct {
 	Name      string `json:"name"`
 	Addr      string `json:"addr"`
 	Connected bool   `json:"connected"`
+	Starting  bool   `json:"starting"`
 	Error     string `json:"error"`
 }
 
@@ -268,11 +295,6 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 	}
 	s.store = store
 
-	// Bring a gateway provider's model list up to date before any core starts,
-	// so a model magpie added is usable on the first prompt instead of only
-	// after a manual "sync models".
-	s.syncGatewayConfig()
-
 	list, err := store.List()
 	if err != nil {
 		s.err = err.Error()
@@ -285,17 +307,67 @@ func (s *CoreService) ServiceStartup(ctx context.Context, options application.Se
 		}
 		list, _ = store.List()
 	}
+
+	// Wails starts services before it creates the window, so everything below
+	// has to be cheap: the workspaces are registered now and attached in the
+	// background, which is what keeps the first paint off the core's cold start.
 	for _, item := range list {
-		s.open(item.Path)
+		s.register(item.Path)
 	}
 	s.startCatalogFetch()
+	go s.startBackground(ctx)
+	return nil
+}
+
+// attach runs one workspace's start and records its outcome, so every caller
+// (cold start, manual restart, crash supervisor) leaves the workspace in the
+// same state: not starting, with either a core or an error.
+func (s *CoreService) attach(runtime *workspaceRuntime) error {
+	err := s.start(runtime)
+	s.mu.Lock()
+	runtime.starting = false
+	if err != nil {
+		runtime.Err = err.Error()
+	}
+	runtime.settle()
+	s.mu.Unlock()
+	return err
+}
+
+// startBackground finishes the work a window must not wait for: the gateway
+// model list, the core process and every registered workspace. The order is
+// kept — the gateway sync rewrites the config the core is about to read — but
+// the whole sequence runs off the main thread.
+func (s *CoreService) startBackground(ctx context.Context) {
+	// Bring a gateway provider's model list up to date before any core starts,
+	// so a model magpie added is usable on the first prompt instead of only
+	// after a manual "sync models".
+	s.syncGatewayConfig()
 
 	// A build installed by a self-update has to prove it works: the installer's
 	// watchdog rolls back unless this app confirms. Only a reachable core counts
-	// as proof, so the check waits for one rather than trusting that the process
+	// as proof, so the check polls for one rather than trusting that the process
 	// merely started.
 	go s.confirmRunningBuild()
-	return nil
+
+	s.mu.Lock()
+	paths := append([]string(nil), s.order...)
+	s.mu.Unlock()
+	for _, path := range paths {
+		if ctx.Err() != nil {
+			return
+		}
+		s.mu.Lock()
+		runtime := s.spaces[path]
+		s.mu.Unlock()
+		if runtime == nil {
+			continue
+		}
+		_ = s.attach(runtime)
+	}
+	// The window is already up; this only tells it the workspaces it listed
+	// optimistically are attached now, so the session lists can load.
+	s.emitCore(CoreStatus{State: "started"})
 }
 
 // confirmRunningBuild writes the update confirmation once the core answers.
@@ -373,15 +445,28 @@ func (s *CoreService) Workspaces() []WorkspaceInfo {
 		if runtime == nil {
 			continue
 		}
-		out = append(out, WorkspaceInfo{
-			Path:      runtime.Path,
-			Name:      runtime.Name,
-			Addr:      runtime.Addr,
-			Connected: runtime.Core != nil,
-			Error:     runtime.Err,
-		})
+		out = append(out, s.infoLocked(path))
 	}
 	return out
+}
+
+// infoLocked renders one workspace. A workspace the startup pass has registered
+// but not attached yet counts as connected: requests wait for the first attach
+// instead of failing, so the window can load the session list straight away and
+// only show "starting" as a hint.
+func (s *CoreService) infoLocked(path string) WorkspaceInfo {
+	runtime := s.spaces[path]
+	if runtime == nil {
+		return WorkspaceInfo{Path: path}
+	}
+	return WorkspaceInfo{
+		Path:      runtime.Path,
+		Name:      runtime.Name,
+		Addr:      runtime.Addr,
+		Connected: runtime.Core != nil || runtime.starting,
+		Starting:  runtime.starting,
+		Error:     runtime.Err,
+	}
 }
 
 // AddWorkspace asks for a directory and registers it as a workspace.
@@ -428,7 +513,7 @@ func (s *CoreService) AddWorkspaceAt(path string) (WorkspaceInfo, error) {
 		}
 	}
 	runtime := s.open(abs)
-	info := WorkspaceInfo{Path: runtime.Path, Name: runtime.Name, Addr: runtime.Addr, Connected: runtime.Core != nil, Error: runtime.Err}
+	info := s.info(runtime.Path)
 	if runtime.Err != "" {
 		return info, errors.New(runtime.Err)
 	}
@@ -442,6 +527,11 @@ func (s *CoreService) RemoveWorkspace(path string) error {
 	s.mu.Lock()
 	runtime := s.spaces[path]
 	delete(s.spaces, path)
+	// A request waiting for this workspace's first attach must not hang now that
+	// the workspace is gone.
+	if runtime != nil {
+		runtime.settle()
+	}
 	order := s.order[:0]
 	for _, item := range s.order {
 		if item != path {
@@ -477,22 +567,51 @@ func (s *CoreService) RemoveWorkspace(path string) error {
 	return nil
 }
 
-func (s *CoreService) open(path string) *workspaceRuntime {
+// register lists a workspace without attaching it. A workspace registered this
+// way reports `starting`, so the window can show every project before any core
+// answers, and a request that arrives meanwhile waits for the first attach.
+func (s *CoreService) register(path string) *workspaceRuntime {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if runtime, ok := s.spaces[path]; ok {
-		s.mu.Unlock()
 		return runtime
 	}
-	runtime := &workspaceRuntime{Path: path, Name: filepath.Base(path)}
+	runtime := &workspaceRuntime{
+		Path:     path,
+		Name:     filepath.Base(path),
+		starting: true,
+		ready:    make(chan struct{}),
+	}
 	s.spaces[path] = runtime
 	s.order = append(s.order, path)
+	return runtime
+}
+
+// open attaches a workspace before returning, which is what an explicit "add
+// workspace" needs: its caller reports the connection state. A workspace
+// startup has already registered is attached by the background pass, so opening
+// one of those waits for that attempt instead of attaching it twice.
+func (s *CoreService) open(path string) *workspaceRuntime {
+	runtime := s.register(path)
+	s.mu.Lock()
+	switch {
+	case runtime.Core != nil || runtime.Err != "":
+		s.mu.Unlock()
+		return runtime
+	case runtime.starting:
+		// The background start owns this workspace; wait for its result.
+		ready := runtime.ready
+		s.mu.Unlock()
+		if ready != nil {
+			<-ready
+		}
+		return runtime
+	default:
+		runtime.beginStart()
+	}
 	s.mu.Unlock()
 
-	if err := s.startCore(runtime); err != nil {
-		s.mu.Lock()
-		runtime.Err = err.Error()
-		s.mu.Unlock()
-	}
+	_ = s.attach(runtime)
 	return runtime
 }
 
@@ -581,11 +700,34 @@ func (s *CoreService) ensureCore() (*core.Core, error) {
 
 func (s *CoreService) client(workspace string) (*core.Client, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	runtime, ok := s.spaces[workspace]
 	if !ok {
+		s.mu.Unlock()
 		return nil, fmt.Errorf("unknown workspace: %s", workspace)
 	}
+	// Startup registers the workspaces first and attaches them in the
+	// background, so a request that arrives during the cold start waits for
+	// that first attempt instead of failing with "core is not running".
+	if runtime.starting && runtime.ready != nil {
+		ready := runtime.ready
+		s.mu.Unlock()
+		var cancelled <-chan struct{}
+		if s.ctx != nil {
+			cancelled = s.ctx.Done()
+		}
+		select {
+		case <-ready:
+		case <-cancelled:
+			return nil, context.Canceled
+		}
+		s.mu.Lock()
+		runtime, ok = s.spaces[workspace]
+		if !ok {
+			s.mu.Unlock()
+			return nil, fmt.Errorf("unknown workspace: %s", workspace)
+		}
+	}
+	defer s.mu.Unlock()
 	if runtime.Core == nil {
 		if runtime.Err != "" {
 			return nil, errors.New(runtime.Err)
@@ -617,18 +759,11 @@ func doClient(s *CoreService, workspace string, fn func(*core.Client) error) err
 	return err
 }
 
-func (s *CoreService) infoLocked(path string) WorkspaceInfo {
-	runtime := s.spaces[path]
-	if runtime == nil {
-		return WorkspaceInfo{Path: path}
-	}
-	return WorkspaceInfo{
-		Path:      runtime.Path,
-		Name:      runtime.Name,
-		Addr:      runtime.Addr,
-		Connected: runtime.Core != nil,
-		Error:     runtime.Err,
-	}
+// info reads one workspace under the lock, for callers that are not holding it.
+func (s *CoreService) info(path string) WorkspaceInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.infoLocked(path)
 }
 
 func (s *CoreService) emit(event EventEnvelope) {

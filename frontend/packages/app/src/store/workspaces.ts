@@ -16,6 +16,8 @@ interface WorkspaceStore {
   refresh: () => Promise<void>;
   select: (path: string) => void;
   loadSessions: (path: string) => Promise<void>;
+  /** Loads session lists for connected workspaces that have none yet. */
+  prefetchSessions: () => Promise<void>;
   connect: () => Promise<WorkspaceInfo | undefined>;
   disconnect: (path: string) => Promise<void>;
   renameSession: (workspace: string, sessionID: string, title: string) => Promise<boolean>;
@@ -104,6 +106,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     } finally {
       set((state) => ({ loadingSessions: { ...state.loadingSessions, [path]: false } }));
     }
+  },
+
+  prefetchSessions: async () => {
+    const state = get();
+    await Promise.all(
+      state.workspaces
+        .filter((workspace) => workspace.connected && state.sessionsByWorkspace[workspace.path] === undefined)
+        .map((workspace) => get().loadSessions(workspace.path)),
+    );
   },
 
   connect: async () => {

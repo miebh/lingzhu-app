@@ -50,6 +50,9 @@ func (s *CoreService) restartSharedCore() error {
 			runtime.Core = nil
 			runtime.Addr = ""
 			runtime.Err = ""
+			// Requests arriving during the restart wait for the replacement
+			// instead of failing while the old process is going away.
+			runtime.beginStart()
 		}
 	}
 	s.mu.Unlock()
@@ -68,10 +71,7 @@ func (s *CoreService) restartSharedCore() error {
 		if runtime == nil {
 			continue
 		}
-		if err := s.startCore(runtime); err != nil {
-			s.mu.Lock()
-			runtime.Err = err.Error()
-			s.mu.Unlock()
+		if err := s.attach(runtime); err != nil {
 			lastErr = err
 		}
 	}

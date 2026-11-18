@@ -14,7 +14,9 @@ const coreEventChannel = "lingzhu:core"
 
 // CoreStatus is the payload of a core lifecycle event.
 type CoreStatus struct {
-	// State is "restarting", "ready" or "failed".
+	// State is "restarting", "ready", "failed" or "started". "started" is the
+	// one the first cold start reports: the window was already up, so the
+	// frontend re-reads the workspace list it listed optimistically.
 	State string `json:"state"`
 	// Attempt counts consecutive automatic restarts; it resets on success.
 	Attempt int `json:"attempt,omitempty"`
@@ -102,6 +104,9 @@ func (s *CoreService) restartCrashedCoreFrom(crashed *core.Core, stop <-chan str
 				runtime.Core = nil
 				runtime.Addr = ""
 				runtime.Err = ""
+				// Requests arriving while the replacement starts wait for it
+				// rather than failing against the process that just exited.
+				runtime.beginStart()
 			}
 		}
 		s.mu.Unlock()
@@ -116,10 +121,7 @@ func (s *CoreService) restartCrashedCoreFrom(crashed *core.Core, stop <-chan str
 			if runtime == nil {
 				continue
 			}
-			if err := s.start(runtime); err != nil {
-				s.mu.Lock()
-				runtime.Err = err.Error()
-				s.mu.Unlock()
+			if err := s.attach(runtime); err != nil {
 				lastErr = err
 			}
 		}
