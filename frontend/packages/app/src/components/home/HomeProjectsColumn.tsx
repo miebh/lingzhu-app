@@ -9,6 +9,8 @@ interface Props {
   selectedPath?: string;
   onSelectWorkspace: (path: string) => void;
   onOpenWorkspace?: (path: string) => void;
+  onEditWorkspace?: (path: string) => void;
+  onRemoveWorkspace?: (path: string) => void;
   onNewSession: (path: string) => void;
   onAddWorkspace?: () => void;
   onOpenSettings?: () => void;
@@ -20,6 +22,8 @@ export function HomeProjectsColumn({
   selectedPath,
   onSelectWorkspace,
   onOpenWorkspace,
+  onEditWorkspace,
+  onRemoveWorkspace,
   onNewSession,
   onAddWorkspace,
   onOpenSettings,
@@ -49,6 +53,8 @@ export function HomeProjectsColumn({
             onSelect={() => onSelectWorkspace(workspace.path)}
             onNewSession={() => onNewSession(workspace.path)}
             onOpen={() => (onOpenWorkspace ?? onSelectWorkspace)(workspace.path)}
+            onEdit={onEditWorkspace && (() => onEditWorkspace(workspace.path))}
+            onRemove={onRemoveWorkspace && (() => onRemoveWorkspace(workspace.path))}
           />
         ))}
         {workspaces.length === 0 && (

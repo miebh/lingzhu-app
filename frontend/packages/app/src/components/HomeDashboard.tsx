@@ -24,6 +24,10 @@ interface Props {
   onSelectWorkspace: (path: string) => void;
   /** Opens a project's conversation from its menu. */
   onOpenWorkspace?: (path: string) => void;
+  /** Opens the project settings section for a project's menu. */
+  onEditWorkspace?: (path: string) => void;
+  /** Opens the remove-project confirmation from a project's menu. */
+  onRemoveWorkspace?: (path: string) => void;
   onNewSession: (path: string) => void;
   onRename?: (row: HomeSessionRow) => void;
   onExport?: (row: HomeSessionRow) => void;
@@ -53,6 +57,8 @@ export function HomeDashboard({
   onOpenSession,
   onSelectWorkspace,
   onOpenWorkspace,
+  onEditWorkspace,
+  onRemoveWorkspace,
   onNewSession,
   onRename,
   onExport,
@@ -90,6 +96,8 @@ export function HomeDashboard({
               selectedPath={selectedPath ?? activePath}
               onSelectWorkspace={onSelectWorkspace}
               onOpenWorkspace={onOpenWorkspace}
+              onEditWorkspace={onEditWorkspace}
+              onRemoveWorkspace={onRemoveWorkspace}
               onNewSession={onNewSession}
               onAddWorkspace={onAddWorkspace}
               onOpenSettings={onOpenSettings}

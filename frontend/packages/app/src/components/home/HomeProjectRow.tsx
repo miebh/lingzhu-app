@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Ellipsis } from "@lingzhu/ui/icons";
+import { Ellipsis, ExternalLink, Pencil, Settings2 } from "@lingzhu/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@lingzhu/ui/dropdown-menu";
-import { t } from "@lingzhu/ui/i18n";
+import { t, type MessageKey } from "@lingzhu/ui/i18n";
 import type { WorkspaceInfo } from "@lingzhu/ui/types";
+import { api } from "../../lib/api";
+import { notify } from "../../app/useApp";
 import { ProjectAvatar } from "../ProjectAvatar";
 
 interface Props {
@@ -16,11 +19,31 @@ interface Props {
   onSelect: () => void;
   onNewSession: () => void;
   onOpen: () => void;
+  onEdit?: () => void;
+  onRemove?: () => void;
 }
 
-/** One project in the home projects column, with its hover actions menu. */
-export function HomeProjectRow({ workspace, selected, onSelect, onNewSession, onOpen }: Props) {
+function revealKey(): MessageKey {
+  const platform = navigator.userAgent;
+  if (/Mac/i.test(platform)) return "revealInFinder";
+  if (/Win/i.test(platform)) return "revealInFileExplorer";
+  return "openInFileManager";
+}
+
+/**
+ * One project in the home projects column. Hovering reveals the same pair of
+ * actions the reference home uses: a row menu plus a direct new-session entry.
+ */
+export function HomeProjectRow({ workspace, selected, onSelect, onNewSession, onOpen, onEdit, onRemove }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const reveal = async () => {
+    try {
+      await api.revealPath(workspace.path);
+    } catch {
+      notify(t("revealFailed"));
+    }
+  };
 
   return (
     <div
@@ -43,7 +66,7 @@ export function HomeProjectRow({ workspace, selected, onSelect, onNewSession, on
       </button>
       <span
         data-slot="home-row-actions"
-        className="pointer-events-none absolute inset-y-0 end-0 flex items-center rounded-e-[6px] pe-1 opacity-0 group-hover/project:pointer-events-auto group-hover/project:opacity-100 group-focus-within/project:pointer-events-auto group-focus-within/project:opacity-100 group-data-[menu=true]/project:pointer-events-auto group-data-[menu=true]/project:opacity-100"
+        className="pointer-events-none absolute inset-y-0 end-0 flex items-center gap-0.5 rounded-e-[6px] pe-1 opacity-0 group-hover/project:pointer-events-auto group-hover/project:opacity-100 group-focus-within/project:pointer-events-auto group-focus-within/project:opacity-100 group-data-[menu=true]/project:pointer-events-auto group-data-[menu=true]/project:opacity-100"
       >
         <DropdownMenu onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
@@ -55,11 +78,38 @@ export function HomeProjectRow({ workspace, selected, onSelect, onNewSession, on
               <Ellipsis className="size-3.5" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={4} className="w-40">
+          <DropdownMenuContent align="end" sideOffset={4} className="w-48">
             <DropdownMenuItem onSelect={onNewSession}>{t("newSession")}</DropdownMenuItem>
             <DropdownMenuItem onSelect={onOpen}>{t("open")}</DropdownMenuItem>
+            {onEdit && (
+              <DropdownMenuItem onSelect={onEdit}>
+                <Settings2 className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+                {t("projectSettings")}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={() => void reveal()}>
+              <ExternalLink className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+              {t(revealKey())}
+            </DropdownMenuItem>
+            {onRemove && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem destructive onSelect={onRemove}>
+                  {t("removeProject")}
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
+        <button
+          type="button"
+          aria-label={t("newSession")}
+          title={t("newSession")}
+          onClick={onNewSession}
+          className="interactive grid size-5 shrink-0 place-items-center rounded-xs text-text-faint hover:bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))] hover:text-text-base"
+        >
+          <Pencil className="size-3.5" />
+        </button>
       </span>
     </div>
   );

@@ -42,6 +42,8 @@ export function HomePane() {
         workspaceActions.select(path);
         view.closeHome();
       }}
+      onEditWorkspace={(path) => shell.openProjectSettings(path)}
+      onRemoveWorkspace={(path) => dialogs.setRemoveWorkspaceTarget(path)}
       onNewSession={(path) => {
         workspaceActions.select(path);
         void chatActions.newChat(path);
