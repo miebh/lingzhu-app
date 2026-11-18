@@ -1,8 +1,9 @@
 /**
- * The side panel's opening and closing feel: the real box width travels along a
- * critically damped spring, taking longer the further the panel has to move, so
- * a narrow panel doesn't crawl and a wide one doesn't snap. Contents keep their
- * open width for the flight and fade only across the last of the travel.
+ * The opening and closing feel shared by the side panel and the sidebar rail:
+ * the real box width travels along a critically damped spring, taking longer
+ * the further the panel has to move, so a narrow one doesn't crawl and a wide
+ * one doesn't snap. Contents keep their open width for the flight and fade only
+ * across the last of the travel.
  */
 
 const FLIGHT_REFERENCE_WIDTH = 480;
