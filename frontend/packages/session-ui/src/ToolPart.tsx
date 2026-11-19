@@ -92,26 +92,61 @@ const disclosures = new Map<string, boolean>();
 // mounted tool row, and a long transcript mounts many of them.
 const disclosureListeners = new Map<string, Set<() => void>>();
 
-export function useDisclosure(key: string, fallback = false) {
+// Aliases are joined into one signature so the effect keeps a stable dependency
+// while the component reads each key separately.
+const DISCLOSURE_SEPARATOR = "\u0000";
+
+function disclosureValue(keys: readonly string[], fallback: boolean) {
+  for (const key of keys) {
+    const value = disclosures.get(key);
+    if (value !== undefined) return value;
+  }
+  return fallback;
+}
+
+/**
+ * Open state for one disclosure. A row may pass several keys for the same
+ * block: the first is the durable identity and later ones are aliases that
+ * cover a rebuilt key. Reading prefers the first key that has a stored value,
+ * and writing records the choice under every key, so an expanded block stays
+ * expanded when a live transcript row is replaced by its persisted copy.
+ */
+export function useDisclosure(key: string | readonly string[], fallback = false) {
   const scope = useContext(ToolScopeContext);
-  const scoped = scope ? `${scope}:${key}` : key;
-  const [open, setOpenState] = useState(() => disclosures.get(scoped) ?? fallback);
+  const keys = (typeof key === "string" ? [key] : key).map((item) => (scope ? `${scope}:${item}` : item));
+  const signature = keys.join(DISCLOSURE_SEPARATOR);
+  const [open, setOpenState] = useState(() => disclosureValue(keys, fallback));
 
   useEffect(() => {
-    const update = () => setOpenState(disclosures.get(scoped) ?? fallback);
-    const listeners = disclosureListeners.get(scoped) ?? new Set<() => void>();
-    listeners.add(update);
-    disclosureListeners.set(scoped, listeners);
+    const scoped = signature.split(DISCLOSURE_SEPARATOR);
+    const update = () => setOpenState(disclosureValue(scoped, fallback));
+    const listeners = scoped.map((item) => {
+      const set = disclosureListeners.get(item) ?? new Set<() => void>();
+      set.add(update);
+      disclosureListeners.set(item, set);
+      return [item, set] as const;
+    });
+    // A key can join a block after the user already opened it, such as the
+    // first tool that arrives after a thought. Carry the stored choice onto the
+    // new alias so the next render still finds it.
+    if (scoped.some((item) => disclosures.get(item) !== undefined)) {
+      const stored = disclosureValue(scoped, fallback);
+      for (const item of scoped) {
+        if (disclosures.get(item) === undefined) disclosures.set(item, stored);
+      }
+    }
     update();
     return () => {
-      listeners.delete(update);
-      if (listeners.size === 0) disclosureListeners.delete(scoped);
+      for (const [item, set] of listeners) {
+        set.delete(update);
+        if (set.size === 0) disclosureListeners.delete(item);
+      }
     };
-  }, [scoped, fallback]);
+  }, [signature, fallback]);
 
   const setOpen = (next: boolean) => {
-    disclosures.set(scoped, next);
-    disclosureListeners.get(scoped)?.forEach((listener) => listener());
+    for (const item of keys) disclosures.set(item, next);
+    for (const item of keys) disclosureListeners.get(item)?.forEach((listener) => listener());
   };
 
   return [open, setOpen] as const;
@@ -2376,12 +2411,17 @@ export function ToolBlock({
   // that label instead of every busy group.
   const thinking = reasoning.length > 0 && reasoning.length === visible.length && liveReasoning;
   const first = visible[0];
-  // Match the row key the projection assigned: the first part that stays in the
-  // group. Commentary can join ahead of the tools and later leave, and a key
-  // that moved with it would reset the block's expanded state.
+  // Commentary can join ahead of the tools and later leave, so it never anchors
+  // the block. The first non-text part does, but a reasoning or notice entry key
+  // is rebuilt when the finished turn is reloaded from history. A tool keeps the
+  // call id it was streamed with, so it is the one identity that survives that
+  // reload; keep the anchor as an alias for blocks that never held a tool.
   const anchor = visible.find((part) => part.kind !== "text") ?? first;
-  const key = anchor ? (anchor.kind === "tool" ? anchor.tool.id : anchor.entry.key) : "context";
-  const [open, setOpen] = useDisclosure(`group:${key}`);
+  const anchorKey = anchor ? (anchor.kind === "tool" ? anchor.tool.id : anchor.entry.key) : "context";
+  const key = tools[0]?.id ?? anchorKey;
+  const disclosureKeys =
+    key === anchorKey ? [`group:${key}`] : [`group:${key}`, `group:${anchorKey}`];
+  const [open, setOpen] = useDisclosure(disclosureKeys);
   const root = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(Date.now());
   const pending = Boolean(busy) || tools.some((tool) => !tool.done);

@@ -159,6 +159,42 @@ describe("transcript regressions", () => {
     expect(root.hasAttribute("data-header")).toBe(false);
   });
 
+  test("an opened summary block survives the history reload that ends a turn", async () => {
+    // A live turn keys its block by the first part that stays in it. The reload
+    // at run.end rebuilds reasoning entry keys, so the block must also remember
+    // the tool call id it was opened with, or it collapses under the user.
+    const live = chat(
+      [
+        { key: "u1", role: "user", text: "hi" },
+        { key: "reasoning-live", role: "reasoning", text: "thinking", live: true },
+        edit("tool-live", "call-disclosure", "src/a.ts", "one"),
+      ],
+      true,
+    );
+    const settled = chat([
+      { key: "u1", role: "user", text: "hi" },
+      { key: "history-1-part-0", role: "reasoning", text: "thinking" },
+      edit("history-2", "call-disclosure", "src/a.ts", "one"),
+    ]);
+
+    const { rerender } = render(
+      <TooltipProvider>
+        <Messages detail="compact" chat={live} />
+      </TooltipProvider>,
+    );
+    const trigger = await screen.findByRole("button", { name: /Used 1 Edit/ });
+    await userEvent.click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+
+    rerender(
+      <TooltipProvider>
+        <Messages detail="compact" chat={settled} />
+      </TooltipProvider>,
+    );
+    const reloaded = await screen.findByRole("button", { name: /Used 1 Edit/ });
+    expect(reloaded.getAttribute("aria-expanded")).toBe("true");
+  });
+
   test("a file list with its own tool title reserves the sticky title row", async () => {
     const { container } = render(
       <TooltipProvider>
