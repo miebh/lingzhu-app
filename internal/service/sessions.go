@@ -584,6 +584,34 @@ func (s *CoreService) Skills(workspace string) ([]core.SkillSummary, error) {
 	})
 }
 
+// SkillDetail returns one skill's instructions and sampled files.
+func (s *CoreService) SkillDetail(workspace, id string) (core.SkillDetail, error) {
+	return callClient(s, workspace, func(client *core.Client) (core.SkillDetail, error) {
+		return client.SkillDetail(s.ctx, id)
+	})
+}
+
+// CreateSkill writes a new skill under a local root.
+func (s *CoreService) CreateSkill(workspace, id, name, description, content string) error {
+	return doClient(s, workspace, func(client *core.Client) error {
+		return client.CreateSkill(s.ctx, id, name, description, content)
+	})
+}
+
+// DeleteSkill removes one local skill.
+func (s *CoreService) DeleteSkill(workspace, id string) error {
+	return doClient(s, workspace, func(client *core.Client) error {
+		return client.DeleteSkill(s.ctx, id)
+	})
+}
+
+// SkillErrors lists per-source remote pull failures.
+func (s *CoreService) SkillErrors(workspace string) ([]core.SkillSourceError, error) {
+	return callClient(s, workspace, func(client *core.Client) ([]core.SkillSourceError, error) {
+		return client.SkillErrors(s.ctx)
+	})
+}
+
 // RefreshSkills rescans local roots and retries remote skill sources.
 func (s *CoreService) RefreshSkills(workspace string) error {
 	return doClient(s, workspace, func(client *core.Client) error {
@@ -602,6 +630,34 @@ func (s *CoreService) MCPStatus(workspace string) ([]core.MCPServer, error) {
 func (s *CoreService) ReconnectMCP(workspace, server string) (core.MCPServer, error) {
 	return callClient(s, workspace, func(client *core.Client) (core.MCPServer, error) {
 		return client.ReconnectMCP(s.ctx, server)
+	})
+}
+
+// MCPEvents lists the event types one connected MCP server advertises.
+func (s *CoreService) MCPEvents(workspace, server string) ([]core.MCPEventType, error) {
+	return callClient(s, workspace, func(client *core.Client) ([]core.MCPEventType, error) {
+		return client.MCPEvents(s.ctx, server)
+	})
+}
+
+// DisconnectMCP stops one MCP server without changing its configuration.
+func (s *CoreService) DisconnectMCP(workspace, server string) (core.MCPServer, error) {
+	return callClient(s, workspace, func(client *core.Client) (core.MCPServer, error) {
+		return client.DisconnectMCP(s.ctx, server)
+	})
+}
+
+// StartMCPAuth starts OAuth for one MCP server.
+func (s *CoreService) StartMCPAuth(workspace, server string) (core.MCPAuth, error) {
+	return callClient(s, workspace, func(client *core.Client) (core.MCPAuth, error) {
+		return client.StartMCPAuth(s.ctx, server)
+	})
+}
+
+// ExchangeMCPAuth completes a pasted-code MCP login.
+func (s *CoreService) ExchangeMCPAuth(workspace, server, code, state string) (core.MCPServer, error) {
+	return callClient(s, workspace, func(client *core.Client) (core.MCPServer, error) {
+		return client.ExchangeMCPAuth(s.ctx, server, code, state)
 	})
 }
 

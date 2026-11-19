@@ -327,6 +327,24 @@ type SkillSummary struct {
 	Description string `json:"description,omitempty"`
 }
 
+// SkillSourceError is one remote skill source that failed to load.
+type SkillSourceError struct {
+	URL   string `json:"url"`
+	Error string `json:"error"`
+}
+
+// SkillDetail is one skill with its instructions and sampled files.
+type SkillDetail struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Directory   string   `json:"directory"`
+	Path        string   `json:"path"`
+	Content     string   `json:"content"`
+	Files       []string `json:"files,omitempty"`
+	Autoinvoke  bool     `json:"autoinvoke"`
+}
+
 // MCPServerTool is one tool advertised by an MCP server.
 type MCPServerTool struct {
 	Name      string `json:"name"`
@@ -345,10 +363,21 @@ type MCPServerResource struct {
 // MCPServer is one configured MCP server and its current status.
 type MCPServer struct {
 	Name      string              `json:"name"`
+	Title     string              `json:"title,omitempty"`
 	Status    string              `json:"status"`
 	Error     string              `json:"error,omitempty"`
+	Events    bool                `json:"events,omitempty"`
 	Tools     []MCPServerTool     `json:"tools"`
 	Resources []MCPServerResource `json:"resources"`
+}
+
+// MCPEventType is one event a server advertises through events/list.
+type MCPEventType struct {
+	Name          string          `json:"name"`
+	Description   string          `json:"description,omitempty"`
+	Delivery      []string        `json:"delivery,omitempty"`
+	InputSchema   json.RawMessage `json:"inputSchema,omitempty"`
+	PayloadSchema json.RawMessage `json:"payloadSchema,omitempty"`
 }
 
 // MCPToolContent is one part returned by tools/call.
@@ -1706,6 +1735,39 @@ func (c *Client) Skills(ctx context.Context) ([]SkillSummary, error) {
 	return payload.Skills, err
 }
 
+// SkillDetail returns one skill's instructions and sampled files.
+func (c *Client) SkillDetail(ctx context.Context, id string) (SkillDetail, error) {
+	var payload struct {
+		Skill SkillDetail `json:"skill"`
+	}
+	err := c.do(ctx, http.MethodGet, "/skills/"+url.PathEscape(id), nil, &payload)
+	return payload.Skill, err
+}
+
+// CreateSkill writes a new skill under a local root.
+func (c *Client) CreateSkill(ctx context.Context, id, name, description, content string) error {
+	return c.do(ctx, http.MethodPost, "/skills", map[string]string{
+		"id":          id,
+		"name":        name,
+		"description": description,
+		"content":     content,
+	}, nil)
+}
+
+// DeleteSkill removes one local skill.
+func (c *Client) DeleteSkill(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/skills/"+url.PathEscape(id), nil, nil)
+}
+
+// SkillErrors lists per-source remote pull failures.
+func (c *Client) SkillErrors(ctx context.Context) ([]SkillSourceError, error) {
+	var payload struct {
+		Errors []SkillSourceError `json:"errors"`
+	}
+	err := c.do(ctx, http.MethodGet, "/skills/errors", nil, &payload)
+	return payload.Errors, err
+}
+
 // RefreshSkills rescans local roots and retries remote skill sources.
 func (c *Client) RefreshSkills(ctx context.Context) error {
 	return c.do(ctx, http.MethodPost, "/skills/refresh", nil, nil)
@@ -1720,12 +1782,54 @@ func (c *Client) MCPStatus(ctx context.Context) ([]MCPServer, error) {
 	return payload.Servers, err
 }
 
+// MCPEvents lists the event types one connected MCP server advertises.
+func (c *Client) MCPEvents(ctx context.Context, server string) ([]MCPEventType, error) {
+	var payload struct {
+		Events []MCPEventType `json:"events"`
+	}
+	err := c.do(ctx, http.MethodGet, "/mcp/"+url.PathEscape(server)+"/events", nil, &payload)
+	return payload.Events, err
+}
+
 // ReconnectMCP retries one failed MCP server.
 func (c *Client) ReconnectMCP(ctx context.Context, server string) (MCPServer, error) {
 	var payload struct {
 		Server MCPServer `json:"server"`
 	}
 	err := c.do(ctx, http.MethodPost, "/mcp/"+url.PathEscape(server)+"/reconnect", nil, &payload)
+	return payload.Server, err
+}
+
+// DisconnectMCP stops one MCP server without changing its configuration.
+func (c *Client) DisconnectMCP(ctx context.Context, server string) (MCPServer, error) {
+	var payload struct {
+		Server MCPServer `json:"server"`
+	}
+	err := c.do(ctx, http.MethodPost, "/mcp/"+url.PathEscape(server)+"/disconnect", nil, &payload)
+	return payload.Server, err
+}
+
+// MCPAuth is one started OAuth authorization.
+type MCPAuth struct {
+	URL   string `json:"url"`
+	State string `json:"state"`
+}
+
+// StartMCPAuth starts an OAuth login for one MCP server.
+func (c *Client) StartMCPAuth(ctx context.Context, server string) (MCPAuth, error) {
+	var payload MCPAuth
+	err := c.do(ctx, http.MethodPost, "/mcp/"+url.PathEscape(server)+"/auth", nil, &payload)
+	return payload, err
+}
+
+// ExchangeMCPAuth completes a pasted-code MCP login.
+func (c *Client) ExchangeMCPAuth(ctx context.Context, server, code, state string) (MCPServer, error) {
+	var payload struct {
+		Server MCPServer `json:"server"`
+	}
+	err := c.do(ctx, http.MethodPost, "/mcp/"+url.PathEscape(server)+"/auth/exchange", map[string]string{
+		"code": code, "state": state,
+	}, &payload)
 	return payload.Server, err
 }
 

@@ -34,6 +34,7 @@ import type {
   ImageStatus,
   GeneratedImage,
   MagpieGateway,
+  MCPEventType,
   MCPServer,
   MCPResourceContent,
   MCPToolResult,
@@ -74,6 +75,7 @@ import type {
   SessionEnvironment,
   SessionTailEvent,
   SettingsInput,
+  SkillDetail,
   SkillSummary,
   ShareInfo,
   ShareServiceStatus,
@@ -132,9 +134,22 @@ export const api = {
     args: Record<string, unknown>,
   ): Promise<PluginToolResult> => call.CallPluginTool(workspace, plugin, name, args),
   skills: (workspace: string): Promise<SkillSummary[]> => call.Skills(workspace),
+  skillDetail: (workspace: string, id: string): Promise<SkillDetail> => call.SkillDetail(workspace, id),
+  createSkill: (workspace: string, id: string, name: string, description = "", content = ""): Promise<void> =>
+    call.CreateSkill(workspace, id, name, description, content),
+  deleteSkill: (workspace: string, id: string): Promise<void> => call.DeleteSkill(workspace, id),
+  skillErrors: (workspace: string): Promise<{ url: string; error: string }[]> => call.SkillErrors(workspace),
   refreshSkills: (workspace: string): Promise<void> => call.RefreshSkills(workspace),
   mcpStatus: (workspace: string): Promise<MCPServer[]> => call.MCPStatus(workspace),
+  mcpConfig: (): Promise<Record<string, unknown>> => call.MCPConfig(),
+  saveMCPConfig: (servers: Record<string, unknown>): Promise<void> => call.SaveMCPConfig(servers),
   reconnectMCP: (workspace: string, server: string): Promise<MCPServer> => call.ReconnectMCP(workspace, server),
+  disconnectMCP: (workspace: string, server: string): Promise<MCPServer> => call.DisconnectMCP(workspace, server),
+  mcpEvents: (workspace: string, server: string): Promise<MCPEventType[]> => call.MCPEvents(workspace, server),
+  startMCPAuth: (workspace: string, server: string): Promise<{ url: string; state: string }> =>
+    call.StartMCPAuth(workspace, server),
+  exchangeMCPAuth: (workspace: string, server: string, code: string, state: string): Promise<MCPServer> =>
+    call.ExchangeMCPAuth(workspace, server, code, state),
   readMCPResource: (workspace: string, server: string, uri: string): Promise<MCPResourceContent[]> =>
     call.ReadMCPResource(workspace, server, uri),
   callMCPTool: (workspace: string, server: string, name: string, args: Record<string, unknown>): Promise<MCPToolResult> =>

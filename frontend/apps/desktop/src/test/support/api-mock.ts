@@ -32,6 +32,19 @@ export const api = {
     sessionDiff: vi.fn(async () => ({ base: "", head: "", diffs: [] })),
     files: vi.fn(async () => ({ entries: [] })),
     skills: vi.fn(async () => [{ id: "demo", name: "Demo", description: "Demo skill" }]),
+    skillDetail: vi.fn(async (_workspace: string, id: string) => ({
+      id,
+      name: "Demo",
+      description: "Demo skill",
+      directory: "/skills/demo",
+      path: "/skills/demo/SKILL.md",
+      content: "Demo body",
+      files: [],
+      autoinvoke: true,
+    })),
+    createSkill: vi.fn(async () => {}),
+    deleteSkill: vi.fn(async () => {}),
+    skillErrors: vi.fn(async () => []),
     plugins: vi.fn(async () => [
       {
         name: "demo-plugin",
@@ -50,6 +63,20 @@ export const api = {
       },
     ]),
     reconnectMCP: vi.fn(async (_workspace: string, server: string) => ({
+      name: server,
+      status: "connected",
+      tools: [],
+      resources: [],
+    })),
+    disconnectMCP: vi.fn(async (_workspace: string, server: string) => ({
+      name: server,
+      status: "disabled",
+      tools: [],
+      resources: [],
+    })),
+    mcpEvents: vi.fn(async () => []),
+    startMCPAuth: vi.fn(async () => ({ url: "https://example.com/oauth", state: "state" })),
+    exchangeMCPAuth: vi.fn(async (_workspace: string, server: string) => ({
       name: server,
       status: "connected",
       tools: [],

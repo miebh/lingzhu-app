@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { SegmentedControl } from "@lingzhu/ui/segmented-control";
+import { MCPConfigDialog } from "../MCPConfigDialog";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
 import { t } from "@lingzhu/ui/i18n";
@@ -34,6 +35,7 @@ export function ExtensionsSection({ workspace }: Props) {
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [mcpConfigOpen, setMcpConfigOpen] = useState(false);
 
   useEffect(() => {
     if (!workspace) return;
@@ -52,6 +54,21 @@ export function ExtensionsSection({ workspace }: Props) {
     return () => {
       live = false;
     };
+  }, [workspace]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    const timer = window.setInterval(() => {
+      void api
+        .skills(workspace)
+        .then(setSkills)
+        .catch(() => undefined);
+      void api
+        .mcpStatus(workspace)
+        .then(setMcps)
+        .catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
   }, [workspace]);
 
   const copyConfigPath = async () => {
@@ -86,16 +103,30 @@ export function ExtensionsSection({ workspace }: Props) {
           {tab === "skills" ? (
             <span className="text-body font-[440] leading-4 text-text-muted">{t("howToAddSkills")}</span>
           ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={!workspace}
-              onClick={() => void copyConfigPath()}
-              className="px-0 text-body font-[440] text-text-accent hover:text-text-accent/80"
-            >
-              {t("manageConfig")}
-            </Button>
+            <div className="flex items-center gap-3">
+              {tab === "mcps" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={!workspace}
+                  onClick={() => setMcpConfigOpen(true)}
+                  className="px-0 text-body font-[440] text-text-accent hover:text-text-accent/80"
+                >
+                  {t("mcpEditServers")}
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={!workspace}
+                onClick={() => void copyConfigPath()}
+                className="px-0 text-body font-[440] text-text-accent hover:text-text-accent/80"
+              >
+                {t("manageConfig")}
+              </Button>
+            </div>
           )}
         </div>
 
@@ -139,9 +170,11 @@ export function ExtensionsSection({ workspace }: Props) {
                     ? t("connected")
                     : server.status === "failed"
                       ? t("mcpFailed")
-                      : server.status === "disabled"
-                        ? t("mcpDisabled")
-                        : t("starting")}
+                      : server.status === "needs_auth"
+                        ? t("mcpNeedsAuth")
+                        : server.status === "disabled"
+                          ? t("mcpDisabled")
+                          : t("starting")}
                 </span>
               </div>
             ))}
@@ -181,6 +214,17 @@ export function ExtensionsSection({ workspace }: Props) {
 
         {notice && <p className="text-caption text-text-muted">{notice}</p>}
       </section>
+      <MCPConfigDialog
+        open={mcpConfigOpen}
+        onOpenChange={setMcpConfigOpen}
+        onSaved={() => {
+          if (!workspace) return;
+          void api
+            .mcpStatus(workspace)
+            .then(setMcps)
+            .catch(() => undefined);
+        }}
+      />
     </div>
   );
 }

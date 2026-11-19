@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Bot, Square, Terminal, Undo2, XMarkFilled } from "@lingzhu/ui/icons";
+import { ArrowUp, Bot, Sparkles, Square, Terminal, Undo2, XMarkFilled } from "@lingzhu/ui/icons";
 import { Loader } from "@lingzhu/ui/loader";
 import { FileTypeIcon } from "@lingzhu/ui/file-icons";
 import { AgentPicker } from "./AgentPicker";
@@ -32,13 +32,17 @@ import type {
   PromptAttachment,
   PromptReference,
   ProviderSettings,
+  SkillSummary,
   SlashCommand,
 } from "@lingzhu/ui/types";
 
 /** Matches the core prompt attachment limit. */
 const MAX_ATTACHMENTS = MAX_ATTACHMENT_COUNT;
 
-type ContextEntry = { kind: "agent"; agent: AgentProfile } | { kind: "file"; path: string };
+type ContextEntry =
+  | { kind: "agent"; agent: AgentProfile }
+  | { kind: "skill"; skill: SkillSummary }
+  | { kind: "file"; path: string };
 
 interface Props {
   running: boolean;
@@ -134,6 +138,7 @@ export function Composer({
   const [attachmentError, setAttachmentError] = useState("");
   const [dragging, setDragging] = useState(false);
   const [contextFiles, setContextFiles] = useState<string[]>([]);
+  const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [contextActive, setContextActive] = useState(0);
   const [contextDismissed, setContextDismissed] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -223,8 +228,22 @@ export function Composer({
       )
       .slice(0, 4)
       .map((agent) => ({ kind: "agent" as const, agent }));
-    return [...agentHits, ...contextFiles.map((path) => ({ kind: "file" as const, path }))];
-  }, [agents, contextFiles, contextOpen, contextQuery]);
+    const skillHits = skills
+      .filter(
+        (skill) =>
+          !needle ||
+          skill.id.toLowerCase().includes(needle) ||
+          skill.name.toLowerCase().includes(needle) ||
+          (skill.description ?? "").toLowerCase().includes(needle),
+      )
+      .slice(0, 6)
+      .map((skill) => ({ kind: "skill" as const, skill }));
+    return [
+      ...agentHits,
+      ...skillHits,
+      ...contextFiles.map((path) => ({ kind: "file" as const, path })),
+    ];
+  }, [agents, contextFiles, contextOpen, contextQuery, skills]);
 
   useEffect(() => {
     setActive(0);
@@ -233,6 +252,25 @@ export function Composer({
   useEffect(() => {
     setContextActive(0);
   }, [contextQuery, contextOpen]);
+
+  useEffect(() => {
+    if (!workspace) {
+      setSkills([]);
+      return;
+    }
+    let cancelled = false;
+    void api
+      .skills(workspace)
+      .then((items) => {
+        if (!cancelled) setSkills(items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSkills([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace]);
 
   useEffect(() => {
     if (!contextOpen || !workspace) {
@@ -331,6 +369,13 @@ export function Composer({
       if (!contextToken) return;
       onSelectAgent?.(entry.agent.id);
       setText(replaceContextToken(text, contextToken, entry.agent.id));
+      setContextDismissed(true);
+      queueMicrotask(() => area.current?.focus());
+      return;
+    }
+    if (entry.kind === "skill") {
+      if (!contextToken) return;
+      setText(replaceContextToken(text, contextToken, entry.skill.id));
       setContextDismissed(true);
       queueMicrotask(() => area.current?.focus());
       return;
@@ -619,7 +664,13 @@ export function Composer({
               ) : (
                 contextEntries.map((entry, index) => (
                   <div
-                    key={entry.kind === "file" ? `file:${entry.path}` : `agent:${entry.agent.id}`}
+                    key={
+                      entry.kind === "file"
+                        ? `file:${entry.path}`
+                        : entry.kind === "skill"
+                          ? `skill:${entry.skill.id}`
+                          : `agent:${entry.agent.id}`
+                    }
                     role="option"
                     aria-selected={index === contextActive}
                     data-active={index === contextActive ? "" : undefined}
@@ -632,14 +683,25 @@ export function Composer({
                   >
                     {entry.kind === "agent" ? (
                       <Bot className="size-4 shrink-0 text-text-faint" />
+                    ) : entry.kind === "skill" ? (
+                      <Sparkles className="size-4 shrink-0 text-text-faint" />
                     ) : (
                       <FileTypeIcon path={entry.path} type="file" className="size-4 shrink-0" />
                     )}
                     <span className="command-suggestion-label">
-                      {entry.kind === "agent" ? `@${entry.agent.id}` : entry.path}
+                      {entry.kind === "agent"
+                        ? `@${entry.agent.id}`
+                        : entry.kind === "skill"
+                          ? `@${entry.skill.id}`
+                          : entry.path}
                     </span>
                     {entry.kind === "agent" && (
                       <span className="command-suggestion-description">{entry.agent.description}</span>
+                    )}
+                    {entry.kind === "skill" && (
+                      <span className="command-suggestion-description">
+                        {entry.skill.description || entry.skill.name}
+                      </span>
                     )}
                   </div>
                 ))

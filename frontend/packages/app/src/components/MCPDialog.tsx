@@ -7,7 +7,7 @@ import { Textarea } from "@lingzhu/ui/textarea";
 import { api } from "../lib/api";
 import { messageOf } from "../lib/errors";
 import { mcpExportName, serializeMCPResource, serializeMCPTool } from "../lib/mcpExport";
-import type { MCPResourceContent, MCPServer, MCPToolResult } from "@lingzhu/ui/types";
+import type { MCPEventType, MCPResourceContent, MCPServer, MCPToolResult } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
 import { useT } from "@lingzhu/ui/i18n";
@@ -37,6 +37,12 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
   const [toolInvocation, setToolInvocation] = useState<{ name: string; args: unknown }>();
   const [notice, setNotice] = useState("");
   const [reconnecting, setReconnecting] = useState("");
+  const [disconnecting, setDisconnecting] = useState("");
+  const [events, setEvents] = useState<MCPEventType[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState("");
+  const [signingIn, setSigningIn] = useState("");
+  const [auth, setAuth] = useState<{ server: string; state: string; code: string }>();
 
   const load = async () => {
     if (!workspace) return;
@@ -60,6 +66,14 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
   useEffect(() => {
     if (open) {
       void load();
+      const timer = window.setInterval(() => {
+        if (!workspace) return;
+        void api
+          .mcpStatus(workspace)
+          .then(setServers)
+          .catch(() => undefined);
+      }, 3000);
+      return () => window.clearInterval(timer);
     } else {
       setServers([]);
       setSelected(undefined);
@@ -75,6 +89,9 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
       setToolInvocation(undefined);
       setNotice("");
       setReconnecting("");
+      setDisconnecting("");
+      setEvents([]);
+      setEventsError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, workspace]);
@@ -95,6 +112,61 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
     }
   };
 
+  const disconnect = async (server: string) => {
+    if (!workspace) return;
+    setDisconnecting(server);
+    try {
+      await api.disconnectMCP(workspace, server);
+      setNotice(`Disconnected ${server}`);
+      setError("");
+      await load();
+    } catch (err) {
+      setNotice("");
+      setError(messageOf(err));
+    } finally {
+      setDisconnecting("");
+    }
+  };
+
+  const signIn = async (server: string) => {
+    if (!workspace) return;
+    setSigningIn(server);
+    try {
+      const started = await api.startMCPAuth(workspace, server);
+      setAuth({ server, state: started.state, code: "" });
+      window.open(started.url, "_blank", "noopener,noreferrer");
+      setNotice(`Opened the authorization page for ${server}.`);
+      setError("");
+    } catch (err) {
+      setNotice("");
+      setError(messageOf(err));
+    } finally {
+      setSigningIn("");
+    }
+  };
+
+  const completeAuth = async () => {
+    if (!workspace || !auth) return;
+    const code = auth.code.trim();
+    if (!code) {
+      setError("Authorization code is required.");
+      return;
+    }
+    setSigningIn(auth.server);
+    try {
+      await api.exchangeMCPAuth(workspace, auth.server, code, auth.state);
+      setNotice(`Authorized ${auth.server}.`);
+      setAuth(undefined);
+      await load();
+      setError("");
+    } catch (err) {
+      setNotice("");
+      setError(messageOf(err));
+    } finally {
+      setSigningIn("");
+    }
+  };
+
   const selectServer = (server: string) => {
     setSelected(server);
     setToolName("");
@@ -105,6 +177,8 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
     setNotice("");
     setContents(undefined);
     setContentURI("");
+    setEvents([]);
+    setEventsError("");
   };
 
   const callTool = async () => {
@@ -197,14 +271,46 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
   const connectedCount = servers.filter((item) => item.status === "connected").length;
   const toolCount = servers.reduce((sum, item) => sum + item.tools.length, 0);
   const currentConnected = current?.status === "connected";
+
+  useEffect(() => {
+    if (!open || !workspace || !current?.name || !current.events) {
+      setEvents([]);
+      setEventsError("");
+      setEventsLoading(false);
+      return;
+    }
+    let live = true;
+    setEventsLoading(true);
+    void api
+      .mcpEvents(workspace, current.name)
+      .then((next) => {
+        if (!live) return;
+        setEvents(next ?? []);
+        setEventsError("");
+      })
+      .catch((err) => {
+        if (!live) return;
+        setEvents([]);
+        setEventsError(messageOf(err));
+      })
+      .finally(() => {
+        if (live) setEventsLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [open, workspace, current?.name, current?.events]);
+
   const statusText = (status: string) =>
     status === "connected"
       ? tr("connected")
       : status === "failed"
         ? tr("mcpFailed")
-        : status === "disabled"
-          ? tr("mcpDisabled")
-          : tr("starting");
+        : status === "needs_auth"
+          ? tr("mcpNeedsAuth")
+          : status === "disabled"
+            ? tr("mcpDisabled")
+            : tr("starting");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -276,6 +382,9 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
                 <div className="flex items-start gap-2 border-b border-border-base px-3 py-1.5">
                   <div className="min-w-0 flex-1">
                     <p className="text-body text-text-base">{current.name}</p>
+                    {current.title && current.title !== current.name && (
+                      <p className="truncate text-caption text-text-faint">{current.title}</p>
+                    )}
                     <p
                       className={`text-caption ${
                         current.status === "failed"
@@ -289,7 +398,7 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
                       {current.error ? ` · ${current.error}` : ""}
                     </p>
                   </div>
-                  {current.status === "failed" && (
+                  {(current.status === "failed" || current.status === "disabled") && (
                     <Button
                       type="button"
                       variant="outline"
@@ -300,7 +409,43 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
                       {reconnecting === current.name ? tr("mcpReconnecting") : tr("mcpReconnect")}
                     </Button>
                   )}
+                  {current.status === "connected" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={disconnecting === current.name}
+                      onClick={() => void disconnect(current.name)}
+                    >
+                      {disconnecting === current.name ? tr("mcpDisconnecting") : tr("mcpDisconnect")}
+                    </Button>
+                  )}
+                  {current.status === "needs_auth" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={signingIn === current.name}
+                      onClick={() => void signIn(current.name)}
+                    >
+                      {signingIn === current.name ? tr("mcpSigningIn") : tr("mcpSignIn")}
+                    </Button>
+                  )}
                 </div>
+                {auth?.server === current.name && (
+                  <div className="flex flex-wrap items-center gap-2 border-b border-border-base px-3 py-2">
+                    <Input
+                      value={auth.code}
+                      aria-label={tr("mcpAuthCode")}
+                      placeholder={tr("mcpAuthCodePlaceholder")}
+                      onChange={(event) => setAuth({ ...auth, code: event.target.value })}
+                      className="min-w-40 flex-1 select-text font-mono"
+                    />
+                    <Button type="button" size="xs" disabled={signingIn === current.name} onClick={() => void completeAuth()}>
+                      {tr("mcpAuthComplete")}
+                    </Button>
+                  </div>
+                )}
                 {!currentConnected && (
                   <p className="border-b border-border-base px-3 py-2 text-meta text-text-faint">
                     The server is not connected. Reconnect it to browse tools and resources.
@@ -341,6 +486,30 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
                     </ul>
                   )}
                 </div>
+                {current.events && (
+                  <div className="border-b border-border-base px-3 py-2">
+                    <p className="text-caption text-text-faint">Events</p>
+                    {eventsLoading ? (
+                      <p className="mt-1 text-meta text-text-faint">Loading…</p>
+                    ) : eventsError ? (
+                      <p className="mt-1 text-caption text-state-fg-danger">{eventsError}</p>
+                    ) : events.length === 0 ? (
+                      <p className="mt-1 text-meta text-text-faint">No events.</p>
+                    ) : (
+                      <ul className="mt-1 flex flex-col gap-1">
+                        {events.map((event) => (
+                          <li key={event.name}>
+                            <p className="font-mono text-meta text-text-base">{event.name}</p>
+                            <p className="text-caption text-text-faint">
+                              {event.description ?? ""}
+                              {event.delivery?.length ? ` [${event.delivery.join(", ")}]` : ""}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
                 <div className="px-3 py-2">
                   <p className="text-caption text-text-faint">Resources</p>
                   {current.resources.length === 0 ? (

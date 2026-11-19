@@ -1319,10 +1319,20 @@ export interface MCPResourceContent {
 
 export interface MCPServer {
   name: string;
+  title?: string;
   status: "connected" | "failed" | "disabled" | "pending" | string;
   error?: string;
+  events?: boolean;
   tools: MCPServerTool[];
   resources: MCPServerResource[];
+}
+
+export interface MCPEventType {
+  name: string;
+  description?: string;
+  delivery?: string[];
+  inputSchema?: unknown;
+  payloadSchema?: unknown;
 }
 
 export interface MCPServerTool {
@@ -1583,6 +1593,14 @@ export interface SkillSummary {
   id: string;
   name: string;
   description?: string;
+}
+
+export interface SkillDetail extends SkillSummary {
+  directory: string;
+  path: string;
+  content: string;
+  files?: string[];
+  autoinvoke: boolean;
 }
 
 export interface SlashCommand {
