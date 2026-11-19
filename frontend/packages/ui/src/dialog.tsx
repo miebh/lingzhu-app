@@ -15,7 +15,7 @@ function DialogContent({
   children,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  size?: "default" | "wide" | "model" | "manage"
+  size?: "default" | "wide" | "large" | "model" | "manage"
   height?: "fit" | "body" | "connect" | "model"
   hideClose?: boolean
 }) {
@@ -31,11 +31,13 @@ function DialogContent({
           height === "body" ? "h-dialog-body" : height === "connect" ? "h-dialog-connect" : height === "model" ? "h-dialog-model" : "h-fit",
           size === "wide"
             ? "w-dialog-wide"
-            : size === "model"
-              ? "w-dialog-model"
-              : size === "manage"
-                ? "w-dialog-manage"
-                : "w-dialog",
+            : size === "large"
+              ? "w-dialog-large"
+              : size === "model"
+                ? "w-dialog-model"
+                : size === "manage"
+                  ? "w-dialog-manage"
+                  : "w-dialog",
           className
         )}
         {...props}

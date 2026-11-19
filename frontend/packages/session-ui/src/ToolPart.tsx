@@ -15,9 +15,11 @@ import {
   ChevronRight,
   Plug,
   SquareArrow,
+  Terminal,
   TriangleAlert,
 } from "@lingzhu/ui/icons";
 import { Dialog, DialogContent, DialogTitle } from "@lingzhu/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@lingzhu/ui/tooltip";
 import { ActivityRing } from "@lingzhu/ui/ActivityRing";
 import { LinkedText } from "@lingzhu/ui/LinkedText";
 import { TextShimmer } from "@lingzhu/ui/TextShimmer";
@@ -26,6 +28,7 @@ import { cn } from "@lingzhu/ui/utils";
 import { FileTypeIcon } from "@lingzhu/ui/file-icons";
 import { createTwoFilesPatch } from "diff";
 import { reasoningDuration, reasoningHeading } from "@lingzhu/session-ui/reasoning";
+import { formatExecuteOutput } from "@lingzhu/session-ui/execute-output";
 import { noticeText } from "@lingzhu/session-ui/notice";
 import { diffAvailable } from "@lingzhu/session-ui/pierre";
 import { languageOf, tokenize } from "@lingzhu/session-ui/syntax";
@@ -276,6 +279,7 @@ interface BasicToolProps {
   titleNode?: ReactNode;
   trigger?: ReactNode | ((open: boolean) => ReactNode);
   subtitle?: string;
+  subtitleNode?: ReactNode;
   subtitleClass?: string;
   args?: string[];
   trailing?: ReactNode;
@@ -384,18 +388,23 @@ export function BasicTool(props: BasicToolProps) {
                       <TextShimmer text={props.title ?? ""} active={pending} />
                     </span>
                   )}
-                  {props.subtitle && !(props.hideSubtitleWhenOpen && open) && (
-                    <span
-                      data-slot="basic-tool-tool-subtitle"
-                      className={cn(props.subtitleClass, props.onSubtitleClick && "clickable")}
-                      onClick={(event) => {
-                        if (!props.onSubtitleClick) return;
-                        event.stopPropagation();
-                        props.onSubtitleClick();
-                      }}
-                    >
-                      {props.subtitle}
-                    </span>
+                  {props.subtitleNode ? (
+                    !(props.hideSubtitleWhenOpen && open) && props.subtitleNode
+                  ) : (
+                    props.subtitle &&
+                    !(props.hideSubtitleWhenOpen && open) && (
+                      <span
+                        data-slot="basic-tool-tool-subtitle"
+                        className={cn(props.subtitleClass, props.onSubtitleClick && "clickable")}
+                        onClick={(event) => {
+                          if (!props.onSubtitleClick) return;
+                          event.stopPropagation();
+                          props.onSubtitleClick();
+                        }}
+                      >
+                        {props.subtitle}
+                      </span>
+                    )
                   )}
                   {props.args?.map((arg) => (
                     <span key={arg} data-slot="basic-tool-tool-arg">
@@ -1647,7 +1656,21 @@ function executeField(tool: ToolRun, key: string): unknown {
 
 function executeCalls(tool: ToolRun): ExecuteCall[] {
   const value = executeField(tool, "toolCalls");
-  return Array.isArray(value) ? (value as ExecuteCall[]) : [];
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const call = item as ExecuteCall;
+    if (typeof call.tool !== "string" || !["running", "completed", "error"].includes(call.status ?? "")) return [];
+    return [
+      {
+        ...call,
+        input:
+          call.input && typeof call.input === "object" && !Array.isArray(call.input)
+            ? call.input
+            : undefined,
+      },
+    ];
+  });
 }
 
 function executeArgs(input: Record<string, unknown> | undefined): string[] {
@@ -1744,7 +1767,8 @@ function ExecuteCallRow({
 function ExecuteOutputRow({ output, disclosureKey }: { output: string; disclosureKey: string }) {
   const tr = useT();
   const [open, setOpen] = useDisclosure(`execute-output:${disclosureKey}`);
-  const lines = executeLines(output);
+  const text = formatExecuteOutput(output).text;
+  const lines = executeLines(text);
 
   const toggle = () => {
     if (window.getSelection()?.toString()) return;
@@ -1776,7 +1800,7 @@ function ExecuteOutputRow({ output, disclosureKey }: { output: string; disclosur
       </div>
       {open && (
         <div data-slot="execute-tool-output">
-          <ConsoleOutput output={output} />
+          <ConsoleOutput output={text} />
         </div>
       )}
     </div>
@@ -1813,9 +1837,11 @@ function ExecuteTool({ tool }: { tool: ToolRun }) {
       )
         .replace(/\r\n?/g, "\n")
         .trim();
+  const formattedOutput = formatExecuteOutput(output);
+  const outputText = formattedOutput.text;
   const owner = calls.reduce((found, item, index) => (item.status === "error" ? index : found), -1);
   const subtitle = executeSubtitle(calls);
-  const viewable = Boolean(code);
+  const viewable = !pending && Boolean(code);
   const status = error ? tr("toolFailed") : pending ? tr("toolRunning") : tr("toolCompleted");
   const callCount = calls.length
     ? tr(calls.length === 1 ? "toolCallsOne" : "toolCallsMany", { count: calls.length })
@@ -1823,40 +1849,46 @@ function ExecuteTool({ tool }: { tool: ToolRun }) {
   const lineCount = tr(executeLines(code) === 1 ? "toolLinesOne" : "toolLinesMany", {
     count: executeLines(code),
   });
-  const outputLines = tr(executeLines(output) === 1 ? "toolLinesOne" : "toolLinesMany", {
-    count: executeLines(output),
+  const outputLines = tr(executeLines(outputText) === 1 ? "toolLinesOne" : "toolLinesMany", {
+    count: executeLines(outputText),
   });
   // Code and output share one gutter width, sized to the longer block, so their
   // content starts on the same column as the reference details dialog.
-  const digits = String(Math.max(executeLines(code), output && !error ? executeLines(output) : 0)).length;
+  const digits = String(Math.max(executeLines(code), outputText && !error ? executeLines(outputText) : 0)).length;
 
   return (
     <>
       <BasicTool
         id={`execute:${tool.id}`}
         title={tr("toolExecute")}
-        subtitle={subtitle}
+        subtitleNode={subtitle ? <ShellSubmessage text={subtitle} animate={pending} /> : undefined}
+        icon={<Terminal className="size-3.5" />}
         hideSubtitleWhenOpen
-        status={pending ? "running" : "completed"}
+        status={error ? "error" : pending ? "running" : "completed"}
         allowOpenWhilePending
         compact
         rail={false}
         hasContent={calls.length > 0 || Boolean(error) || Boolean(output)}
         action={
           viewable ? (
-            <button
-              type="button"
-              aria-label={tr("toolExecuteViewCode")}
-              title={tr("toolExecuteViewCode")}
-              aria-haspopup="dialog"
-              className="grid size-5 place-items-center rounded-xs text-text-faint hover:text-text-base"
-              onClick={(event) => {
-                event.stopPropagation();
-                setCodeOpen(true);
-              }}
-            >
-              <Code className="size-4" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={tr("toolExecuteViewCode")}
+                  title={tr("toolExecuteViewCode")}
+                  aria-haspopup="dialog"
+                  className="grid size-5 place-items-center rounded-xs text-text-faint hover:text-text-base"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setCodeOpen(true);
+                  }}
+                >
+                  <Code className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{tr("toolExecuteViewCode")}</TooltipContent>
+            </Tooltip>
           ) : undefined
         }
       >
@@ -1877,9 +1909,9 @@ function ExecuteTool({ tool }: { tool: ToolRun }) {
       {code && (
         <Dialog open={codeOpen} onOpenChange={setCodeOpen}>
           <DialogContent
-            size="wide"
-            height="body"
-            className="!w-[min(calc(100vw-32px),720px)] max-h-[calc(100vh-92px)]"
+            size="large"
+            height="fit"
+            className="bg-bg-base"
           >
             <DialogTitle className="flex items-center gap-2">
               <span>{tr("toolExecute")}</span>
@@ -1914,11 +1946,11 @@ function ExecuteTool({ tool }: { tool: ToolRun }) {
                     <header data-slot="execute-details-section-header">
                       <span data-slot="execute-details-section-label">{tr("toolExecuteOutput")}</span>
                       <span data-slot="execute-details-section-meta">{outputLines}</span>
-                      <CopyButton text={output} label={tr("toolExecuteCopyOutput")} />
+                      <CopyButton text={outputText} label={tr("toolExecuteCopyOutput")} />
                     </header>
                     <NumberedSource
-                      text={output}
-                      language={output.trimStart().startsWith("{") ? "json" : "text"}
+                      text={outputText}
+                      language={formattedOutput.json !== undefined && formattedOutput.rest === undefined ? "json" : "text"}
                       digits={digits}
                       slot="execute-details-output"
                     />

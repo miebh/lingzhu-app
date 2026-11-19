@@ -441,6 +441,20 @@ export function applyEvent(chats: Record<string, ChatState>, key: string, event:
       );
       break;
     }
+    case "tool.progress": {
+      const id = String(data.id ?? "");
+      const metadata =
+        data.metadata && typeof data.metadata === "object"
+          ? (data.metadata as Record<string, unknown>)
+          : undefined;
+      if (!id || !metadata) break;
+      entries = entries.map((entry) =>
+        entry.role === "tool" && entry.tool?.id === id && !entry.tool.done
+          ? { ...entry, tool: { ...entry.tool, metadata } }
+          : entry,
+      );
+      break;
+    }
     case "tool.result": {
       const id = String(data.id ?? "");
       entries = entries.map((entry) =>
