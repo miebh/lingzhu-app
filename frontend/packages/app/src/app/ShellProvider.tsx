@@ -7,7 +7,7 @@ import { useWorkspaceAgents } from "./useWorkspaceAgents";
 import { effectiveKeybinds } from "../lib/keybinds";
 import { effectiveTabLayout } from "../lib/layout";
 import { t } from "@lingzhu/ui/i18n";
-import { isFilePanelTab, type SidePanelTab, type SidePanelTabID } from "../lib/sidePanel";
+import { isFilePanelTab, CONFIG_FILE_TAB, type SidePanelTab, type SidePanelTabID } from "../lib/sidePanel";
 import { chatKey } from "@lingzhu/ui/types";
 import { useCatalog } from "../store/catalog";
 import type { Catalog } from "../store/catalog";
@@ -82,6 +82,7 @@ export function useShell() {
   const workspaceActions = useWorkspaceStore(
     useShallow((state) => ({
       select: state.select,
+      refresh: state.refresh,
       loadSessions: state.loadSessions,
       connect: state.connect,
       disconnect: state.disconnect,
@@ -170,6 +171,7 @@ export function useShell() {
   const tabView = (id: SidePanelTabID): SidePanelTab => {
     if (isFilePanelTab(id)) {
       const path = id.slice(5);
+      if (path === CONFIG_FILE_TAB) return { id, label: "lingzhu.json" };
       return { id, label: path.slice(path.lastIndexOf("/") + 1) || path };
     }
     return {

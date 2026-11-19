@@ -112,6 +112,10 @@ interface Props {
   onAddWorkspace?: () => void;
   onRemoveWorkspace?: (path: string) => void;
   onRestartWorkspace?: (path: string) => void;
+  /** Opens a skill file in the session side panel, when one is active. */
+  onOpenSkillFile?: (path: string) => void;
+  /** Opens the raw configuration file in the session side panel. */
+  onOpenConfigFile?: () => void;
 }
 
 /**
@@ -135,6 +139,8 @@ export function SettingsPage({
   onAddWorkspace,
   onRemoveWorkspace,
   onRestartWorkspace,
+  onOpenSkillFile,
+  onOpenConfigFile,
 }: Props) {
   const tr = useT();
   const catalog = useCatalog();
@@ -395,7 +401,13 @@ export function SettingsPage({
                         sessionCounts={sessionCounts}
                       />
                     )}
-                    {item.id === "extensions" && <ExtensionsSection workspace={workspace} />}
+                    {item.id === "extensions" && (
+                      <ExtensionsSection
+                        workspace={workspace}
+                        onOpenSkillFile={onOpenSkillFile}
+                        onOpenConfigFile={onOpenConfigFile}
+                      />
+                    )}
                     {item.id === "providers" && (
                       <ProvidersSection
                         scope={{ draft, busy, update, commit, updateAndCommit }}

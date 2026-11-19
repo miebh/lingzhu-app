@@ -99,4 +99,65 @@ describe("question dock", () => {
     await userEvent.click(screen.getByRole("button", { name: "Answer" }));
     expect(onReply).toHaveBeenCalledWith("q1", { answers: [["Delta"]] });
   });
+
+  test("MCP elicitation renders every field in one form", async () => {
+    const onReply = vi.fn();
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(
+      <QuestionCard
+        onReply={onReply}
+        requests={[
+          request([
+            {
+              header: "Approve",
+              title: "MCP · release",
+              question: "Allow publish?",
+              options: [
+                { label: "true", description: "" },
+                { label: "false", description: "" },
+              ],
+              kind: "boolean",
+              required: true,
+            },
+            { header: "Name", question: "Release name", options: [], kind: "text", required: true },
+            {
+              header: "Channel",
+              question: "Pick a channel",
+              options: [
+                { label: "stable", description: "" },
+                { label: "beta", description: "" },
+              ],
+              kind: "select",
+            },
+            {
+              header: "Authorize",
+              question: "Authorize access",
+              options: [],
+              kind: "external",
+              url: "https://example.com/auth",
+            },
+          ]),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("MCP · release")).toBeTruthy();
+    expect(screen.getByText("Allow publish?")).toBeTruthy();
+    expect(screen.getByText("Release name")).toBeTruthy();
+    expect(screen.getByText("Pick a channel")).toBeTruthy();
+    expect(screen.getByText("Authorize access")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled).toBe(true);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Approve" }));
+    await userEvent.type(screen.getByLabelText("Name"), "v2");
+    await userEvent.click(screen.getByText("stable"));
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(open).toHaveBeenCalledWith("https://example.com/auth", "_blank", "noopener,noreferrer");
+
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(onReply).toHaveBeenCalledWith("q1", {
+      answers: [["true"], ["v2"], ["stable"], []],
+    });
+    open.mockRestore();
+  });
 });

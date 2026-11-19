@@ -140,6 +140,8 @@ export const api = {
   deleteSkill: (workspace: string, id: string): Promise<void> => call.DeleteSkill(workspace, id),
   skillErrors: (workspace: string): Promise<{ url: string; error: string }[]> => call.SkillErrors(workspace),
   refreshSkills: (workspace: string): Promise<void> => call.RefreshSkills(workspace),
+  refreshSkillSource: (workspace: string, sourceURL: string): Promise<void> =>
+    call.RefreshSkillSource(workspace, sourceURL),
   mcpStatus: (workspace: string): Promise<MCPServer[]> => call.MCPStatus(workspace),
   mcpConfig: (): Promise<Record<string, unknown>> => call.MCPConfig(),
   saveMCPConfig: (servers: Record<string, unknown>): Promise<void> => call.SaveMCPConfig(servers),
@@ -288,6 +290,7 @@ export const api = {
   coreModels: (workspace: string): Promise<CoreModel[]> => call.Models(workspace),
   coreDefaultModel: (workspace: string): Promise<CoreModel | null> => call.DefaultModel(workspace),
   coreConfig: (workspace: string): Promise<CoreConfig> => call.Config(workspace),
+  readConfigFile: (): Promise<{ path: string; content: string }> => call.ReadConfigFile(),
   updateCoreConfig: (workspace: string, patch: Record<string, unknown>): Promise<void> =>
     call.UpdateConfig(workspace, patch),
   createShell: (workspace: string, input: CoreShellCreate): Promise<CoreShell> =>

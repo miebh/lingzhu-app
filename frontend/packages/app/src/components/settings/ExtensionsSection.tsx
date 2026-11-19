@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { Icon } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { SegmentedControl } from "@lingzhu/ui/segmented-control";
+import { Switch } from "@lingzhu/ui/switch";
 import { MCPConfigDialog } from "../MCPConfigDialog";
+import { MCPDialog } from "../MCPDialog";
+import { MCPAuthDialog } from "../MCPAuthDialog";
+import { MCPErrorDialog } from "../MCPErrorDialog";
+import { ConfigFileDialog } from "../ConfigFileDialog";
+import { SkillsDialog } from "../SkillsDialog";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
 import { t } from "@lingzhu/ui/i18n";
@@ -23,29 +29,104 @@ const EMPTY: Record<Tab, string> = {
   skills: "emptySkills",
 };
 
+const SKILL_GROUPS = [
+  { source: "project", label: "skillsProject" },
+  { source: "global", label: "skillsGlobal" },
+  { source: "remote", label: "skillsRemote" },
+] as const;
+
 interface Props {
   workspace?: string;
+  onOpenSkillFile?: (path: string) => void;
+  onOpenConfigFile?: () => void;
 }
 
 /** Extensions page with the reference's pill tabs and catalog rows. */
-export function ExtensionsSection({ workspace }: Props) {
+export function ExtensionsSection({ workspace, onOpenSkillFile, onOpenConfigFile }: Props) {
   const [tab, setTab] = useState<Tab>("mcps");
   const [mcps, setMcps] = useState<MCPServer[]>([]);
   const [plugins, setPlugins] = useState<PluginStatus[]>([]);
   const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const [skillErrors, setSkillErrors] = useState<{ url: string; error: string }[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshingSource, setRefreshingSource] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [mcpConfigOpen, setMcpConfigOpen] = useState(false);
+  const [configFileOpen, setConfigFileOpen] = useState(false);
+  const [selectedMCP, setSelectedMCP] = useState<string>();
+  const [authServer, setAuthServer] = useState<string>();
+  const [errorServer, setErrorServer] = useState<MCPServer>();
+  const [skillDialog, setSkillDialog] = useState<{ id?: string; create?: boolean }>();
+  const [acting, setActing] = useState("");
+
+  const replaceMCP = (next: MCPServer) =>
+    setMcps((current) => current.map((item) => (item.name === next.name ? next : item)));
+
+  const act = async (name: string, action: "reconnect" | "disconnect") => {
+    if (!workspace) return;
+    setActing(name);
+    try {
+      const next =
+        action === "reconnect"
+          ? await api.reconnectMCP(workspace, name)
+          : await api.disconnectMCP(workspace, name);
+      replaceMCP(next);
+      setError("");
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setActing("");
+    }
+  };
+
+  const refreshSkills = async () => {
+    if (!workspace) return;
+    setRefreshing(true);
+    try {
+      await api.refreshSkills(workspace);
+      const [next, errors] = await Promise.all([api.skills(workspace), api.skillErrors(workspace)]);
+      setSkills(next ?? []);
+      setSkillErrors(errors ?? []);
+      setError("");
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const refreshSource = async (sourceURL: string) => {
+    if (!workspace || !sourceURL) return;
+    setRefreshingSource(sourceURL);
+    try {
+      await api.refreshSkillSource(workspace, sourceURL);
+      const [next, errors] = await Promise.all([api.skills(workspace), api.skillErrors(workspace)]);
+      setSkills(next ?? []);
+      setSkillErrors(errors ?? []);
+      setError("");
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setRefreshingSource("");
+    }
+  };
 
   useEffect(() => {
     if (!workspace) return;
     let live = true;
-    void Promise.all([api.mcpStatus(workspace), api.plugins(workspace), api.skills(workspace)])
-      .then(([nextMcps, nextPlugins, nextSkills]) => {
+    void Promise.all([
+      api.mcpStatus(workspace),
+      api.plugins(workspace),
+      api.skills(workspace),
+      api.skillErrors(workspace).catch(() => []),
+    ])
+      .then(([nextMcps, nextPlugins, nextSkills, nextSkillErrors]) => {
         if (!live) return;
         setMcps(nextMcps ?? []);
         setPlugins(nextPlugins ?? []);
         setSkills(nextSkills ?? []);
+        setSkillErrors(nextSkillErrors ?? []);
         setError("");
       })
       .catch((cause) => {
@@ -71,19 +152,33 @@ export function ExtensionsSection({ workspace }: Props) {
     return () => window.clearInterval(timer);
   }, [workspace]);
 
-  const copyConfigPath = async () => {
+  const openConfigPath = async () => {
     if (!workspace) return;
     try {
       const config = await api.coreConfig(workspace);
-      if (!config.path) return;
-      await navigator.clipboard.writeText(config.path);
-      setNotice(t("configPathCopied"));
+      if (!config.path) {
+        setNotice(t("configPathUnavailable"));
+        window.setTimeout(() => setNotice(""), 1600);
+        return;
+      }
+      try {
+        await api.revealPath(config.path);
+        setNotice(t("openInFileManager"));
+      } catch {
+        await navigator.clipboard.writeText(config.path);
+        setNotice(t("configPathCopied"));
+      }
       window.setTimeout(() => setNotice(""), 1600);
     } catch {
       setNotice(t("configPathUnavailable"));
       window.setTimeout(() => setNotice(""), 1600);
     }
   };
+
+  const skillGroups = SKILL_GROUPS.map((group) => ({
+    ...group,
+    items: skills.filter((skill) => (skill.source || "global") === group.source),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -101,7 +196,29 @@ export function ExtensionsSection({ workspace }: Props) {
             {t("availableAll")}
           </span>
           {tab === "skills" ? (
-            <span className="text-body font-[440] leading-4 text-text-muted">{t("howToAddSkills")}</span>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={!workspace || refreshing}
+                onClick={() => void refreshSkills()}
+                className="px-0 text-body font-[440] text-text-accent hover:text-text-accent/80"
+              >
+                {refreshing ? "…" : t("refresh")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={!workspace}
+                onClick={() => setSkillDialog({ create: true })}
+                className="px-0 text-body font-[440] text-text-accent hover:text-text-accent/80"
+              >
+                {t("newSkill")}
+              </Button>
+              <span className="text-body font-[440] leading-4 text-text-muted">{t("howToAddSkills")}</span>
+            </div>
           ) : (
             <div className="flex items-center gap-3">
               {tab === "mcps" && (
@@ -121,7 +238,7 @@ export function ExtensionsSection({ workspace }: Props) {
                 variant="ghost"
                 size="xs"
                 disabled={!workspace}
-                onClick={() => void copyConfigPath()}
+                onClick={() => (onOpenConfigFile ? onOpenConfigFile() : void openConfigPath())}
                 className="px-0 text-body font-[440] text-text-accent hover:text-text-accent/80"
               >
                 {t("manageConfig")}
@@ -136,48 +253,113 @@ export function ExtensionsSection({ workspace }: Props) {
           </p>
         )}
 
+        {tab === "skills" && skillErrors.length > 0 && (
+          <div
+            role="alert"
+            className="flex flex-col gap-1 rounded-md border border-border-base bg-bg-layer-01 px-3 py-2 text-caption leading-5 text-state-fg-danger"
+          >
+            {skillErrors.map((item) => (
+              <div key={`${item.url}:${item.error}`} className="flex items-start gap-2">
+                <p className="min-w-0 flex-1 break-all">
+                  {item.url ? `${item.url}: ` : ""}
+                  {item.error}
+                </p>
+                {item.url && (
+                  <button
+                    type="button"
+                    disabled={refreshingSource === item.url}
+                    onClick={() => void refreshSource(item.url)}
+                    className="interactive shrink-0 text-text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {refreshingSource === item.url ? "…" : t("retry")}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="overflow-hidden rounded-lg bg-bg-layer-01 px-4 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
           {tab === "mcps" &&
-            mcps.map((server) => (
-              <div
-                key={server.name}
-                className="flex min-h-14 items-center justify-between gap-3 border-b-[0.5px] border-border-base py-4 last:border-0"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Icon art="mcp" className="size-4 shrink-0 text-icon-muted" />
-                  <div className="flex min-w-0 flex-col">
-                    <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">
-                      {server.name}
-                    </span>
-                    {server.error && (
-                      <span className="min-w-0 truncate text-caption leading-4 text-state-fg-danger">
-                        {server.error}
+            mcps.map((server) => {
+              const enabled = server.status !== "disabled";
+              const busy = acting === server.name || server.status === "pending";
+              return (
+                <div
+                  key={server.name}
+                  className="flex min-h-14 items-center justify-between gap-3 border-b-[0.5px] border-border-base py-4 last:border-0"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      server.status === "failed" ? setErrorServer(server) : setSelectedMCP(server.name)
+                    }
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <Icon art="mcp" className="size-4 shrink-0 text-icon-muted" />
+                    <div className="flex min-w-0 flex-col">
+                      <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">
+                        {server.name}
                       </span>
+                      <span
+                        className={`min-w-0 truncate text-caption leading-4 ${
+                          server.status === "failed"
+                            ? "text-state-fg-danger"
+                            : "text-text-muted"
+                        }`}
+                      >
+                        {server.error ||
+                          (server.status === "connected"
+                            ? t("connected")
+                            : server.status === "failed"
+                              ? t("mcpFailed")
+                              : server.status === "needs_auth"
+                                ? t("mcpNeedsAuth")
+                                : server.status === "disabled"
+                                  ? t("mcpDisabled")
+                                  : t("starting"))}
+                      </span>
+                    </div>
+                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        server.status === "connected"
+                          ? "bg-state-fg-success"
+                          : server.status === "failed"
+                            ? "bg-state-fg-danger"
+                            : server.status === "needs_auth"
+                              ? "bg-state-fg-warning"
+                              : "bg-text-faint"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    {server.status === "needs_auth" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setAuthServer(server.name)}
+                        className="px-0 text-body font-[440] text-text-accent hover:text-text-accent/80"
+                      >
+                        {t("mcpSignIn")}
+                      </Button>
+                    ) : (
+                      <Switch
+                        checked={enabled}
+                        disabled={busy}
+                        aria-label={`${server.name}: ${
+                          server.status === "connected" ? t("connected") : t("mcpDisabled")
+                        }`}
+                        onCheckedChange={(checked) =>
+                          void act(server.name, checked ? "reconnect" : "disconnect")
+                        }
+                      />
                     )}
                   </div>
                 </div>
-                <span className="flex shrink-0 items-center gap-1.5 text-body font-[440] leading-4 text-text-muted">
-                  <span
-                    className={`size-1.5 rounded-full ${
-                      server.status === "connected"
-                        ? "bg-state-fg-success"
-                        : server.status === "failed"
-                          ? "bg-state-fg-danger"
-                          : "bg-state-fg-warning"
-                    }`}
-                  />
-                  {server.status === "connected"
-                    ? t("connected")
-                    : server.status === "failed"
-                      ? t("mcpFailed")
-                      : server.status === "needs_auth"
-                        ? t("mcpNeedsAuth")
-                        : server.status === "disabled"
-                          ? t("mcpDisabled")
-                          : t("starting")}
-                </span>
-              </div>
-            ))}
+              );
+            })}
 
           {tab === "plugins" &&
             plugins.map((plugin) => (
@@ -187,21 +369,66 @@ export function ExtensionsSection({ workspace }: Props) {
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <Icon art="cube" className="size-4 shrink-0 text-icon-muted" />
-                  <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">{plugin.name}</span>
+                  {plugin.status === "failed" && (
+                    <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-state-fg-danger" />
+                  )}
+                  <div className="flex min-w-0 flex-col">
+                    <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">
+                      {plugin.name}
+                    </span>
+                    {plugin.error && (
+                      <span className="min-w-0 truncate text-caption leading-4 text-state-fg-danger">
+                        {plugin.error}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <span className="shrink-0 text-caption text-text-faint">
+                  {[
+                    plugin.tools.length ? `${plugin.tools.length} tools` : "",
+                    plugin.commands.length ? `${plugin.commands.length} commands` : "",
+                    plugin.panels.length ? `${plugin.panels.length} panels` : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={!workspace}
+                  onClick={() => (onOpenConfigFile ? onOpenConfigFile() : setConfigFileOpen(true))}
+                  className="shrink-0 px-0 text-caption text-text-accent hover:text-text-accent/80"
+                >
+                  {t("manageConfig")}
+                </Button>
               </div>
             ))}
 
           {tab === "skills" &&
-            skills.map((skill) => (
-              <div
-                key={skill.id}
-                className="flex min-h-14 items-center justify-between gap-3 border-b-[0.5px] border-border-base py-4 last:border-0"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Icon art="post-skill" className="size-4 shrink-0 text-icon-muted" />
-                  <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">{skill.name}</span>
+            skillGroups.map((group) => (
+              <div key={group.source} className="border-b-[0.5px] border-border-base last:border-0">
+                <div className="flex items-center justify-between gap-2 py-2">
+                  <span className="text-caption font-[530] text-text-faint">{t(group.label)}</span>
+                  <button
+                    type="button"
+                    disabled={refreshing || !workspace}
+                    onClick={() => void refreshSkills()}
+                    className="interactive px-0 text-caption text-text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {refreshing ? "…" : t("refresh")}
+                  </button>
                 </div>
+                {group.items.map((skill) => (
+                  <SkillRow
+                    key={skill.id}
+                    skill={skill}
+                    onSelect={() => {
+                      if (skill.path && onOpenSkillFile) onOpenSkillFile(skill.path);
+                      else setSkillDialog({ id: skill.id });
+                    }}
+                  />
+                ))}
               </div>
             ))}
 
@@ -225,6 +452,77 @@ export function ExtensionsSection({ workspace }: Props) {
             .catch(() => undefined);
         }}
       />
+      <MCPDialog
+        open={selectedMCP !== undefined}
+        workspace={workspace}
+        server={selectedMCP}
+        onOpenChange={(open) => {
+          if (!open) setSelectedMCP(undefined);
+        }}
+      />
+      <SkillsDialog
+        open={skillDialog !== undefined}
+        workspace={workspace}
+        skillID={skillDialog?.id}
+        create={skillDialog?.create}
+        onOpenChange={(open) => {
+          if (!open) setSkillDialog(undefined);
+        }}
+      />
+      <MCPAuthDialog
+        open={authServer !== undefined}
+        workspace={workspace}
+        server={authServer}
+        onOpenChange={(open) => {
+          if (!open) setAuthServer(undefined);
+        }}
+        onAuthorized={(next) => {
+          replaceMCP(next);
+          setAuthServer(undefined);
+        }}
+      />
+      <MCPErrorDialog
+        open={errorServer !== undefined}
+        workspace={workspace}
+        server={errorServer}
+        onOpenChange={(open) => {
+          if (!open) setErrorServer(undefined);
+        }}
+        onChanged={(next) => {
+          replaceMCP(next);
+          if (next.status === "failed") setErrorServer(next);
+        }}
+      />
+      <ConfigFileDialog open={configFileOpen} onOpenChange={setConfigFileOpen} />
     </div>
+  );
+}
+
+function SkillRow({ skill, onSelect }: { skill: SkillSummary; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      title={skill.path}
+      className="interactive flex min-h-14 w-full items-center justify-between gap-3 border-b-[0.5px] border-border-base py-4 text-left last:border-0"
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <Icon art="post-skill" className="size-4 shrink-0 text-icon-muted" />
+        <div className="flex min-w-0 flex-col">
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">{skill.name}</span>
+            {skill.autoinvoke === false && (
+              <span className="shrink-0 text-caption text-text-faint">{t("manualInvoke")}</span>
+            )}
+          </span>
+          {skill.description && (
+            <span className="min-w-0 truncate text-caption leading-4 text-text-muted">{skill.description}</span>
+          )}
+          {skill.path && (
+            <span className="min-w-0 truncate font-mono text-caption leading-4 text-text-faint">{skill.path}</span>
+          )}
+        </div>
+      </div>
+    </button>
   );
 }

@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { MoreHorizontal } from "@lingzhu/ui/icons";
 import { Keybind } from "@lingzhu/ui/keybind";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lingzhu/ui/tooltip";
@@ -51,6 +51,8 @@ interface Props {
   reserveEnd?: boolean;
   /** Header end inset: 10px beside vertical tabs, 12px beside the horizontal strip. */
   endInset?: number;
+  /** Summary control rendered before the session menu and context ring. */
+  summary?: ReactNode;
 }
 
 /** A slash separating two segments of the breadcrumb. */
@@ -265,6 +267,7 @@ export function SessionHeader({
   /** Reserves the trailing slot the floating review toggle occupies. */
   reserveEnd,
   endInset = 12,
+  summary,
 }: Props) {
   return (
     <div className="flex h-12 shrink-0 items-center gap-1.5 ps-2.5" style={{ paddingInlineEnd: endInset }}>
@@ -285,6 +288,7 @@ export function SessionHeader({
       <div className="flex shrink-0 items-center gap-2">
         {actions.length > 0 && <SessionMenu actions={actions} />}
         {context && <SessionContextButton {...context} />}
+        {summary}
         {reserveEnd && <div className="size-7 shrink-0" aria-hidden="true" />}
       </div>
     </div>

@@ -1,5 +1,8 @@
 export type SidePanelTabID = "review" | "files" | "details" | "plugins" | `file:${string}`;
 
+/** Virtual file tab that renders the app's raw configuration file. */
+export const CONFIG_FILE_TAB = "config:lingzhu.json";
+
 /**
  * The fixed views the add-tab menu offers; file tabs are opened from the file
  * panes. Context and Terminal are gone: the header context ring and the bottom

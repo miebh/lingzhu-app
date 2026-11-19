@@ -30,6 +30,25 @@ const tool = (id: string, name: string, argumentsJson = "{}", extra: Partial<Tim
 });
 
 describe("tool timeline parity", () => {
+  test("an MCP tool card shows its server and raw tool name", async () => {
+    render(
+      <TooltipProvider>
+        <Messages
+          detail="everything"
+          chat={chat([
+            tool("1", "github_search", '{"query":"x"}', {
+              metadata: { mcpServer: "github", mcpTool: "search" },
+            }),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Called `search`")).toBeTruthy());
+    expect(screen.getByText("github · x")).toBeTruthy();
+    expect(document.querySelector('[data-slot="basic-tool-tool-icon"]')).toBeTruthy();
+  });
+
   test("an interrupted tool renders as cancelled, not an error", async () => {
     render(
       <TooltipProvider>

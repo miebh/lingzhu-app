@@ -619,6 +619,13 @@ func (s *CoreService) RefreshSkills(workspace string) error {
 	})
 }
 
+// RefreshSkillSource retries one remote skill source.
+func (s *CoreService) RefreshSkillSource(workspace, sourceURL string) error {
+	return doClient(s, workspace, func(client *core.Client) error {
+		return client.RefreshSkillSource(s.ctx, sourceURL)
+	})
+}
+
 // MCPStatus lists configured MCP servers with their status and catalogs.
 func (s *CoreService) MCPStatus(workspace string) ([]core.MCPServer, error) {
 	return callClient(s, workspace, func(client *core.Client) ([]core.MCPServer, error) {

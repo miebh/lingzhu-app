@@ -16,11 +16,12 @@ interface Props {
   open: boolean;
   workspace?: string;
   name?: string;
+  server?: string;
   onOpenChange: (open: boolean) => void;
 }
 
 /** Connected MCP servers with their discovered tools and resources. */
-export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
+export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props) {
   const tr = useT();
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [selected, setSelected] = useState<string>();
@@ -42,7 +43,7 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState("");
   const [signingIn, setSigningIn] = useState("");
-  const [auth, setAuth] = useState<{ server: string; state: string; code: string }>();
+  const [auth, setAuth] = useState<{ server: string; state: string; code: string; url?: string }>();
 
   const load = async () => {
     if (!workspace) return;
@@ -51,9 +52,10 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
     try {
       const next = await api.mcpStatus(workspace);
       setServers(next);
-      setSelected((current) =>
-        current && next.some((item) => item.name === current) ? current : next[0]?.name,
-      );
+      setSelected((current) => {
+        if (server && next.some((item) => item.name === server)) return server;
+        return current && next.some((item) => item.name === current) ? current : next[0]?.name;
+      });
     } catch (err) {
       setServers([]);
       setSelected(undefined);
@@ -94,7 +96,7 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
       setEventsError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  }, [open, workspace, server]);
 
   const reconnect = async (server: string) => {
     if (!workspace) return;
@@ -133,7 +135,7 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
     setSigningIn(server);
     try {
       const started = await api.startMCPAuth(workspace, server);
-      setAuth({ server, state: started.state, code: "" });
+      setAuth({ server, state: started.state, code: "", url: started.url });
       window.open(started.url, "_blank", "noopener,noreferrer");
       setNotice(`Opened the authorization page for ${server}.`);
       setError("");
@@ -147,14 +149,27 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
 
   const completeAuth = async () => {
     if (!workspace || !auth) return;
-    const code = auth.code.trim();
-    if (!code) {
+    const pasted = auth.code.trim();
+    if (!pasted) {
       setError("Authorization code is required.");
       return;
     }
+    // A pasted redirect URL carries the code and state; a bare code keeps the
+    // state saved when sign-in started.
+    let code = pasted;
+    let state = auth.state;
+    try {
+      const parsed = new URL(pasted);
+      const nextCode = parsed.searchParams.get("code")?.trim() ?? "";
+      const nextState = parsed.searchParams.get("state")?.trim() ?? "";
+      if (nextCode) code = nextCode;
+      if (nextState) state = nextState;
+    } catch {
+      // Not a URL; use the raw authorization code.
+    }
     setSigningIn(auth.server);
     try {
-      await api.exchangeMCPAuth(workspace, auth.server, code, auth.state);
+      await api.exchangeMCPAuth(workspace, auth.server, code, state);
       setNotice(`Authorized ${auth.server}.`);
       setAuth(undefined);
       await load();
@@ -441,6 +456,16 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
                       onChange={(event) => setAuth({ ...auth, code: event.target.value })}
                       className="min-w-40 flex-1 select-text font-mono"
                     />
+                    {auth.url && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => window.open(auth.url, "_blank", "noopener,noreferrer")}
+                      >
+                        {tr("mcpAuthOpen")}
+                      </Button>
+                    )}
                     <Button type="button" size="xs" disabled={signingIn === current.name} onClick={() => void completeAuth()}>
                       {tr("mcpAuthComplete")}
                     </Button>

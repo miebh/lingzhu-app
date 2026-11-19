@@ -6,7 +6,7 @@ import { Input } from "@lingzhu/ui/input";
 import { Textarea } from "@lingzhu/ui/textarea";
 import { api } from "../lib/api";
 import { messageOf } from "../lib/errors";
-import type { SkillDetail, SkillSummary } from "@lingzhu/ui/types";
+import type { FileContent, SkillDetail, SkillSummary } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
 import { useT } from "@lingzhu/ui/i18n";
@@ -16,21 +16,27 @@ interface Props {
   workspace?: string;
   sessionID?: string;
   title?: string;
+  /** One skill to select when the dialog opens. */
+  skillID?: string;
+  /** Opens the create form instead of selecting a skill. */
+  create?: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 /** Starts one discovered skill as a new turn with optional arguments. */
-export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function SkillsDialog({ open, workspace, sessionID, title, skillID, create, onOpenChange }: Props) {
   const tr = useT();
   const [skills, setSkills] = useState<SkillSummary[]>([]);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(skillID ?? "");
   const [args, setArgs] = useState("");
   const [detail, setDetail] = useState<SkillDetail>();
   const [detailLoading, setDetailLoading] = useState(false);
+  const [preview, setPreview] = useState<FileContent & { error?: string }>();
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [sourceErrors, setSourceErrors] = useState<{ url: string; error: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(Boolean(create));
   const [newID, setNewID] = useState("");
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -54,7 +60,7 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
     }
   };
 
-  const load = async (rescan = false) => {
+  const load = async (rescan = false, preferred?: string) => {
     if (!workspace) return;
     setLoading(true);
     try {
@@ -62,7 +68,8 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
       const [next, errors] = await Promise.all([api.skills(workspace), api.skillErrors(workspace)]);
       setSkills(next);
       setSourceErrors(errors);
-      const selected = name || next[0]?.id || "";
+      const wanted = (preferred ?? name).trim();
+      const selected = (wanted && next.some((skill) => skill.id === wanted) ? wanted : "") || next[0]?.id || "";
       setName(selected);
       setError("");
       if (selected) await loadDetail(selected);
@@ -75,6 +82,7 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
 
   const selectSkill = (id: string) => {
     setName(id);
+    setPreview(undefined);
     void loadDetail(id);
   };
 
@@ -125,7 +133,9 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
 
   useEffect(() => {
     if (open) {
-      void load(false);
+      setName(skillID ?? "");
+      setCreating(Boolean(create));
+      void load(false, skillID);
       // The core watches skill roots; poll the catalog so new or removed
       // skills appear without closing the dialog.
       const timer = window.setInterval(() => {
@@ -141,6 +151,7 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
     setName("");
     setArgs("");
     setDetail(undefined);
+    setPreview(undefined);
     setSourceErrors([]);
     setError("");
     setNotice("");
@@ -150,7 +161,41 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
     setNewName("");
     setNewDescription("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  }, [open, workspace, skillID, create]);
+
+  const openPreview = async (path: string) => {
+    if (!workspace || !path) return;
+    setPreview(undefined);
+    setPreviewLoading(true);
+    try {
+      const file = await api.fileContent(workspace, path);
+      setPreview(file);
+      setError("");
+    } catch (err) {
+      setPreview({
+        path,
+        content: "",
+        truncated: false,
+        binary: false,
+        size: 0,
+        error: messageOf(err),
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const reveal = async (path: string) => {
+    if (!path) return;
+    try {
+      await api.revealPath(path);
+      setNotice(`Opened ${path}`);
+      setError("");
+    } catch (err) {
+      setNotice("");
+      setError(messageOf(err));
+    }
+  };
 
   const invoke = async () => {
     if (!workspace || !sessionID) return;
@@ -255,6 +300,9 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
                   <span className="flex items-center gap-2">
                     <span className="text-body text-text-base">{skill.name || skill.id}</span>
                     <span className="font-mono text-caption text-text-faint">{skill.id}</span>
+                    {skill.autoinvoke === false && (
+                      <span className="text-caption text-text-faint">manual</span>
+                    )}
                   </span>
                   {skill.description && (
                     <span className="text-caption text-text-faint">{skill.description}</span>
@@ -290,7 +338,14 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
                 <p className="mt-1 text-caption text-text-faint">{detail.description}</p>
               )}
               {detail?.path && (
-                <p className="mt-1 break-all font-mono text-caption text-text-faint">{detail.path}</p>
+                <button
+                  type="button"
+                  onClick={() => void openPreview(detail.path)}
+                  className="interactive mt-1 block max-w-full break-all text-left font-mono text-caption text-text-faint hover:text-text-base"
+                  title={detail.path}
+                >
+                  {detail.path}
+                </button>
               )}
               {detailLoading && <p className="mt-2 text-meta text-text-faint">Loading…</p>}
               {detail?.files && detail.files.length > 0 && (
@@ -298,12 +353,15 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
                   <p className="text-caption text-text-faint">Files</p>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {detail.files.map((file) => (
-                      <span
+                      <button
                         key={file}
-                        className="rounded border border-border-base px-1 py-0.5 font-mono text-caption text-text-muted"
+                        type="button"
+                        onClick={() => void openPreview(file)}
+                        title={file}
+                        className="interactive rounded border border-border-base px-1 py-0.5 font-mono text-caption text-text-muted hover:text-text-base"
                       >
                         {file.split(/[\\/]/).pop()}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -313,6 +371,41 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
                 {detail?.content || "Select a skill to preview its instructions."}
               </pre>
             </div>
+
+            {(previewLoading || preview) && (
+              <div className="rounded-md border border-border-base bg-bg-layer-01 p-2">
+                <div className="flex items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate font-mono text-caption text-text-muted">
+                    {preview?.path || "Loading…"}
+                  </p>
+                  {preview?.path && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => void reveal(preview.path)}
+                    >
+                      {tr("revealInFileExplorer")}
+                    </Button>
+                  )}
+                  <Button type="button" variant="ghost" size="xs" onClick={() => setPreview(undefined)}>
+                    Close
+                  </Button>
+                </div>
+                {previewLoading ? (
+                  <p className="mt-2 text-meta text-text-faint">Loading…</p>
+                ) : preview?.error ? (
+                  <p className="mt-2 text-caption text-state-fg-danger">{preview.error}</p>
+                ) : preview?.binary ? (
+                  <p className="mt-2 text-meta text-text-faint">Binary file ({preview.size} bytes).</p>
+                ) : (
+                  <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5 text-text-muted select-text">
+                    {preview?.content || "Empty file."}
+                    {preview?.truncated ? "\n\n[truncated]" : ""}
+                  </pre>
+                )}
+              </div>
+            )}
 
             <label className="flex flex-col gap-1 text-caption text-text-faint">
               {tr("dialogSkillNameOrId")}

@@ -1411,6 +1411,8 @@ export interface PluginCapabilities {
 
 export interface PluginStatus {
   name: string;
+  status?: "connected" | "failed" | string;
+  error?: string;
   capabilities: PluginCapabilities;
   tools: PluginTool[];
   commands: string[];
@@ -1453,8 +1455,15 @@ export interface QuestionOption {
 export interface QuestionPrompt {
   question: string;
   header: string;
+  title?: string;
   options: QuestionOption[];
   multiple?: boolean;
+  /** Set for MCP elicitation fields; empty for model-facing questions. */
+  kind?: "text" | "number" | "integer" | "boolean" | "select" | "multiselect" | "external";
+  placeholder?: string;
+  format?: string;
+  url?: string;
+  required?: boolean;
 }
 
 export interface QuestionRequest {
@@ -1593,6 +1602,10 @@ export interface SkillSummary {
   id: string;
   name: string;
   description?: string;
+  directory?: string;
+  path?: string;
+  autoinvoke?: boolean;
+  source?: "project" | "global" | "remote" | string;
 }
 
 export interface SkillDetail extends SkillSummary {

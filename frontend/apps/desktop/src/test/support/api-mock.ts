@@ -83,6 +83,7 @@ export const api = {
       resources: [],
     })),
     refreshSkills: vi.fn(async () => {}),
+    refreshSkillSource: vi.fn(async () => {}),
     callMCPTool: vi.fn(async () => ({ content: [{ type: "text", text: "mcp-ok" }], isError: false })),
     callPluginTool: vi.fn(async () => ({ output: "plugin-ok", content: [], isError: false })),
     sessionTerminals: vi.fn(async () => [
@@ -133,5 +134,6 @@ export const api = {
     removeWorktree: vi.fn(async () => undefined),
     project: vi.fn(async () => ({ directory: ".", name: "Project", sessions: 0, vcs: null })),
     coreConfig: vi.fn(async () => ({ maxSteps: 16, shell: [] as string[] })),
+    readConfigFile: vi.fn(async () => ({ path: "/config/lingzhu.json", content: "{}" })),
     updateCoreConfig: vi.fn(async () => undefined),
 };

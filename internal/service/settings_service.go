@@ -15,6 +15,27 @@ import (
 	"lingzhu-app/internal/version"
 )
 
+// ConfigFile is the raw app configuration file shown by the client.
+type ConfigFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// ReadConfigFile returns the raw configuration file for a read-only viewer.
+func (s *CoreService) ReadConfigFile() (ConfigFile, error) {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+	path := s.configFilePath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ConfigFile{Path: path}, nil
+		}
+		return ConfigFile{}, err
+	}
+	return ConfigFile{Path: path, Content: string(data)}, nil
+}
+
 // syncGatewayConfig reconciles gateway-backed providers once before cores
 // start, so the first prompt resolves the gateway's current models.
 func (s *CoreService) syncGatewayConfig() {

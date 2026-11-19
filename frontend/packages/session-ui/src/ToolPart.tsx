@@ -13,6 +13,7 @@ import {
   Code,
   ChevronsUpDown,
   ChevronRight,
+  Plug,
   SquareArrow,
   TriangleAlert,
 } from "@lingzhu/ui/icons";
@@ -270,6 +271,7 @@ function matchCount(tool: ToolRun, output: string): number | undefined {
 
 interface BasicToolProps {
   id?: string;
+  icon?: ReactNode;
   title?: string;
   titleNode?: ReactNode;
   trigger?: ReactNode | ((open: boolean) => ReactNode);
@@ -372,6 +374,11 @@ export function BasicTool(props: BasicToolProps) {
             ) : (
               <div data-slot="basic-tool-tool-info-structured">
                 <div data-slot="basic-tool-tool-info-main">
+                  {props.icon && (
+                    <span data-slot="basic-tool-tool-icon" className="shrink-0 self-center text-text-faint">
+                      {props.icon}
+                    </span>
+                  )}
                   {props.titleNode ?? (
                     <span data-slot="basic-tool-tool-title">
                       <TextShimmer text={props.title ?? ""} active={pending} />
@@ -2065,11 +2072,16 @@ function GenericTool({ tool }: { tool: ToolRun }) {
   const tr = useT();
   const args = parseArgs(tool.arguments);
   const label = toolSubtitle(tool, args);
+  const server = typeof tool.metadata?.mcpServer === "string" ? tool.metadata.mcpServer : "";
+  const rawName =
+    typeof tool.metadata?.mcpTool === "string" && tool.metadata.mcpTool ? tool.metadata.mcpTool : tool.name;
+  const detail = [server, label].filter(Boolean).join(" · ");
   return (
     <BasicTool
       id={`generic:${tool.id}`}
-      title={tr("toolCalled", { name: tool.name })}
-      subtitle={label}
+      icon={server ? <Plug className="size-3.5" /> : undefined}
+      title={tr("toolCalled", { name: rawName })}
+      subtitle={detail}
       args={genericArgs(args)}
       pending={!tool.done}
     />

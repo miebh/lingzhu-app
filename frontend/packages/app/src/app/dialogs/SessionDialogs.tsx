@@ -41,6 +41,8 @@ interface SessionDialogComponentProps {
   workspace?: string;
   sessionID?: string;
   title?: string;
+  skillID?: string;
+  create?: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -58,6 +60,8 @@ const SessionSlot = ({
       workspace={entry?.props.workspace}
       sessionID={entry?.props.sessionID}
       title={entry?.props.title}
+      skillID={entry?.props.skillID}
+      create={entry?.props.createSkill}
       onOpenChange={dismissDialog(id)}
     />
   );

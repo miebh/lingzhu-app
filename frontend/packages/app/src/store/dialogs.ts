@@ -7,6 +7,10 @@ export interface SessionDialogTarget {
   workspace: string;
   sessionID: string;
   title: string;
+  /** One skill to select when the skills dialog opens. */
+  skillID?: string;
+  /** Opens the skills dialog in its create form. */
+  createSkill?: boolean;
 }
 
 /**
@@ -31,7 +35,7 @@ export type DialogEntry =
   | { id: "services"; props: { path: string } }
   | { id: "core"; props: { path: string } }
   | { id: "core-models"; props: { path: string } }
-  | { id: "mcp"; props: { path: string } }
+  | { id: "mcp"; props: { path: string; server?: string } }
   | { id: "plugins"; props: { path: string } }
   | { id: "search"; props: { path: string } }
   | { id: "live-events"; props: { path: string } }

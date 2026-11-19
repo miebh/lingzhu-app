@@ -1,4 +1,5 @@
 import { SettingsPage } from "../../../components/settings/SettingsPage";
+import { CONFIG_FILE_TAB } from "../../../lib/sidePanel";
 import { restartWorkspace } from "../../../lib/shellActions";
 import { useShell } from "../../ShellProvider";
 import { useAnyChatRunning } from "../../hooks";
@@ -7,6 +8,7 @@ import { useAnyChatRunning } from "../../hooks";
 export function SettingsPane() {
   const shell = useShell();
   const { view, activeWorkspace, homeWorkspace, workspaceList, preferences, dialogs } = shell;
+  const activeId = shell.activeId;
   const running = useAnyChatRunning();
 
   return (
@@ -31,6 +33,22 @@ export function SettingsPane() {
         onAddWorkspace={() => void shell.workspaceActions.connect()}
         onRemoveWorkspace={dialogs.setRemoveWorkspaceTarget}
         onRestartWorkspace={restartWorkspace}
+        onOpenSkillFile={
+          activeId
+            ? (path) => {
+                shell.panel.openFileInPanel(path);
+                view.closeSettings();
+              }
+            : undefined
+        }
+        onOpenConfigFile={
+          activeId
+            ? () => {
+                shell.panel.openFileInPanel(CONFIG_FILE_TAB);
+                view.closeSettings();
+              }
+            : undefined
+        }
       />
     </div>
   );

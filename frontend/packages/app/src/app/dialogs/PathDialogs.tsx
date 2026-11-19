@@ -41,6 +41,7 @@ interface PathDialogProps {
   open: boolean;
   workspace?: string;
   name?: string;
+  server?: string;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -54,6 +55,7 @@ const PathSlot = ({
   const shell = useShell();
   const entry = useDialogEntry(id);
   const path = entry?.props.path;
+  const server = entry && "server" in entry.props ? entry.props.server : undefined;
   const resolved = shell.workspaceList.find((workspace) => workspace.path === path)?.name;
 
   return (
@@ -61,6 +63,7 @@ const PathSlot = ({
       open={entry !== undefined}
       workspace={path}
       name={resolved ?? (path ? workspaceName(path) : undefined)}
+      server={server}
       onOpenChange={dismissDialog(id)}
     />
   );

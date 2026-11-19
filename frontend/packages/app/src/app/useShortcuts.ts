@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { SideTab } from "../lib/sessionTabs";
-import { effectiveKeybinds, matchesKeybind } from "../lib/keybinds";
+import { effectiveKeybinds, matchesKeybind, SESSION_SUMMARY_EVENT } from "../lib/keybinds";
 import { cycleAgentID } from "../lib/slash";
 import type { AgentProfile, AppPreferences } from "@lingzhu/ui/types";
 import { useChatStore } from "../store/chat";
@@ -195,6 +195,12 @@ export function useShortcuts(options: Options) {
         if (!hasActive) return;
         event.preventDefault();
         setPanelOpen((value) => !value);
+        return;
+      }
+      if (matchesKeybind(event, keybinds["session.summary"])) {
+        if (!hasActive) return;
+        event.preventDefault();
+        window.dispatchEvent(new Event(SESSION_SUMMARY_EVENT));
         return;
       }
       if (matchesKeybind(event, keybinds["tab.next"]) || matchesKeybind(event, keybinds["tab.previous"])) {

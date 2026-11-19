@@ -1,4 +1,6 @@
 /** One rebindable global command. The default uses the reference shell's bindings. */
+export const SESSION_SUMMARY_EVENT = "lingzhu:session-summary";
+
 export interface KeybindAction {
   id: string;
   label: string;
@@ -15,6 +17,7 @@ export const KEYBIND_ACTIONS: KeybindAction[] = [
   { id: "tab.next", label: "Next tab", group: "Session", defaultKeybind: "ctrl+tab" },
   { id: "tab.previous", label: "Previous tab", group: "Session", defaultKeybind: "ctrl+shift+tab" },
   { id: "panel.review", label: "Toggle review panel", group: "Session", defaultKeybind: "mod+shift+r" },
+  { id: "session.summary", label: "Session details", group: "Session", defaultKeybind: "mod+shift+y" },
   { id: "sidebar.toggle", label: "Toggle sidebar", group: "General", defaultKeybind: "mod+shift+b" },
   { id: "home.toggle", label: "Home", group: "General", defaultKeybind: "mod+b" },
   { id: "palette", label: "Command palette", group: "General", defaultKeybind: "mod+k" },

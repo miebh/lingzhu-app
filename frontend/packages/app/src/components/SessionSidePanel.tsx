@@ -37,7 +37,7 @@ import { fileStatusLetter, fileStatusTone } from "@lingzhu/ui/status";
 import { sessionChanges } from "@lingzhu/session-ui/timeline";
 import { useT } from "@lingzhu/ui/i18n";
 import { formatTokens } from "@lingzhu/ui/format";
-import { isFilePanelTab, SIDE_PANEL_TAB_IDS, type SidePanelTab, type SidePanelTabID } from "../lib/sidePanel";
+import { isFilePanelTab, CONFIG_FILE_TAB, SIDE_PANEL_TAB_IDS, type SidePanelTab, type SidePanelTabID } from "../lib/sidePanel";
 import {
   CHAT_PANEL_WIDTH_MIN,
   PANEL_ROW_GAP,
@@ -1484,12 +1484,24 @@ function FileViewer({ workspace, path }: { workspace: string; path: string }) {
   const [content, setContent] = useState<FileContent>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const configFile = path === CONFIG_FILE_TAB;
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      setContent(await api.fileContent(workspace, path));
+      if (configFile) {
+        const file = await api.readConfigFile();
+        setContent({
+          path: file.path,
+          content: file.content,
+          truncated: false,
+          binary: false,
+          size: file.content.length,
+        });
+      } else {
+        setContent(await api.fileContent(workspace, path));
+      }
     } catch (cause) {
       setError(messageOf(cause));
       setContent(undefined);
@@ -1504,14 +1516,16 @@ function FileViewer({ workspace, path }: { workspace: string; path: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace, path]);
 
+  const title = configFile ? "lingzhu.json" : path;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-border-base px-3 py-1.5">
         <FileText className="size-3.5 shrink-0 text-text-faint" />
-        <span className="min-w-0 flex-1 truncate font-mono text-meta text-text-base" title={path}>
-          {path}
+        <span className="min-w-0 flex-1 truncate font-mono text-meta text-text-base" title={title}>
+          {title}
         </span>
-        <CopyButton text={path} label="Copy path" />
+        <CopyButton text={configFile ? content?.path ?? path : path} label="Copy path" />
         <button
           type="button"
           aria-label={tr("reloadFile")}

@@ -121,7 +121,10 @@ export function useDialogBindings() {
       setServicesTarget: path("services"),
       setCoreTarget: path("core"),
       setCoreModelsTarget: path("core-models"),
-      setMCPTarget: path("mcp"),
+      setMCPTarget: (value?: string, server?: string) => {
+        if (value === undefined) close("mcp");
+        else open({ id: "mcp", props: { path: value, server } });
+      },
       setPluginsTarget: path("plugins"),
       setSearchTarget: path("search"),
       setLiveEventsTarget: path("live-events"),

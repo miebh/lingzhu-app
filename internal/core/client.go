@@ -302,6 +302,8 @@ type PluginTool struct {
 // PluginStatus is one connected plugin with its tools and commands.
 type PluginStatus struct {
 	Name         string             `json:"name"`
+	Status       string             `json:"status,omitempty"`
+	Error        string             `json:"error,omitempty"`
 	Capabilities PluginCapabilities `json:"capabilities"`
 	Tools        []PluginTool       `json:"tools"`
 	Commands     []string           `json:"commands"`
@@ -325,6 +327,10 @@ type SkillSummary struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	Directory   string `json:"directory,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Autoinvoke  bool   `json:"autoinvoke"`
+	Source      string `json:"source,omitempty"`
 }
 
 // SkillSourceError is one remote skill source that failed to load.
@@ -1771,6 +1777,11 @@ func (c *Client) SkillErrors(ctx context.Context) ([]SkillSourceError, error) {
 // RefreshSkills rescans local roots and retries remote skill sources.
 func (c *Client) RefreshSkills(ctx context.Context) error {
 	return c.do(ctx, http.MethodPost, "/skills/refresh", nil, nil)
+}
+
+// RefreshSkillSource retries one remote skill source.
+func (c *Client) RefreshSkillSource(ctx context.Context, sourceURL string) error {
+	return c.do(ctx, http.MethodPost, "/skills/refresh", map[string]string{"url": sourceURL}, nil)
 }
 
 // MCPStatus lists configured MCP servers with their status and catalogs.
