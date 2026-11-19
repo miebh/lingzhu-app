@@ -584,10 +584,24 @@ func (s *CoreService) Skills(workspace string) ([]core.SkillSummary, error) {
 	})
 }
 
-// MCPStatus lists connected MCP servers with tools and resources.
+// RefreshSkills rescans local roots and retries remote skill sources.
+func (s *CoreService) RefreshSkills(workspace string) error {
+	return doClient(s, workspace, func(client *core.Client) error {
+		return client.RefreshSkills(s.ctx)
+	})
+}
+
+// MCPStatus lists configured MCP servers with their status and catalogs.
 func (s *CoreService) MCPStatus(workspace string) ([]core.MCPServer, error) {
 	return callClient(s, workspace, func(client *core.Client) ([]core.MCPServer, error) {
 		return client.MCPStatus(s.ctx)
+	})
+}
+
+// ReconnectMCP retries one failed MCP server.
+func (s *CoreService) ReconnectMCP(workspace, server string) (core.MCPServer, error) {
+	return callClient(s, workspace, func(client *core.Client) (core.MCPServer, error) {
+		return client.ReconnectMCP(s.ctx, server)
 	})
 }
 

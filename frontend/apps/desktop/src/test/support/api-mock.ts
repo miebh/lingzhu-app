@@ -42,8 +42,20 @@ export const api = {
       },
     ]),
     mcpStatus: vi.fn(async () => [
-      { name: "demo-mcp", tools: [{ name: "search", effective: "demo-mcp_search" }], resources: [] },
+      {
+        name: "demo-mcp",
+        status: "connected",
+        tools: [{ name: "search", effective: "demo-mcp_search" }],
+        resources: [],
+      },
     ]),
+    reconnectMCP: vi.fn(async (_workspace: string, server: string) => ({
+      name: server,
+      status: "connected",
+      tools: [],
+      resources: [],
+    })),
+    refreshSkills: vi.fn(async () => {}),
     callMCPTool: vi.fn(async () => ({ content: [{ type: "text", text: "mcp-ok" }], isError: false })),
     callPluginTool: vi.fn(async () => ({ output: "plugin-ok", content: [], isError: false })),
     sessionTerminals: vi.fn(async () => [

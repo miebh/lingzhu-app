@@ -132,7 +132,9 @@ export const api = {
     args: Record<string, unknown>,
   ): Promise<PluginToolResult> => call.CallPluginTool(workspace, plugin, name, args),
   skills: (workspace: string): Promise<SkillSummary[]> => call.Skills(workspace),
+  refreshSkills: (workspace: string): Promise<void> => call.RefreshSkills(workspace),
   mcpStatus: (workspace: string): Promise<MCPServer[]> => call.MCPStatus(workspace),
+  reconnectMCP: (workspace: string, server: string): Promise<MCPServer> => call.ReconnectMCP(workspace, server),
   readMCPResource: (workspace: string, server: string, uri: string): Promise<MCPResourceContent[]> =>
     call.ReadMCPResource(workspace, server, uri),
   callMCPTool: (workspace: string, server: string, name: string, args: Record<string, unknown>): Promise<MCPToolResult> =>

@@ -1319,6 +1319,8 @@ export interface MCPResourceContent {
 
 export interface MCPServer {
   name: string;
+  status: "connected" | "failed" | "disabled" | "pending" | string;
+  error?: string;
   tools: MCPServerTool[];
   resources: MCPServerResource[];
 }
@@ -1342,6 +1344,9 @@ export interface MCPToolContent {
   data?: string;
   mimeType?: string;
   uri?: string;
+  name?: string;
+  description?: string;
+  resource?: MCPResourceContent;
 }
 
 export interface MCPToolResult {

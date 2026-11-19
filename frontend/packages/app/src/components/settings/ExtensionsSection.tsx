@@ -114,11 +114,34 @@ export function ExtensionsSection({ workspace }: Props) {
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <Icon art="mcp" className="size-4 shrink-0 text-icon-muted" />
-                  <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">{server.name}</span>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="min-w-0 truncate text-body font-[530] leading-4 text-text-base">
+                      {server.name}
+                    </span>
+                    {server.error && (
+                      <span className="min-w-0 truncate text-caption leading-4 text-state-fg-danger">
+                        {server.error}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <span className="flex shrink-0 items-center gap-1.5 text-body font-[440] leading-4 text-text-muted">
-                  <span className="size-1.5 rounded-full bg-state-fg-success" />
-                  {t("connected")}
+                  <span
+                    className={`size-1.5 rounded-full ${
+                      server.status === "connected"
+                        ? "bg-state-fg-success"
+                        : server.status === "failed"
+                          ? "bg-state-fg-danger"
+                          : "bg-state-fg-warning"
+                    }`}
+                  />
+                  {server.status === "connected"
+                    ? t("connected")
+                    : server.status === "failed"
+                      ? t("mcpFailed")
+                      : server.status === "disabled"
+                        ? t("mcpDisabled")
+                        : t("starting")}
                 </span>
               </div>
             ))}

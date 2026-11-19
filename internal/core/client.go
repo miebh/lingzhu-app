@@ -342,20 +342,25 @@ type MCPServerResource struct {
 	MimeType    string `json:"mimeType,omitempty"`
 }
 
-// MCPServer is one connected MCP server.
+// MCPServer is one configured MCP server and its current status.
 type MCPServer struct {
 	Name      string              `json:"name"`
+	Status    string              `json:"status"`
+	Error     string              `json:"error,omitempty"`
 	Tools     []MCPServerTool     `json:"tools"`
 	Resources []MCPServerResource `json:"resources"`
 }
 
 // MCPToolContent is one part returned by tools/call.
 type MCPToolContent struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	Data     string `json:"data,omitempty"`
-	MimeType string `json:"mimeType,omitempty"`
-	URI      string `json:"uri,omitempty"`
+	Type        string            `json:"type"`
+	Text        string            `json:"text,omitempty"`
+	Data        string            `json:"data,omitempty"`
+	MimeType    string            `json:"mimeType,omitempty"`
+	URI         string            `json:"uri,omitempty"`
+	Name        string            `json:"name,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Resource    *MCPServerContent `json:"resource,omitempty"`
 }
 
 // MCPToolResult is the response to one MCP tool call.
@@ -1701,13 +1706,27 @@ func (c *Client) Skills(ctx context.Context) ([]SkillSummary, error) {
 	return payload.Skills, err
 }
 
-// MCPStatus lists connected MCP servers with tools and resources.
+// RefreshSkills rescans local roots and retries remote skill sources.
+func (c *Client) RefreshSkills(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/skills/refresh", nil, nil)
+}
+
+// MCPStatus lists configured MCP servers with their status and catalogs.
 func (c *Client) MCPStatus(ctx context.Context) ([]MCPServer, error) {
 	var payload struct {
 		Servers []MCPServer `json:"servers"`
 	}
 	err := c.do(ctx, http.MethodGet, "/mcp", nil, &payload)
 	return payload.Servers, err
+}
+
+// ReconnectMCP retries one failed MCP server.
+func (c *Client) ReconnectMCP(ctx context.Context, server string) (MCPServer, error) {
+	var payload struct {
+		Server MCPServer `json:"server"`
+	}
+	err := c.do(ctx, http.MethodPost, "/mcp/"+url.PathEscape(server)+"/reconnect", nil, &payload)
+	return payload.Server, err
 }
 
 // CallMCPTool invokes one tool on a connected MCP server.

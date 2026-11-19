@@ -30,10 +30,11 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const load = async () => {
+  const load = async (rescan = false) => {
     if (!workspace) return;
     setLoading(true);
     try {
+      if (rescan) await api.refreshSkills(workspace);
       const next = await api.skills(workspace);
       setSkills(next);
       setName((current) => current || next[0]?.id || "");
@@ -47,7 +48,7 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
 
   useEffect(() => {
     if (open) {
-      void load();
+      void load(false);
     } else {
       setSkills([]);
       setName("");
@@ -93,7 +94,7 @@ export function SkillsDialog({ open, workspace, sessionID, title, onOpenChange }
               {skills.length} discovered
             </DialogDescription>
           </div>
-          <RefreshButton loading={loading} onRefresh={() => void load()} />
+          <RefreshButton loading={loading} onRefresh={() => void load(true)} />
         </div>
 
         <ErrorBanner error={error} />

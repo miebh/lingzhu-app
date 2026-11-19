@@ -36,6 +36,7 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
   const [toolError, setToolError] = useState("");
   const [toolInvocation, setToolInvocation] = useState<{ name: string; args: unknown }>();
   const [notice, setNotice] = useState("");
+  const [reconnecting, setReconnecting] = useState("");
 
   const load = async () => {
     if (!workspace) return;
@@ -73,9 +74,26 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
       setToolError("");
       setToolInvocation(undefined);
       setNotice("");
+      setReconnecting("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, workspace]);
+
+  const reconnect = async (server: string) => {
+    if (!workspace) return;
+    setReconnecting(server);
+    try {
+      await api.reconnectMCP(workspace, server);
+      setNotice(`Reconnected ${server}`);
+      setError("");
+      await load();
+    } catch (err) {
+      setNotice("");
+      setError(messageOf(err));
+    } finally {
+      setReconnecting("");
+    }
+  };
 
   const selectServer = (server: string) => {
     setSelected(server);
@@ -176,7 +194,17 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const current = servers.find((item) => item.name === selected);
+  const connectedCount = servers.filter((item) => item.status === "connected").length;
   const toolCount = servers.reduce((sum, item) => sum + item.tools.length, 0);
+  const currentConnected = current?.status === "connected";
+  const statusText = (status: string) =>
+    status === "connected"
+      ? tr("connected")
+      : status === "failed"
+        ? tr("mcpFailed")
+        : status === "disabled"
+          ? tr("mcpDisabled")
+          : tr("starting");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,7 +217,8 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
             </DialogTitle>
             <DialogDescription className="truncate">
               {name ? `${name} · ` : ""}
-              {servers.length} connected · {toolCount} tool{toolCount === 1 ? "" : "s"}
+              {connectedCount} connected · {servers.length} configured · {toolCount} tool
+              {toolCount === 1 ? "" : "s"}
             </DialogDescription>
           </div>
           <RefreshButton loading={loading} onRefresh={() => void load()} />
@@ -217,9 +246,20 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
                   }`}
                 >
                   <span className="w-full truncate">{server.name}</span>
-                  <span className="w-full truncate text-caption text-text-faint">
-                    {server.tools.length} tool{server.tools.length === 1 ? "" : "s"} ·{" "}
-                    {server.resources.length} resource{server.resources.length === 1 ? "" : "s"}
+                  <span
+                    className={`w-full truncate text-caption ${
+                      server.status === "failed"
+                        ? "text-state-fg-danger"
+                        : server.status === "connected"
+                          ? "text-text-faint"
+                          : "text-state-fg-warning"
+                    }`}
+                  >
+                    {server.status === "connected"
+                      ? `${server.tools.length} tool${server.tools.length === 1 ? "" : "s"} · ${server.resources.length} resource${
+                          server.resources.length === 1 ? "" : "s"
+                        }`
+                      : statusText(server.status)}
                   </span>
                 </button>
               ))
@@ -233,12 +273,41 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
               </p>
             ) : (
               <>
-                <div className="border-b border-border-base px-3 py-1.5">
-                  <p className="text-body text-text-base">{current.name}</p>
-                  <p className="text-caption text-text-faint">
-                    tool names are namespaced in the model as the effective name
-                  </p>
+                <div className="flex items-start gap-2 border-b border-border-base px-3 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-body text-text-base">{current.name}</p>
+                    <p
+                      className={`text-caption ${
+                        current.status === "failed"
+                          ? "text-state-fg-danger"
+                          : current.status === "connected"
+                            ? "text-text-faint"
+                            : "text-state-fg-warning"
+                      }`}
+                    >
+                      {statusText(current.status)}
+                      {current.error ? ` · ${current.error}` : ""}
+                    </p>
+                  </div>
+                  {current.status === "failed" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={reconnecting === current.name}
+                      onClick={() => void reconnect(current.name)}
+                    >
+                      {reconnecting === current.name ? tr("mcpReconnecting") : tr("mcpReconnect")}
+                    </Button>
+                  )}
                 </div>
+                {!currentConnected && (
+                  <p className="border-b border-border-base px-3 py-2 text-meta text-text-faint">
+                    The server is not connected. Reconnect it to browse tools and resources.
+                  </p>
+                )}
+                {currentConnected && (
+                  <>
                 <div className="border-b border-border-base px-3 py-2">
                   <p className="text-caption text-text-faint">Tools</p>
                   {current.tools.length === 0 ? (
@@ -383,8 +452,10 @@ export function MCPDialog({ open, workspace, name, onOpenChange }: Props) {
                     </div>
                   )}
                 </div>
+                  </>
+                )}
 
-                {contents && (
+                {currentConnected && contents && (
                   <div className="border-t border-border-base">
                     <div className="flex items-center gap-2 px-3 py-1.5 text-caption text-text-faint">
                       <span className="min-w-0 flex-1 truncate font-mono">{contentURI}</span>
