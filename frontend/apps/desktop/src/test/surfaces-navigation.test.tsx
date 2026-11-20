@@ -3,15 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
 import { CommandPalette } from "@/components/shell/CommandPalette";
-import { InboxList } from "@/components/shell/InboxList";
 import { HomeDashboard } from "@/components/home/HomeDashboard";
-import { TopTabs } from "@/components/shell/TopTabs";
 import { MobileDrawer } from "@/components/shell/MobileDrawer";
 import { SessionHeader } from "@/components/session/SessionHeader";
 import { SideTabs } from "@/components/shell/SideTabs";
 import { setLanguage } from "@lingzhu/ui/i18n";
 import type { PaletteCommand } from "@/lib/palette";
-import type { InboxEntry } from "@lingzhu/ui/types";
 
 const { api: mockApi } = await vi.hoisted(async () => await import("./support/api-mock"));
 vi.mock("@/lib/api", () => ({ api: mockApi }));
@@ -45,40 +42,6 @@ describe("navigation surfaces", () => {
     await userEvent.type(input, "review");
     await userEvent.keyboard("{Enter}");
     expect(runReview).toHaveBeenCalledTimes(1);
-  });
-
-  test("inbox groups sessions and opens one", async () => {
-    const onOpen = vi.fn();
-    const entries: InboxEntry[] = [
-      { key: "n", workspace: ".", sessionID: "n", title: "Needs one", workspaceName: "Project", status: "needs", updated: "2026-01-01" },
-      { key: "w", workspace: ".", sessionID: "w", title: "Working one", workspaceName: "Project", status: "working", updated: "2026-01-02" },
-      { key: "r", workspace: ".", sessionID: "r", title: "Ready one", workspaceName: "Project", status: "ready", updated: "2026-01-03" },
-    ];
-    render(<InboxList entries={entries} onOpen={onOpen} />);
-    expect(screen.getByText("Needs attention")).toBeTruthy();
-    expect(screen.getByText("Working")).toBeTruthy();
-    expect(screen.getByText("Recent")).toBeTruthy();
-    await userEvent.click(screen.getByText("Needs one"));
-    expect(onOpen).toHaveBeenCalledWith(entries[0]);
-  });
-
-  test("top tabs omit settings and select a chat", async () => {
-    const onSelect = vi.fn();
-    render(
-      <TopTabs
-        tabs={[
-          { key: "chat", label: "Chat one", kind: "chat", closable: true },
-          { key: "settings", label: "Settings", kind: "settings", closable: true },
-        ]}
-        activeKey="chat"
-        onSelect={onSelect}
-        onClose={() => undefined}
-        onNew={() => undefined}
-      />,
-    );
-    expect(screen.queryByRole("tab", { name: "Settings" })).toBeNull();
-    await userEvent.click(screen.getByRole("tab", { name: /Chat one/ }));
-    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ key: "chat" }));
   });
 
   test("mobile drawer switches tabs and closes", async () => {
@@ -336,21 +299,6 @@ describe("navigation surfaces", () => {
     await userEvent.click(screen.getByRole("button", { name: "lingzhu" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "lingzhu" }));
     expect(onOpenProjectHome).toHaveBeenCalledTimes(1);
-  });
-
-  test("top tabs close a chat tab", async () => {
-    const onClose = vi.fn();
-    render(
-      <TopTabs
-        tabs={[{ key: "chat", label: "Chat one", kind: "chat", closable: true }]}
-        activeKey="chat"
-        onSelect={() => undefined}
-        onClose={onClose}
-        onNew={() => undefined}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Close Chat one" }));
-    expect(onClose).toHaveBeenCalledWith(expect.objectContaining({ key: "chat" }));
   });
 
   test("home dashboard lists projects and opens a session", async () => {

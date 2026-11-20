@@ -421,24 +421,14 @@ export type TimelineDetailPreset = "everything" | "detailed" | "compact" | "quie
 export type TimelineDetailInput = TimelineDetail | TimelineDetailPreset;
 
 export interface AppearancePreferences {
-  fontFamily: string;
-  /** Font for code blocks and inline code. */
-  codeFont: string;
-  /** Font for the terminal surface. */
-  terminalFont: string;
-  /** Named UI theme. */
-  themeName: string;
   density: "comfortable" | "compact";
   /** UI zoom percentage, 80–150. */
   zoom: number;
   timelineWidth: "focused" | "comfortable" | "wide";
-  reduceMotion: "system" | "on" | "off";
   /** Follow the OS, or pin the color scheme. */
   theme: "system" | "dark" | "light";
   /** UI language. */
   language: "en" | "zh";
-  /** Top tab strip, the vertical side-tab rail, or the session inbox. */
-  tabLayout: "horizontal" | "vertical" | "inbox";
   /** Vertical rail shows open tabs only, or the project/session tree below them. */
   sidebarOrganize: "list" | "projects";
   timelineDetail: TimelineDetail;
@@ -1013,19 +1003,6 @@ export interface ImageStatus {
   model: string;
   size: string;
 }
-
-/** One row of the session inbox, grouped by its status. */
-export interface InboxEntry {
-  key: string;
-  workspace: string;
-  sessionID: string;
-  title: string;
-  workspaceName: string;
-  status: InboxStatus;
-  updated: string;
-}
-
-export type InboxStatus = "needs" | "working" | "failed" | "ready";
 
 export interface InboxItem {
   id: string;

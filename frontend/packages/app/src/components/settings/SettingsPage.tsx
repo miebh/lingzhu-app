@@ -6,7 +6,6 @@ import {
   GitBranch,
   Info,
   Keyboard,
-  Palette,
   Plug,
   Providers,
   Server,
@@ -19,7 +18,6 @@ import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
 import type { AppInfo, AppPreferences, ProviderSettings, WorkspaceInfo } from "@lingzhu/ui/types";
 import { AboutSection } from "./AboutSection";
-import { AppearanceSection } from "./AppearanceSection";
 import { ExtensionsSection } from "./ExtensionsSection";
 import { GeneralSection } from "./GeneralSection";
 import { ModelsSection } from "./ModelsSection";
@@ -58,7 +56,6 @@ const GROUPS: { label?: string; items: SectionItem[] }[] = [
   {
     items: [
       { id: "general", label: "General", description: "settingsGeneralDesc", icon: SlidersHorizontal },
-      { id: "appearance", label: "Appearance", description: "Theme, type and motion on this machine.", icon: Palette },
       { id: "notifications", label: "Notifications", description: "settingsNotificationsDesc", icon: Bell },
       { id: "shortcuts", label: "Shortcuts", description: "settingsShortcutsDesc", icon: Keyboard },
       { id: "servers", label: "Servers", description: "Local cores, permissions and execution limits.", icon: Server },
@@ -370,9 +367,6 @@ export function SettingsPage({
                   <div className={`w-full pb-20 ${sectioned ? "pt-8" : "pt-6"}`}>
                     {item.id === "general" && (
                       <GeneralSection preferences={{ preferences, save: savePreferences }} />
-                    )}
-                    {item.id === "appearance" && (
-                      <AppearanceSection preferences={{ preferences, save: savePreferences }} />
                     )}
                     {item.id === "experimental" && (
                       <ExperimentalSection preferences={{ preferences, save: savePreferences }} />

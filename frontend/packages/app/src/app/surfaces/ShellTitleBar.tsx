@@ -1,31 +1,21 @@
 import { TitleBar } from "../../components/shell/TitleBar";
-import { TopTabs } from "../../components/shell/TopTabs";
 import { useShell } from "../ShellProvider";
-import { useTopTabsProps } from "../useTabStripProps";
 
-/** Window chrome: menu, Home/Search, window controls and the horizontal tab strip. */
+/** Window chrome: menu, sidebar toggle, window controls and session navigation. */
 export function ShellTitleBar() {
   const shell = useShell();
-  const topTabs = useTopTabsProps();
-  const { view, mobile, resolvedLayout, keybinds, chatActions, activeWorkspace } = shell;
-  const horizontal = resolvedLayout === "horizontal";
+  const { view, mobile, keybinds, chatActions, activeWorkspace } = shell;
 
   return (
     <TitleBar
       sidebarOpen={shell.sidebarOpen}
-      onToggleSidebar={
-        mobile || horizontal ? undefined : () => shell.setSidebarOpen((value) => !value)
-      }
+      onToggleSidebar={mobile ? undefined : () => shell.setSidebarOpen((value) => !value)}
       onOpenDrawer={mobile ? () => shell.setMobileDrawerOpen(true) : undefined}
       onOpenSettings={() => view.openSettings()}
       onOpenPalette={() => shell.dialogs.setPaletteOpen(true)}
       onNewSession={() => {
         if (activeWorkspace) void chatActions.newChat(activeWorkspace.path);
       }}
-      onHome={horizontal && !mobile ? () => view.showHome() : undefined}
-      onSearch={horizontal && !mobile ? () => shell.dialogs.setPaletteOpen(true) : undefined}
-      homeActive={view.tab === "chat" && view.homeOpen}
-      searchKeybind={keybinds.palette}
       sidebarKeybind={keybinds["sidebar.toggle"]}
       onPreviousTab={() => {
         if (shell.tabs.sideTabs.length < 2) return;
@@ -41,8 +31,6 @@ export function ShellTitleBar() {
         if (index < 0) return;
         shell.tabs.selectSideTab(shell.tabs.sideTabs[(index + 1) % shell.tabs.sideTabs.length]);
       }}
-    >
-      {horizontal && !mobile && <TopTabs {...topTabs} />}
-    </TitleBar>
+    />
   );
 }

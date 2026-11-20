@@ -16,14 +16,6 @@ const (
 	timelineComfortable = "comfortable"
 	timelineWide        = "wide"
 
-	motionSystem = "system"
-	motionOn     = "on"
-	motionOff    = "off"
-
-	layoutHorizontal = "horizontal"
-	layoutVertical   = "vertical"
-	layoutInbox      = "inbox"
-
 	organizeProjects = "projects"
 	organizeList     = "list"
 
@@ -37,17 +29,11 @@ const (
 
 // Appearance controls the client look without changing core configuration.
 type Appearance struct {
-	FontFamily      string         `json:"fontFamily"`
-	CodeFont        string         `json:"codeFont"`
-	TerminalFont    string         `json:"terminalFont"`
-	ThemeName       string         `json:"themeName"`
 	Density         string         `json:"density"`
 	Zoom            int            `json:"zoom"`
 	TimelineWidth   string         `json:"timelineWidth"`
-	ReduceMotion    string         `json:"reduceMotion"`
 	Theme           string         `json:"theme"`
 	Language        string         `json:"language"`
-	TabLayout       string         `json:"tabLayout"`
 	SidebarOrganize string         `json:"sidebarOrganize"`
 	TimelineDetail  TimelineDetail `json:"timelineDetail"`
 }
@@ -140,17 +126,11 @@ func Default() Preferences {
 			Tones:       map[string]string{},
 		},
 		Appearance: Appearance{
-			FontFamily:      "",
-			CodeFont:        "",
-			TerminalFont:    "",
-			ThemeName:       "lingzhu",
 			Density:         densityComfortable,
 			Zoom:            100,
 			TimelineWidth:   timelineComfortable,
-			ReduceMotion:    motionSystem,
 			Theme:           themeSystem,
 			Language:        languageEnglish,
-			TabLayout:       layoutVertical,
 			SidebarOrganize: organizeList,
 			TimelineDetail:  defaultTimelineDetail(),
 		},
@@ -268,24 +248,8 @@ func Normalize(prefs Preferences) Preferences {
 	default:
 		prefs.BackgroundActivity = defaults.BackgroundActivity
 	}
-	prefs.Appearance.FontFamily = strings.TrimSpace(prefs.Appearance.FontFamily)
 	if prefs.Appearance.Zoom < 80 || prefs.Appearance.Zoom > 150 {
 		prefs.Appearance.Zoom = defaults.Appearance.Zoom
-	}
-	if len(prefs.Appearance.FontFamily) > 256 {
-		prefs.Appearance.FontFamily = prefs.Appearance.FontFamily[:256]
-	}
-	prefs.Appearance.CodeFont = strings.TrimSpace(prefs.Appearance.CodeFont)
-	if len(prefs.Appearance.CodeFont) > 256 {
-		prefs.Appearance.CodeFont = prefs.Appearance.CodeFont[:256]
-	}
-	prefs.Appearance.TerminalFont = strings.TrimSpace(prefs.Appearance.TerminalFont)
-	if len(prefs.Appearance.TerminalFont) > 256 {
-		prefs.Appearance.TerminalFont = prefs.Appearance.TerminalFont[:256]
-	}
-	prefs.Appearance.ThemeName = strings.TrimSpace(prefs.Appearance.ThemeName)
-	if prefs.Appearance.ThemeName == "" {
-		prefs.Appearance.ThemeName = defaults.Appearance.ThemeName
 	}
 	switch prefs.Appearance.Density {
 	case densityCompact, densityComfortable:
@@ -297,11 +261,6 @@ func Normalize(prefs Preferences) Preferences {
 	default:
 		prefs.Appearance.TimelineWidth = defaults.Appearance.TimelineWidth
 	}
-	switch prefs.Appearance.ReduceMotion {
-	case motionSystem, motionOn, motionOff:
-	default:
-		prefs.Appearance.ReduceMotion = defaults.Appearance.ReduceMotion
-	}
 	switch prefs.Appearance.Theme {
 	case themeSystem, themeDark, themeLight:
 	default:
@@ -311,11 +270,6 @@ func Normalize(prefs Preferences) Preferences {
 	case languageEnglish, languageChinese:
 	default:
 		prefs.Appearance.Language = defaults.Appearance.Language
-	}
-	switch prefs.Appearance.TabLayout {
-	case layoutHorizontal, layoutVertical, layoutInbox:
-	default:
-		prefs.Appearance.TabLayout = defaults.Appearance.TabLayout
 	}
 	switch prefs.Appearance.SidebarOrganize {
 	case organizeProjects, organizeList:

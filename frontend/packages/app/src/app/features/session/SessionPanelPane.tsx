@@ -6,10 +6,10 @@ import { modelWindow } from "../../../lib/contextUsage";
 /** The context/review/files panel beside the transcript. */
 export function SessionPanelPane() {
   const shell = useShell();
-  const { view, activeWorkspace, panel, chatActions, resolvedLayout, providers } = shell;
+  const { view, activeWorkspace, panel, chatActions, providers } = shell;
   const active = useActiveChat();
   const atHome = useAtHome();
-  const endInset = resolvedLayout === "horizontal" ? 12 : 10;
+  const endInset = 10;
 
   return (
     <SessionSidePanel

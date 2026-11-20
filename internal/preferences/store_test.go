@@ -28,11 +28,10 @@ func TestGetMissingReturnsDefaults(t *testing.T) {
 	if got.Appearance.Density != "comfortable" || got.Appearance.TimelineWidth != "comfortable" {
 		t.Fatalf("unexpected defaults: %+v", got.Appearance)
 	}
-	if got.Appearance.ReduceMotion != "system" || got.AutoApprove {
+	if got.AutoApprove {
 		t.Fatalf("unexpected defaults: %+v", got)
 	}
 	if got.Appearance.SidebarOrganize != "list" ||
-		got.Appearance.TabLayout != "vertical" ||
 		got.Appearance.Language != "en" ||
 		got.Appearance.Theme != "system" {
 		t.Fatalf("unexpected appearance defaults: %+v", got.Appearance)
@@ -57,10 +56,8 @@ func TestSaveNormalizesAndRoundTrips(t *testing.T) {
 		DefaultWorkspace: "D:/code/project",
 		AutoApprove:      true,
 		Appearance: Appearance{
-			FontFamily:    "  Inter  ",
 			Density:       "dense",
 			TimelineWidth: "wide",
-			ReduceMotion:  "sometimes",
 		},
 	}
 	if err := store.Save(want); err != nil {
@@ -70,17 +67,11 @@ func TestSaveNormalizesAndRoundTrips(t *testing.T) {
 	if got.DefaultWorkspace != want.DefaultWorkspace || !got.AutoApprove {
 		t.Fatalf("round trip lost scalar values: %+v", got)
 	}
-	if got.Appearance.FontFamily != "Inter" {
-		t.Fatalf("font was not trimmed: %q", got.Appearance.FontFamily)
-	}
 	if got.Appearance.Density != "comfortable" {
 		t.Fatalf("invalid density was not normalized: %q", got.Appearance.Density)
 	}
 	if got.Appearance.TimelineWidth != "wide" {
 		t.Fatalf("valid timeline width was lost: %q", got.Appearance.TimelineWidth)
-	}
-	if got.Appearance.ReduceMotion != "system" {
-		t.Fatalf("invalid motion value was not normalized: %q", got.Appearance.ReduceMotion)
 	}
 }
 

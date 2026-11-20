@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Grid2x2Plus, LayoutLeft, LayoutLeftFull, Menu, Search } from "@lingzhu/ui/icons";
+import { LayoutLeft, LayoutLeftFull, Menu } from "@lingzhu/ui/icons";
 import { System, Events, Window } from "@wailsio/runtime";
 import { Keybind } from "@lingzhu/ui/keybind";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lingzhu/ui/tooltip";
@@ -27,18 +27,10 @@ interface Props {
   onOpenSettings?: () => void;
   onOpenPalette?: () => void;
   onNewSession?: () => void;
-  /** Horizontal layout's Home and Search entries, matching the reference titlebar cluster. */
-  onHome?: () => void;
-  onSearch?: () => void;
-  /** Home is the active route; the trigger keeps the pressed overlay. */
-  homeActive?: boolean;
-  searchKeybind?: string;
   sidebarKeybind?: string;
   /** Go menu's session navigation, wired to the same tab cycling as Ctrl+Tab. */
   onPreviousTab?: () => void;
   onNextTab?: () => void;
-  /** Horizontal tab strip, rendered inside the chrome row like the reference. */
-  children?: ReactNode;
 }
 
 /**
@@ -54,14 +46,9 @@ export function TitleBar({
   onOpenSettings,
   onOpenPalette,
   onNewSession,
-  onHome,
-  onSearch,
-  homeActive,
-  searchKeybind,
   sidebarKeybind,
   onPreviousTab,
   onNextTab,
-  children,
 }: Props) {
   const tr = useT();
   const mac = System.IsMac();
@@ -159,7 +146,7 @@ export function TitleBar({
       }}
     >
       <div
-        className={`flex h-full min-w-0 items-center gap-1.5 ${children ? "shrink-0" : "flex-1"} ${mac ? "pl-[74px] pr-2" : "ps-[9px] pe-1.5"}`}
+        className={`flex h-full min-w-0 flex-1 items-center gap-1.5 ${mac ? "pl-[74px] pr-2" : "ps-[9px] pe-1.5"}`}
       >
         {onOpenDrawer && (
           <button
@@ -333,52 +320,7 @@ export function TitleBar({
             </TooltipContent>
           </Tooltip>
         )}
-        {(onHome || onSearch) && (
-          <div className="flex shrink-0 items-center gap-0.5">
-            {onHome && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    data-window-control
-                    aria-label={tr("home")}
-                    aria-pressed={Boolean(homeActive)}
-                    data-state={homeActive ? "pressed" : undefined}
-                    onClick={onHome}
-                    className="window-control interactive grid h-7 w-9 shrink-0 place-items-center rounded-[6px] px-1 text-text-faint hover:text-text-base"
-                  >
-                    <Grid2x2Plus className="size-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{tr("home")}</TooltipContent>
-              </Tooltip>
-            )}
-            {onSearch && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    data-window-control
-                    aria-label={tr("searchSessions")}
-                    onClick={onSearch}
-                    className="window-control interactive grid h-7 w-9 shrink-0 place-items-center rounded-[6px] px-1 text-text-faint hover:text-text-base"
-                  >
-                    <Search className="size-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <span className="flex items-center gap-1.5">
-                    {tr("searchSessions")}
-                    {searchKeybind && <Keybind keys={(formatKeybind(searchKeybind) ?? "").split("+")} />}
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        )}
       </div>
-
-      {children && <div className="flex h-full min-w-0 flex-1 items-center pe-3">{children}</div>}
 
       {!mac && (
         <div className="flex h-full shrink-0 items-start">

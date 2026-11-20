@@ -40,12 +40,8 @@ interface Props {
   /** Controlled rail width; the parent persists it alongside the title bar. */
   width?: number;
   onWidthChange?: (width: number) => void;
-  /** Horizontal renders only the embedded workspace sidebar, for the top-tabs layout. */
-  orientation?: "vertical" | "horizontal" | "inbox";
   /** Top inset under the window chrome: 1px on Windows, 8px on macOS. */
   topInset?: number;
-  /** Replaces the tab list with the session inbox. */
-  inbox?: ReactNode;
   children?: ReactNode;
 }
 
@@ -84,9 +80,7 @@ function SideTabsView({
   onReopenClosed,
   width: controlledWidth,
   onWidthChange,
-  orientation = "vertical",
   topInset = 8,
-  inbox,
   children,
 }: Props) {
   const buttons = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -168,7 +162,7 @@ function SideTabsView({
     observer.observe(element);
     for (const child of Array.from(element.children)) observer.observe(child);
     return () => observer.disconnect();
-  }, [Boolean(children), Boolean(inbox)]);
+  }, [Boolean(children)]);
 
   useEffect(() => {
     return () => window.clearTimeout(thumbIdle.current);
@@ -339,8 +333,6 @@ function SideTabsView({
     buttons.current[activeKey]?.scrollIntoView({ block: "nearest" });
   }, [activeKey]);
 
-  if (orientation === "horizontal") return <>{children}</>;
-
   const renderTab = (tab: SideTab) => {
     const selected = tab.key === activeKey && highlightActive;
     const rename = editing?.key === tab.key;
@@ -349,7 +341,6 @@ function SideTabsView({
         key={tab.key}
         data-active={selected ? "true" : undefined}
         data-kind={tab.kind}
-        data-orientation="vertical"
         data-dragging={dragKey === tab.key ? "true" : undefined}
         data-status={tab.status}
         data-editing={rename ? "true" : undefined}
@@ -603,9 +594,7 @@ function SideTabsView({
 
       <div className="h-4 shrink-0" aria-hidden="true" />
 
-      {inbox ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{inbox}</div>
-      ) : children ? (
+      {children ? (
         // Projects and the tab strip share one scroll column, as in the
         // reference organized sidebar; the strip follows the project rows
         // instead of being pinned to the rail's bottom edge.

@@ -1,7 +1,6 @@
 /** One page in the settings center, addressable from other parts of the app. */
 export type SettingsSectionID =
   | "general"
-  | "appearance"
   | "experimental"
   | "shortcuts"
   | "notifications"

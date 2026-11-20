@@ -24,7 +24,6 @@ interface Options {
   setHomeAgent: Dispatch<SetStateAction<string>>;
   sideTabs: SideTab[];
   activeSideTab?: string;
-  resolvedLayout: "horizontal" | "vertical" | "inbox";
   atHome: boolean;
   reopenClosedTab: () => void;
   openNewTab: () => void;
@@ -154,7 +153,6 @@ export function useShortcuts(options: Options) {
         hasActive,
         sideTabs,
         activeSideTab,
-        resolvedLayout,
         reopenClosedTab,
         openNewTab,
         closeSideTab,
@@ -164,7 +162,6 @@ export function useShortcuts(options: Options) {
       } = latest.current;
       const keybinds = effectiveKeybinds(preferences.keybinds);
       if (matchesKeybind(event, keybinds["sidebar.toggle"])) {
-        if (resolvedLayout === "horizontal") return;
         event.preventDefault();
         setSidebarOpen((value) => !value);
         return;

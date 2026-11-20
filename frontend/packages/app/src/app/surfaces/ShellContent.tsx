@@ -115,7 +115,7 @@ export function ShellContent() {
           {view.tab === "chat" && activeId && !atHome && (
             <div
               className="pointer-events-none absolute end-0 top-0 z-40 flex h-12 items-center"
-              style={{ paddingInlineEnd: shell.resolvedLayout === "horizontal" ? 12 : 10 }}
+              style={{ paddingInlineEnd: 10 }}
             >
               <SessionPanelToggle
                 open={shell.panel.panelOpen}
@@ -189,7 +189,7 @@ export function ShellContent() {
                         />
                       }
                       reserveEnd
-                      endInset={shell.resolvedLayout === "horizontal" ? 12 : 10}
+                      endInset={10}
                     />
                   }
                 />

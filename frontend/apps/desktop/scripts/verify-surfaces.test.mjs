@@ -23,7 +23,6 @@ import { isFilePanelTab } from "../../../packages/app/src/lib/sidePanel.ts";
 import { addPanelTab, closePanelTabState, reorderPanelTabs } from "../../../packages/app/src/lib/panelTabs.ts";
 import { sessionChanges, timelineRows } from "../../../packages/session-ui/src/timeline.ts";
 import { reasoningDuration, reasoningHeading } from "../../../packages/session-ui/src/reasoning.ts";
-import { effectiveTabLayout } from "../../../packages/app/src/lib/layout.ts";
 import { setLanguage, t } from "../../../packages/ui/src/i18n/index.ts";
 
 const sourceRoots = [

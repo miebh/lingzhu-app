@@ -27,7 +27,6 @@ export interface PaletteContext {
   activeSideTab?: string;
   revertCan: { undo: boolean; redo: boolean };
   preferences: AppPreferences;
-  savePreferences: (next: AppPreferences) => void | Promise<void>;
   view: { openSettings: () => void; showChat: () => void };
   workspaceActions: {
     connect: () => unknown;
@@ -72,7 +71,6 @@ export function buildPaletteCommands(ctx: PaletteContext, tr: Translate): Palett
     activeSideTab,
     revertCan,
     preferences,
-    savePreferences,
     view,
     workspaceActions,
     chatActions,
@@ -212,28 +210,7 @@ export function buildPaletteCommands(ctx: PaletteContext, tr: Translate): Palett
         if (tab?.closable) closeSideTab(tab);
       },
     },
-    {
-      id: "layout-top",
-      title: tr("paletteLayoutTop"),
-      group: tr("paletteGroupView"),
-      keywords: ["interface", "horizontal", "titlebar"],
-      run: () =>
-        void savePreferences({
-          ...preferences,
-          appearance: { ...preferences.appearance, tabLayout: "horizontal" },
-        }),
-    },
-    {
-      id: "layout-side",
-      title: tr("paletteLayoutSide"),
-      group: tr("paletteGroupView"),
-      keywords: ["interface", "vertical", "rail"],
-      run: () =>
-        void savePreferences({
-          ...preferences,
-          appearance: { ...preferences.appearance, tabLayout: "vertical" },
-        }),
-    },  ];
+  ];
 
   if (activeWorkspace) {
     const path = activeWorkspace.path;

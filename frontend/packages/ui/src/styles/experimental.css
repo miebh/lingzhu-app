@@ -1,8 +1,3 @@
-.terminal-font {
-  font-family: var(--font-terminal);
-}
-
-
 /* Experimental previews. */
 :root[data-new-icons="true"] svg path {
   stroke-width: 1.35;

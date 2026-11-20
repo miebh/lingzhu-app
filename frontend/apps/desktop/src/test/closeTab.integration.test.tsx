@@ -69,7 +69,7 @@ describe("closing the last session tab", () => {
     usePreferencesStore.setState({
       preferences: {
         ...defaultPreferences,
-        appearance: { ...defaultPreferences.appearance, tabLayout: "vertical", sidebarOrganize: "list" },
+        appearance: { ...defaultPreferences.appearance, sidebarOrganize: "list" },
       },
     });
   });

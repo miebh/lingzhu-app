@@ -10,8 +10,6 @@
   --font-mono:
     "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
-  --font-terminal: var(--font-mono);
-
   /* Weight ramp across Inter's variable axis: regular / medium / bold. */
   --font-weight-regular: 440;
   --font-weight-medium: 530;

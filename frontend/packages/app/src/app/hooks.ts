@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { chatKey } from "@lingzhu/ui/domain/chat";
-import { type InboxEntry } from "@lingzhu/ui/types";
 import {
   useChatMap,
   useChatStore,
@@ -13,7 +12,7 @@ import {
 import { useTabsStore } from "../store/tabs";
 import { useWorkspaceStore, useSessionsByWorkspace, useWorkspaces } from "../store/workspaces";
 import { usePreferences } from "../store/preferences";
-import { buildHomeRows, buildInboxEntries } from "./derive";
+import { buildHomeRows } from "./derive";
 import { unreadKeys } from "./useSeenSessions";
 
 export { useActiveChat, useActiveChatField, useAtHome, useAnyChatRunning, useChatMap };
@@ -50,26 +49,5 @@ export function useHomeRows() {
     () => buildHomeRows(sessions, useChatStore.getState().chats, workspaceList, preferences),
     [sessions, workspaceList, preferences, signature.join("\u0002")],
   );
-}
-
-/** Inbox rows plus the navigation used by the rail's inbox mode. */
-export function useInboxEntries() {
-  const sessions = useSessionsByWorkspace();
-  const signature = useChatStore(
-    useShallow((state) =>
-      Object.entries(state.chats).map(
-        ([key, chat]) => `${key}:${chat.title ?? ""}:${chat.running ? 1 : 0}:${chat.pending.length}:${chat.questions.length}:${chat.lastRunStatus ?? ""}`,
-      ),
-    ),
-  );
-  const entries: InboxEntry[] = useMemo(
-    () => buildInboxEntries(sessions, useChatStore.getState().chats),
-    [sessions, signature.join("\u0002")],
-  );
-  const open = (entry: InboxEntry) => {
-    useWorkspaceStore.getState().select(entry.workspace);
-    void useChatStore.getState().open(entry.workspace, entry.sessionID);
-  };
-  return { entries, open };
 }
 

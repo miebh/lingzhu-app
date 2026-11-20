@@ -1,6 +1,6 @@
 import { workspaceName } from "../lib/history";
 import { chatKey } from "@lingzhu/ui/domain/chat";
-import { type AppPreferences, type ChatState, type HomeSessionRow, type InboxEntry, type SessionInfo, type SessionLocation, type WorkspaceInfo } from "@lingzhu/ui/types";
+import { type AppPreferences, type ChatState, type HomeSessionRow, type SessionInfo, type SessionLocation, type WorkspaceInfo } from "@lingzhu/ui/types";
 
 /**
  * The parent chain for the session header, resolved from the loaded session
@@ -26,37 +26,6 @@ export function buildAncestors(
     id = info?.parent;
   }
   return chain;
-}
-
-/** Every session across connected workspaces, with its live status. */
-export function buildInboxEntries(
-  sessionsByWorkspace: Record<string, SessionInfo[]>,
-  chats: Record<string, ChatState>,
-): InboxEntry[] {
-  const entries: InboxEntry[] = [];
-  for (const [path, sessions] of Object.entries(sessionsByWorkspace)) {
-    for (const session of sessions ?? []) {
-      const chat = chats[chatKey(path, session.id)];
-      const status: InboxEntry["status"] =
-        chat && (chat.pending.length > 0 || chat.questions.length > 0)
-          ? "needs"
-          : chat?.running
-            ? "working"
-            : chat?.lastRunStatus === "failed"
-              ? "failed"
-              : "ready";
-      entries.push({
-        key: chatKey(path, session.id),
-        workspace: path,
-        sessionID: session.id,
-        title: chat?.title || session.title || "New session",
-        workspaceName: workspaceName(path),
-        status,
-        updated: session.updated ?? "",
-      });
-    }
-  }
-  return entries;
 }
 
 /** Home's recent list, named by the project overrides when present. */

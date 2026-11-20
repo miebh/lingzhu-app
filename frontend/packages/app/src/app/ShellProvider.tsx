@@ -5,7 +5,6 @@ import { useSessionActions } from "./useSessionActions";
 import { useSessionTabs } from "./useSessionTabs";
 import { useWorkspaceAgents } from "./useWorkspaceAgents";
 import { effectiveKeybinds } from "../lib/keybinds";
-import { effectiveTabLayout } from "../lib/layout";
 import { t } from "@lingzhu/ui/i18n";
 import { isFilePanelTab, CONFIG_FILE_TAB, type SidePanelTab, type SidePanelTabID } from "../lib/sidePanel";
 import { chatKey } from "@lingzhu/ui/domain/chat";
@@ -244,13 +243,7 @@ export function useShell() {
   // a plain hook called by every surface, so this lives in `useSessionPrefetch`
   // and runs once from `ShellBridges` instead of once per caller.
 
-  const activeSideTab = view.tab === "settings" ? "settings" : activeTabKey;  const tabLayout: "horizontal" | "vertical" | "inbox" =
-    preferences.appearance.tabLayout === "horizontal"
-      ? "horizontal"
-      : preferences.appearance.tabLayout === "inbox"
-        ? "inbox"
-        : "vertical";
-  const resolvedLayout = effectiveTabLayout(tabLayout, mobile);
+  const activeSideTab = view.tab === "settings" ? "settings" : activeTabKey;
   const keybinds = effectiveKeybinds(preferences.keybinds);
 
   const openProjectSettings = (path: string) => {
@@ -302,8 +295,6 @@ export function useShell() {
     tabs,
     sessionActions,
     activeSideTab,
-    tabLayout,
-    resolvedLayout,
     keybinds,
     quote,
     quoteMessage: quoteText,

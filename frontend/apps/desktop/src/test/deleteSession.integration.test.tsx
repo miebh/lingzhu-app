@@ -76,7 +76,7 @@ describe("the full session delete sequence", () => {
     usePreferencesStore.setState({
       preferences: {
         ...defaultPreferences,
-        appearance: { ...defaultPreferences.appearance, tabLayout: "vertical", sidebarOrganize: "list" },
+        appearance: { ...defaultPreferences.appearance, sidebarOrganize: "list" },
       },
     });
   });

@@ -209,17 +209,11 @@ type ModelSelection struct {
 
 // AppearancePreferences controls the client look without touching core config.
 type AppearancePreferences struct {
-	FontFamily      string                     `json:"fontFamily"`
-	CodeFont        string                     `json:"codeFont"`
-	TerminalFont    string                     `json:"terminalFont"`
-	ThemeName       string                     `json:"themeName"`
 	Density         string                     `json:"density"`
 	Zoom            int                        `json:"zoom"`
 	TimelineWidth   string                     `json:"timelineWidth"`
-	ReduceMotion    string                     `json:"reduceMotion"`
 	Theme           string                     `json:"theme"`
 	Language        string                     `json:"language"`
-	TabLayout       string                     `json:"tabLayout"`
 	SidebarOrganize string                     `json:"sidebarOrganize"`
 	TimelineDetail  preferences.TimelineDetail `json:"timelineDetail"`
 }

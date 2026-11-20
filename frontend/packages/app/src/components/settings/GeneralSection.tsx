@@ -8,13 +8,7 @@ interface Props {
   preferences: PreferencesScope;
 }
 
-const LAYOUTS = [
-  { id: "horizontal", label: "topTabs" },
-  { id: "vertical", label: "sideTabs" },
-  { id: "inbox", label: "inboxLayout" },
-] as const;
-
-/** Startup, language, layout, permissions and the tool shell, ordered like the reference. */
+/** Startup, color scheme, language, permissions and the tool shell. */
 export function GeneralSection({ preferences }: Props) {
   const prefs = preferences.preferences;
 
@@ -25,57 +19,17 @@ export function GeneralSection({ preferences }: Props) {
   return (
     <div className="flex flex-col gap-8">
       <SettingsSection title={t("general")} description={t("settingsGeneralDesc")}>
-        <SettingsRow
-          title={t("interfaceLayout")}
-          description={t("interfaceLayoutDesc")}
-          align="start"
-        >
-          <fieldset className="interface-mode" aria-label={t("interfaceLayout")}>
-            {LAYOUTS.map((mode) => (
-              <label
-                key={mode.id}
-                data-checked={prefs.appearance.tabLayout === mode.id ? "true" : undefined}
-                className="interface-mode-option"
-              >
-                <input
-                  type="radio"
-                  name="interface-layout"
-                  value={mode.id}
-                  checked={prefs.appearance.tabLayout === mode.id}
-                  onChange={() => saveAppearance({ tabLayout: mode.id })}
-                />
-                <span data-mode={mode.id} className="interface-mode-sketch" aria-hidden="true">
-                  {mode.id === "horizontal" ? (
-                    <span className="interface-mode-strip">
-                      {[0, 1, 2].map((index) => (
-                        <span key={index} data-active={index === 0 ? "true" : undefined} className="interface-mode-tab" />
-                      ))}
-                    </span>
-                  ) : mode.id === "inbox" ? (
-                    <span className="interface-mode-rail">
-                      {(["approval", "working", "done", "ready"] as const).map((status) => (
-                        <span key={status} data-inbox="true" data-active={status === "approval" ? "true" : undefined} className="interface-mode-tab">
-                          <i data-status={status} />
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    <span className="interface-mode-rail">
-                      {[0, 1, 2, 3].map((index) => (
-                        <span key={index} data-active={index === 0 ? "true" : undefined} className="interface-mode-tab" />
-                      ))}
-                    </span>
-                  )}
-                  <span className="interface-mode-page">
-                    <span className="interface-mode-line" />
-                    <span className="interface-mode-line" />
-                    <span className="interface-mode-composer" />
-                  </span>
-                </span>
-                <span className="interface-mode-name">{t(mode.label)}</span>
-              </label>
-            ))}
-          </fieldset>
+        <SettingsRow title={t("colorScheme")} description={t("colorSchemeDesc")}>
+          <SettingsSelect
+            label={t("colorScheme")}
+            value={prefs.appearance.theme}
+            options={[
+              { value: "system", label: t("system") },
+              { value: "dark", label: t("darkOption") },
+              { value: "light", label: t("lightOption") },
+            ]}
+            onChange={(value) => saveAppearance({ theme: value as typeof prefs.appearance.theme })}
+          />
         </SettingsRow>
         <SettingsRow title={t("languageLabel")} description={t("languageDesc")}>
           <SettingsSelect

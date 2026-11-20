@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
 import { SettingsNav, type SettingsSearchEntry } from "@/components/settings/SettingsNav";
-import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { GeneralSection } from "@/components/settings/GeneralSection";
 import { NotificationsSection } from "@/components/settings/NotificationsSection";
 import { ServersSection } from "@/components/settings/ServersSection";
@@ -22,41 +21,24 @@ vi.mock("@/lib/api", () => ({ api: mockApi }));
 describe("settings surfaces", () => {
   test("settings search reveals a row with the keyboard", async () => {
     const index: SettingsSearchEntry[] = [
-      { key: "appearance\u0000Theme", section: "appearance", sectionLabel: "Appearance", title: "Theme", keywords: "dark light" },
+      { key: "general\u0000Color scheme", section: "general", sectionLabel: "General", title: "Color scheme", keywords: "system dark light" },
     ];
     const reveal = vi.fn();
     const change = vi.fn();
     render(
       <SettingsNav
-        groups={[{ label: "Preferences", items: [{ id: "appearance", label: "Appearance", icon: () => null }] }]}
-        section="appearance"
+        groups={[{ label: "Preferences", items: [{ id: "general", label: "General", icon: () => null }] }]}
+        section="general"
         index={index}
         onSectionChange={change}
         onReveal={reveal}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Appearance" }));
-    expect(change).toHaveBeenCalledWith("appearance");
-    await userEvent.type(screen.getByLabelText("Search settings"), "theme");
+    await userEvent.click(screen.getByRole("button", { name: "General" }));
+    expect(change).toHaveBeenCalledWith("general");
+    await userEvent.type(screen.getByLabelText("Search settings"), "scheme");
     await userEvent.keyboard("{Enter}");
     expect(reveal).toHaveBeenCalledWith(index[0]);
-  });
-
-  test("settings appearance saves the font preference", async () => {
-    const save = vi.fn();
-    render(
-      <AppearanceSection
-        preferences={{
-          preferences: { ...defaultPreferences, appearance: { ...defaultPreferences.appearance } },
-          save,
-        }}
-      />,
-    );
-    const font = screen.getByLabelText("UI Font");
-    await userEvent.type(font, "Inter Test");
-    fireEvent.blur(font);
-    expect(save).toHaveBeenCalled();
-    expect(save.mock.calls[0][0].appearance.fontFamily).toBe("Inter Test");
   });
 
   test("notifications page saves each switch", async () => {
@@ -193,10 +175,10 @@ describe("settings surfaces", () => {
     expect(save.mock.calls[0][0].appearance.sidebarOrganize).toBe("projects");
   });
 
-  test("appearance theme control saves light mode", async () => {
+  test("general color scheme control saves light mode", async () => {
     const save = vi.fn();
     render(
-      <AppearanceSection
+      <GeneralSection
         preferences={{
           preferences: { ...defaultPreferences, appearance: { ...defaultPreferences.appearance } },
           save,
@@ -217,7 +199,7 @@ describe("settings surfaces", () => {
       />,
     );
     expect(screen.getByText("常规")).toBeTruthy();
-    expect(screen.getByText("界面布局")).toBeTruthy();
+    expect(screen.getByText("配色方案")).toBeTruthy();
     expect(screen.getByText("自动批准工具请求")).toBeTruthy();
     setLanguage("en");
   });

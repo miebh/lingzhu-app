@@ -1,21 +1,12 @@
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-reduce-motion="off"]) *,
-  :root:not([data-reduce-motion="off"]) *::before,
-  :root:not([data-reduce-motion="off"]) *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-:root[data-reduce-motion="on"] *,
-:root[data-reduce-motion="on"] *::before,
-:root[data-reduce-motion="on"] *::after {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
-  scroll-behavior: auto !important;
 }
 
 ::selection {

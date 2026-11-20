@@ -34,14 +34,12 @@ export function ShellSidebar() {
   const tabStrip = useTabStripProps();
   const tree = useProjectTreeProps();
 
-  // Horizontal and mobile layouts use their own tab strip / drawer, so the
-  // vertical rail is not part of the window at all in those modes.
-  if (shell.mobile || shell.resolvedLayout === "horizontal") return null;
+  // Narrow screens use the drawer instead of the docked rail.
+  if (shell.mobile) return null;
 
   return (
     <SidebarRail open={shell.sidebarOpen} {...tabStrip}>
-      {shell.resolvedLayout === "vertical" &&
-        shell.preferences.appearance.sidebarOrganize === "projects" && <Sidebar {...tree} />}
+      {shell.preferences.appearance.sidebarOrganize === "projects" && <Sidebar {...tree} />}
     </SidebarRail>
   );
 }

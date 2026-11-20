@@ -38,17 +38,11 @@ export const defaultPreferences: AppPreferences = {
   hiddenModels: [],
   pinnedSessions: [],
   appearance: {
-    fontFamily: "",
-    codeFont: "",
-    terminalFont: "",
-    themeName: "lingzhu",
     density: "comfortable",
     zoom: 100,
     timelineWidth: "comfortable",
-    reduceMotion: "system",
     theme: "system",
     language: "en",
-    tabLayout: "vertical",
     sidebarOrganize: "list",
     timelineDetail: defaultTimelineDetail,
   },
@@ -60,8 +54,6 @@ export const defaultPreferences: AppPreferences = {
   },
   keybinds: {},
 };
-
-const DEFAULT_FONT = '"Inter", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif';
 
 let themePreference: AppPreferences["appearance"]["theme"] = "system";
 let themeListening = false;
@@ -139,10 +131,6 @@ export function normalizePreferences(value: Partial<AppPreferences> | null | und
       tones: normalizeNames(input.sounds?.tones),
     },
     appearance: {
-      fontFamily: typeof appearance.fontFamily === "string" ? appearance.fontFamily : "",
-      codeFont: typeof appearance.codeFont === "string" ? appearance.codeFont : "",
-      terminalFont: typeof appearance.terminalFont === "string" ? appearance.terminalFont : "",
-      themeName: typeof appearance.themeName === "string" && appearance.themeName ? appearance.themeName : "lingzhu",
       density: appearance.density === "compact" ? "compact" : "comfortable",
       zoom:
         typeof appearance.zoom === "number" && appearance.zoom >= 80 && appearance.zoom <= 150
@@ -152,15 +140,9 @@ export function normalizePreferences(value: Partial<AppPreferences> | null | und
         appearance.timelineWidth === "focused" || appearance.timelineWidth === "wide"
           ? appearance.timelineWidth
           : "comfortable",
-      reduceMotion:
-        appearance.reduceMotion === "on" || appearance.reduceMotion === "off" ? appearance.reduceMotion : "system",
       theme:
         appearance.theme === "dark" || appearance.theme === "light" ? appearance.theme : "system",
       language: appearance.language === "zh" ? "zh" : "en",
-      tabLayout:
-        appearance.tabLayout === "horizontal" || appearance.tabLayout === "inbox"
-          ? appearance.tabLayout
-          : "vertical",
       sidebarOrganize: appearance.sidebarOrganize === "projects" ? "projects" : "list",
       timelineDetail: timelineDetail(appearance.timelineDetail),
     },
@@ -227,24 +209,8 @@ function normalizeKeybinds(value: AppPreferences["keybinds"] | undefined): Recor
  */
 export function applyPreferences(preferences: AppPreferences) {
   const root = document.documentElement;
-  const font = preferences.appearance.fontFamily.trim();
-  if (font) root.style.setProperty("--font-sans", `${font}, ${DEFAULT_FONT}`);
-  else root.style.removeProperty("--font-sans");
-
-  const codeFont = preferences.appearance.codeFont.trim();
-  if (codeFont) root.style.setProperty("--font-mono", `${codeFont}, "IBM Plex Mono", ui-monospace, monospace`);
-  else root.style.removeProperty("--font-mono");
-
-  const terminalFont = preferences.appearance.terminalFont.trim();
-  if (terminalFont) {
-    root.style.setProperty("--font-terminal", `${terminalFont}, "IBM Plex Mono", ui-monospace, monospace`);
-  } else {
-    root.style.removeProperty("--font-terminal");
-  }
-
   root.dataset.density = preferences.appearance.density;
   root.dataset.timelineWidth = preferences.appearance.timelineWidth;
-  root.dataset.themeName = preferences.appearance.themeName;
   if (preferences.newIcons) root.dataset.newIcons = "true";
   else delete root.dataset.newIcons;
   if (preferences.newQuestionUI) root.dataset.questionUi = "dock";
@@ -254,9 +220,4 @@ export function applyPreferences(preferences: AppPreferences) {
   else root.style.removeProperty("zoom");
   applyTheme(preferences.appearance.theme);
   setLanguage(preferences.appearance.language);
-  if (preferences.appearance.reduceMotion === "system") {
-    delete root.dataset.reduceMotion;
-  } else {
-    root.dataset.reduceMotion = preferences.appearance.reduceMotion;
-  }
 }

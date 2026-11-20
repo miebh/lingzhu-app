@@ -44,7 +44,6 @@ export function usePaletteCommands() {
     activeSideTab: shell.activeSideTab,
     revertCan: revert.revertCan,
     preferences: shell.preferences,
-    savePreferences: shell.savePreferences,
     view: shell.view,
     workspaceActions: shell.workspaceActions,
     chatActions: shell.chatActions,

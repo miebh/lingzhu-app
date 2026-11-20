@@ -513,48 +513,12 @@
   /* Side rail rows mirror the reference tab strip: a 28px single-line session
      row, a pressed overlay for the active tab and a close button that only
      appears on hover or keyboard focus. */
-  .side-tab[data-orientation="vertical"] {
+  .side-tab {
     height: 28px;
   }
 
-  .side-tab[data-orientation="vertical"][data-kind="settings"] {
+  .side-tab[data-kind="settings"] {
     height: 28px;
-  }
-
-  /* The title fades under the trailing controls instead of ellipsizing, as in
-     the reference strip. Hover, focus, the active tab and status marks reserve
-     the 24px the close/status slot covers. */
-  .top-tab-link {
-    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 4px), transparent 100%);
-    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 4px), transparent 100%);
-  }
-
-  .side-tab:is(:hover, :focus-within, [data-active="true"], [data-status]) .top-tab-link {
-    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 40px), transparent calc(100% - 24px));
-    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 40px), transparent calc(100% - 24px));
-  }
-
-  /* Narrow titlebar tabs collapse to their icon; the close button only returns
-     on hover, as in the reference strip. */
-  @container (max-width: 64px) {
-    .top-tab-link {
-      justify-content: center;
-      padding-inline: 0;
-    }
-
-    .top-tab-title {
-      display: none;
-    }
-  }
-
-  @container (max-width: 44px) {
-    .top-tab-link {
-      gap: 0;
-    }
-
-    .side-tab:not(:hover):not(:focus-within) .top-tab-close {
-      display: none;
-    }
   }
 
   /* The reference hides the divider when the Projects section is collapsed. */
@@ -655,7 +619,7 @@
 
   /* Higher specificity than the link's `h-full` utility, so each row can own
      half of the neighboring 3px gap as hit area without painting it. */
-  .side-tab[data-orientation="vertical"] .side-tab-link {
+  .side-tab .side-tab-link {
     align-self: flex-start;
     height: calc(100% + var(--side-tab-hit-before, 0px) + var(--side-tab-hit-after, 0px));
     margin-block-start: calc(-1 * var(--side-tab-hit-before, 0px));

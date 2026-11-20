@@ -74,7 +74,6 @@ function ShellBridges() {
     setHomeAgent: shell.agents.setHomeAgent,
     sideTabs: shell.tabs.sideTabs,
     activeSideTab: shell.activeSideTab,
-    resolvedLayout: shell.resolvedLayout,
     atHome,
     reopenClosedTab: shell.tabs.reopenClosedTab,
     openNewTab: shell.tabs.openNewTab,
