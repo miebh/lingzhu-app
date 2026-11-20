@@ -28,16 +28,12 @@ describe("session summary", () => {
     const onOpenMCP = vi.fn();
     const onOpenExtensions = vi.fn();
     const onOpenSkill = vi.fn();
-    const onCreateSkill = vi.fn();
-    const onSetupSkill = vi.fn();
     render(
       <SessionSummaryMenu
         workspace="/w"
         onOpenMCP={onOpenMCP}
         onOpenExtensions={onOpenExtensions}
         onOpenSkill={onOpenSkill}
-        onCreateSkill={onCreateSkill}
-        onSetupSkill={onSetupSkill}
       />,
     );
 
@@ -65,16 +61,6 @@ describe("session summary", () => {
     await userEvent.click(await screen.findByText("Skills"));
     await userEvent.click(await screen.findByText("Skill"));
     expect(onOpenSkill).toHaveBeenCalledWith("skill");
-
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
-    await userEvent.click(await screen.findByText("Skills"));
-    await userEvent.click(await screen.findByText("New skill"));
-    expect(onCreateSkill).toHaveBeenCalledTimes(1);
-
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
-    await userEvent.click(await screen.findByText("Skills"));
-    await userEvent.click(await screen.findByText("Set up with AI"));
-    expect(onSetupSkill).toHaveBeenCalledTimes(1);
   });
 
   test("opens the mobile summary as a drawer", async () => {

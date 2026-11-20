@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Boxes, FileText, Gauge, Plug, Plus, Settings2, Sparkles, X } from "@lingzhu/ui/icons";
+import { Boxes, Gauge, Plug, Settings2, Sparkles, X } from "@lingzhu/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +19,6 @@ import { messageOf } from "../../lib/errors";
 import { SESSION_SUMMARY_EVENT } from "../../lib/keybinds";
 import { MCPAuthDialog } from "../dialogs/MCPAuthDialog";
 import { MCPErrorDialog } from "../dialogs/MCPErrorDialog";
-import { ConfigFileDialog } from "../dialogs/ConfigFileDialog";
 
 interface Props {
   workspace?: string;
@@ -28,9 +27,6 @@ interface Props {
   onOpenExtensions?: () => void;
   onOpenSkill?: (id: string) => void;
   onOpenSkillFile?: (path: string) => void;
-  onCreateSkill?: () => void;
-  onSetupSkill?: () => void;
-  onOpenConfigFile?: () => void;
 }
 
 type Summary = {
@@ -48,9 +44,6 @@ export function SessionSummaryMenu({
   onOpenExtensions,
   onOpenSkill,
   onOpenSkillFile,
-  onCreateSkill,
-  onSetupSkill,
-  onOpenConfigFile,
 }: Props) {
   const tr = useT();
   const [open, setOpen] = useState(false);
@@ -61,7 +54,6 @@ export function SessionSummaryMenu({
   const [busyServers, setBusyServers] = useState<Record<string, boolean>>({});
   const [errorServer, setErrorServer] = useState<MCPServer>();
   const [authServer, setAuthServer] = useState<string>();
-  const [configOpen, setConfigOpen] = useState(false);
 
   const load = async () => {
     if (!workspace) return;
@@ -157,12 +149,6 @@ export function SessionSummaryMenu({
     action?.();
   };
 
-  const openConfig = () => {
-    setOpen(false);
-    if (onOpenConfigFile) onOpenConfigFile();
-    else setConfigOpen(true);
-  };
-
   const emptyLabel = (empty: string) =>
     loading && !summary ? "Loading…" : loadError ? loadError : tr(empty as never);
 
@@ -194,7 +180,6 @@ export function SessionSummaryMenu({
           void load();
         }}
       />
-      <ConfigFileDialog open={configOpen} onOpenChange={setConfigOpen} />
     </>
   );
 
@@ -231,13 +216,6 @@ export function SessionSummaryMenu({
           onOpenExtensions={onOpenExtensions}
           onOpenSkill={onOpenSkill}
           onOpenSkillFile={onOpenSkillFile}
-          onCreateSkill={onCreateSkill}
-          onSetupSkill={onSetupSkill}
-          onOpenConfig={() => {
-            setOpen(false);
-            if (onOpenConfigFile) onOpenConfigFile();
-            else setConfigOpen(true);
-          }}
           onRetry={() => void load()}
         />
         {dialogs}
@@ -314,14 +292,6 @@ export function SessionSummaryMenu({
             <EmptyRow label={emptyLabel("emptyMcps")} />
           )}
           {loadError && <RetryRow onRetry={() => void load()} />}
-          <SummaryFooter>
-            <FooterItem icon={<Settings2 className="size-4" />} onSelect={() => closeThen(() => onOpenMCP?.())}>
-              {tr("mcpServers")}
-            </FooterItem>
-            <FooterItem icon={<FileText className="size-4" />} onSelect={openConfig}>
-              {tr("configFileTitle")}
-            </FooterItem>
-          </SummaryFooter>
         </SummarySub>
 
         <SummarySub
@@ -352,14 +322,6 @@ export function SessionSummaryMenu({
             <EmptyRow label={emptyLabel("emptyPlugins")} />
           )}
           {loadError && <RetryRow onRetry={() => void load()} />}
-          <SummaryFooter>
-            <FooterItem icon={<Settings2 className="size-4" />} onSelect={() => closeThen(onOpenExtensions)}>
-              {tr("extensions")}
-            </FooterItem>
-            <FooterItem icon={<FileText className="size-4" />} onSelect={openConfig}>
-              {tr("configFileTitle")}
-            </FooterItem>
-          </SummaryFooter>
         </SummarySub>
 
         <SummarySub
@@ -395,20 +357,6 @@ export function SessionSummaryMenu({
             <EmptyRow label={emptyLabel("emptySkills")} />
           )}
           {loadError && <RetryRow onRetry={() => void load()} />}
-          <SummaryFooter>
-            <FooterItem icon={<Plus className="size-4" />} onSelect={() => closeThen(onCreateSkill)}>
-              {tr("newSkill")}
-            </FooterItem>
-            <FooterItem icon={<Sparkles className="size-4" />} onSelect={() => closeThen(onSetupSkill)}>
-              {tr("setupSkills")}
-            </FooterItem>
-            <FooterItem icon={<Settings2 className="size-4" />} onSelect={() => closeThen(onOpenExtensions)}>
-              {tr("extensions")}
-            </FooterItem>
-            <FooterItem icon={<FileText className="size-4" />} onSelect={openConfig}>
-              {tr("configFileTitle")}
-            </FooterItem>
-          </SummaryFooter>
         </SummarySub>
 
         {actionError && (
@@ -441,9 +389,6 @@ function MobileSummarySheet({
   onOpenExtensions,
   onOpenSkill,
   onOpenSkillFile,
-  onCreateSkill,
-  onSetupSkill,
-  onOpenConfig,
   onRetry,
 }: {
   open: boolean;
@@ -460,9 +405,6 @@ function MobileSummarySheet({
   onOpenExtensions?: () => void;
   onOpenSkill?: (id: string) => void;
   onOpenSkillFile?: (path: string) => void;
-  onCreateSkill?: () => void;
-  onSetupSkill?: () => void;
-  onOpenConfig: () => void;
   onRetry: () => void;
 }) {
   const tr = useT();
@@ -579,12 +521,6 @@ function MobileSummarySheet({
               <MobileEmpty label={emptyLabel("emptyMcps")} />
             )}
             {loadError && <MobileAction icon={<Settings2 className="size-4" />} label={tr("retry")} onClick={onRetry} />}
-            <MobileAction
-              icon={<Settings2 className="size-4" />}
-              label={tr("mcpServers")}
-              onClick={() => closeThen(() => onOpenMCP?.())}
-            />
-            <MobileAction icon={<FileText className="size-4" />} label={tr("configFileTitle")} onClick={onOpenConfig} />
           </MobileSection>
 
           <MobileSection
@@ -616,12 +552,6 @@ function MobileSummarySheet({
               <MobileEmpty label={emptyLabel("emptyPlugins")} />
             )}
             {loadError && <MobileAction icon={<Settings2 className="size-4" />} label={tr("retry")} onClick={onRetry} />}
-            <MobileAction
-              icon={<Settings2 className="size-4" />}
-              label={tr("extensions")}
-              onClick={() => closeThen(onOpenExtensions)}
-            />
-            <MobileAction icon={<FileText className="size-4" />} label={tr("configFileTitle")} onClick={onOpenConfig} />
           </MobileSection>
 
           <MobileSection
@@ -655,18 +585,6 @@ function MobileSummarySheet({
               <MobileEmpty label={emptyLabel("emptySkills")} />
             )}
             {loadError && <MobileAction icon={<Settings2 className="size-4" />} label={tr("retry")} onClick={onRetry} />}
-            <MobileAction icon={<Plus className="size-4" />} label={tr("newSkill")} onClick={() => closeThen(onCreateSkill)} />
-            <MobileAction
-              icon={<Sparkles className="size-4" />}
-              label={tr("setupSkills")}
-              onClick={() => closeThen(onSetupSkill)}
-            />
-            <MobileAction
-              icon={<Settings2 className="size-4" />}
-              label={tr("extensions")}
-              onClick={() => closeThen(onOpenExtensions)}
-            />
-            <MobileAction icon={<FileText className="size-4" />} label={tr("configFileTitle")} onClick={onOpenConfig} />
           </MobileSection>
 
           {actionError && (
@@ -791,32 +709,6 @@ function pluginToolSummary(plugin: PluginStatus) {
   if (plugin.tools.length) parts.push(`${plugin.tools.length} tools`);
   if (plugin.commands.length) parts.push(`${plugin.commands.length} commands`);
   return parts.join(" · ");
-}
-
-function SummaryFooter({ children }: { children: ReactNode }) {
-  return (
-    <>
-      <DropdownMenuSeparator />
-      <div className="flex flex-col">{children}</div>
-    </>
-  );
-}
-
-function FooterItem({
-  icon,
-  onSelect,
-  children,
-}: {
-  icon: ReactNode;
-  onSelect: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <DropdownMenuItem onSelect={onSelect} className="gap-2 text-text-muted">
-      {icon}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-    </DropdownMenuItem>
-  );
 }
 
 function EmptyRow({ label }: { label: string }) {

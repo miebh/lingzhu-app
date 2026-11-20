@@ -3,7 +3,6 @@ import { SessionHeader, SessionPanelToggle } from "../../components/session/Sess
 import { SessionSummaryMenu } from "../../components/session/SessionSummaryMenu";
 import { api } from "../../lib/api";
 import { contextUsage, modelCost, modelWindow } from "../../lib/contextUsage";
-import { CONFIG_FILE_TAB } from "../../lib/sidePanel";
 import { t } from "@lingzhu/ui/i18n";
 import type { SessionLocation } from "@lingzhu/ui/types";
 import { buildAncestors } from "../derive";
@@ -12,11 +11,6 @@ import { useShell } from "../ShellProvider";
 import { ComposerDock } from "../features/chat/ComposerDock";
 import { HomePane } from "../features/home/HomePane";
 import { NewSessionPane } from "../features/session/NewSessionPane";
-
-function directoryOf(path: string): string {
-  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return index > 0 ? path.slice(0, index) : path;
-}
 
 // The transcript, the right-hand panel and the settings overlay are all absent
 // from the first paint (Home is what the app opens on), and together they carry
@@ -191,32 +185,6 @@ export function ShellContent() {
                             });
                           }}
                           onOpenSkillFile={(path) => shell.panel.openFileInPanel(path)}
-                          onCreateSkill={() => {
-                            if (!activeWorkspace || !activeId) return;
-                            shell.dialogs.setSkillsTarget({
-                              workspace: activeWorkspace.path,
-                              sessionID: activeId,
-                              title: activeTitle || activeId,
-                              createSkill: true,
-                            });
-                          }}
-                          onSetupSkill={() => {
-                            void (async () => {
-                              try {
-                                const settings = await api.settings();
-                                const directory = directoryOf(settings.configPath);
-                                if (!directory) return;
-                                await api.addWorkspaceAt(directory);
-                                await shell.workspaceActions.refresh();
-                                shell.workspaceActions.select(directory);
-                                await shell.chatActions.newChat(directory);
-                                shell.restoreText(t("setupSkillsPrompt"));
-                              } catch {
-                                // A failed setup leaves the current session untouched.
-                              }
-                            })();
-                          }}
-                          onOpenConfigFile={() => shell.panel.openFileInPanel(CONFIG_FILE_TAB)}
                           onOpenExtensions={() => shell.view.openSettings("extensions")}
                         />
                       }
