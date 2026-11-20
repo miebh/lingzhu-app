@@ -145,19 +145,22 @@
    --------------------------------------------------------------------------- */
 
 :root {
-  /* Neutral: the desktop grey scale, 12 monotonic steps. */
-  --p-neutral-100: oklch(0.9851 0 0);
-  --p-neutral-200: oklch(0.9612 0 0);
-  --p-neutral-300: oklch(0.9491 0 0);
-  --p-neutral-400: oklch(0.8914 0 0);
-  --p-neutral-500: oklch(0.7508 0 0);
-  --p-neutral-600: oklch(0.5999 0 0);
-  --p-neutral-700: oklch(0.4748 0 0);
-  --p-neutral-800: oklch(0.3485 0 0);
-  --p-neutral-900: oklch(0.3012 0 0);
-  --p-neutral-1000: oklch(0.2603 0 0);
-  --p-neutral-1100: oklch(0.2002 0 0);
-  --p-neutral-1200: oklch(0.1344 0 0);
+  /* Neutral: 12 monotonic jade-grey steps. The lightness ladder is unchanged;
+     a barely-there 168deg tint (peak chroma 0.011 mid-scale) makes dark
+     surfaces read as ink-jade and light surfaces as pearl instead of the
+     plain desktop grey. Keep chroma under 0.012 so text and code stay neutral. */
+  --p-neutral-100: oklch(0.9851 0.003 168);
+  --p-neutral-200: oklch(0.9612 0.004 168);
+  --p-neutral-300: oklch(0.9491 0.0045 168);
+  --p-neutral-400: oklch(0.8914 0.006 168);
+  --p-neutral-500: oklch(0.7508 0.008 168);
+  --p-neutral-600: oklch(0.5999 0.009 168);
+  --p-neutral-700: oklch(0.4748 0.010 168);
+  --p-neutral-800: oklch(0.3485 0.011 168);
+  --p-neutral-900: oklch(0.3012 0.011 168);
+  --p-neutral-1000: oklch(0.2603 0.0105 168);
+  --p-neutral-1100: oklch(0.2002 0.0095 168);
+  --p-neutral-1200: oklch(0.1344 0.0075 168);
 
   /* Info (blue). The accent hue is emerald, so blue only carries the info state. */
   --p-blue-100: oklch(0.9789 0.0099 267.36);
@@ -297,8 +300,8 @@
 
 [data-color-scheme="dark"] {
   color-scheme: dark;
-  /* The reference's explicit dark map: base #161616, deep #080808, layers
-     1000/900/800/700, text #fafafa with muted #aeaeae and faint #808080. */
+  /* Ink-jade dark map: base #121815, deep #060908, layers 1000/900/800/700,
+     text #f8fbfa with muted #aab0ad and faint #7b827f. */
   --bg-base: var(--p-neutral-1100);
   --bg-deep: var(--p-neutral-1200);
   --bg-layer-01: var(--p-neutral-1000);
@@ -446,10 +449,10 @@
 
 [data-color-scheme="light"] {
   color-scheme: light;
-  /* White page, gray chrome, emerald accent: the page keeps the lightest
+  /* Pearl page, jade-grey chrome, emerald accent: the page keeps the lightest
      neutral step, the window chrome (title bar, sidebar) steps down to a
-     visibly gray surface, and the layer ladder carries the gray card and
-     control steps. */
+     visibly grey-green surface, and the layer ladder carries the tinted card
+     and control steps. */
   --bg-base: var(--p-neutral-100);
   --bg-deep: var(--p-neutral-300);
   --bg-layer-01: var(--p-neutral-200);
