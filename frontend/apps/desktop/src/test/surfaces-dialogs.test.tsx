@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
-import { ConfirmDialog, MoveSessionDialog, RenameDialog, WorktreeDialog } from "@/components/Dialogs";
-import { SummaryDialog } from "@/components/SummaryDialog";
+import { ConfirmDialog, MoveSessionDialog, RenameDialog, WorktreeDialog } from "@/components/dialogs/Dialogs";
+import { SummaryDialog } from "@/components/dialogs/SummaryDialog";
 import { setLanguage } from "@lingzhu/ui/i18n";
 
 describe("dialogs surfaces", () => {

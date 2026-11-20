@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { chatKey, type InboxEntry } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type InboxEntry } from "@lingzhu/ui/types";
 import {
   useChatMap,
   useChatStore,

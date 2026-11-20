@@ -1,0 +1,812 @@
+@layer components {
+  /* The title bar is the client-side window drag region; controls inside it
+     opt out so they keep receiving clicks. */
+  .titlebar {
+    --wails-draggable: drag;
+  }
+
+  .window-control {
+    --wails-draggable: no-drag;
+    transition: color 120ms ease;
+  }
+
+  .window-control[data-variant="close"]:hover:not(:disabled),
+  .window-control[data-variant="close"][data-state="hover"] {
+    background-image: linear-gradient(var(--window-close), var(--window-close));
+    color: var(--window-close-fg);
+  }
+
+  .scroll-stable {
+    scrollbar-gutter: stable;
+  }
+
+  /* Symmetric gutters keep the transcript axis centred on the composer even
+     while the scrollbar is visible. */
+  .scroll-stable-both {
+    overflow-anchor: auto;
+    scrollbar-gutter: stable both-edges;
+  }
+
+  [data-row-key] {
+    overflow-anchor: auto;
+  }
+
+  .elevation-raised {
+    box-shadow: var(--elevation-raised);
+  }
+
+  .elevation-floating {
+    box-shadow: var(--elevation-floating);
+  }
+
+  /* The desktop app menu uses the reference standard-menu metrics: every row
+     keeps 12px of trailing inset, with or without a shortcut. */
+  .app-menu [data-slot="dropdown-menu-item"],
+  .app-menu [data-slot="dropdown-menu-sub-trigger"] {
+    padding-inline-end: 12px;
+  }
+
+  /* Standard-appearance menus separate rows by 4px, unlike inline row menus. */
+  .app-menu [data-slot="dropdown-menu-separator"] {
+    margin-block: 4px;
+  }
+
+  /* Command palette: the compact, top-anchored dialog. Search field, section
+     headers and rows use the same 28px rhythm as the desktop palette. */
+  .command-palette-dialog {
+    border: 0;
+    border-radius: var(--radius-xl);
+    background: var(--bg-base);
+    box-shadow: var(--elevation-overlay);
+  }
+
+  /* Standard dialogs float above the scrim; the palette overrides this with
+     its own closer shadow above. */
+  [data-slot="dialog-content"] {
+    box-shadow: var(--elevation-overlay);
+  }
+
+  [data-slot="dialog-content"].command-palette-dialog {
+    box-shadow: var(--elevation-overlay);
+  }
+
+  .command-palette-search {
+    position: relative;
+    flex-shrink: 0;
+    padding: 6px 6px 17px;
+  }
+
+  .command-palette-search::after {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 8px;
+    border-top: 0.5px solid var(--border-base);
+    content: "";
+  }
+
+  .command-palette-field {
+    display: flex;
+    height: 28px;
+    align-items: center;
+    gap: 6px;
+    padding-inline: 6px;
+    border-radius: var(--radius-md);
+    background: transparent;
+  }
+
+  .command-palette-input {
+    width: 100%;
+    height: 28px;
+    min-width: 0;
+    flex: 1;
+    padding-inline-end: 6px;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--fg-base);
+    font-size: var(--text-body);
+    line-height: var(--text-caption--line-height);
+    outline: none;
+  }
+
+  .command-palette-input::placeholder {
+    color: var(--fg-base);
+    opacity: 0.5;
+  }
+
+  /* Rows fade under the sticky header and past the bottom edge, matching the
+     search-list viewport. */
+  .command-palette-scroll {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    scroll-padding-top: 28px;
+    --command-palette-fade-top: 0;
+    --command-palette-fade-bottom: 0;
+    mask-image: linear-gradient(
+      to bottom,
+      #000 calc(100% - 24px),
+      rgb(0 0 0 / calc(1 - var(--command-palette-fade-bottom, 0)))
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 calc(100% - 24px),
+      rgb(0 0 0 / calc(1 - var(--command-palette-fade-bottom, 0)))
+    );
+  }
+
+  .command-palette-fade {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .command-palette-fade::before {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 24px;
+    background: linear-gradient(var(--bg-base), transparent);
+    content: "";
+    opacity: var(--command-palette-fade-top, 0);
+  }
+
+  .command-palette-results {
+    display: flex;
+    flex-direction: column;
+    padding: 0 6px 6px;
+  }
+
+  .command-palette-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .command-palette-group:not(:last-child) {
+    padding-bottom: 4px;
+  }
+
+  .command-palette-group-title {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    height: 28px;
+    flex-shrink: 0;
+    align-items: center;
+    margin-inline: -6px;
+    padding-inline: 12px;
+    background: var(--bg-base);
+    color: var(--fg-muted);
+    font-size: var(--text-body);
+    font-weight: 440;
+    line-height: var(--text-caption--line-height);
+    letter-spacing: -0.04px;
+    user-select: none;
+  }
+
+  .command-palette-row {
+    display: flex;
+    width: 100%;
+    height: 36px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--fg-base);
+    text-align: start;
+    cursor: default;
+    scroll-margin-block: 0 24px;
+  }
+
+  .command-palette-row[data-active] {
+    background: var(--overlay-hover);
+    outline: none;
+  }
+
+  .command-palette-row-main {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .command-palette-row-text {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .command-palette-title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--fg-base);
+    font-size: var(--text-body);
+    font-weight: 530;
+    line-height: var(--text-caption--line-height);
+    letter-spacing: -0.04px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .command-palette-row-text:has(.command-palette-description) > .command-palette-title {
+    max-width: 60%;
+    flex-shrink: 0;
+  }
+
+  .command-palette-description,
+  .command-palette-meta {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--fg-faint);
+    font-size: var(--text-body);
+    font-weight: 440;
+    line-height: var(--text-caption--line-height);
+    letter-spacing: -0.04px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .command-palette-description {
+    flex: 1;
+  }
+
+  .command-palette-meta {
+    flex-shrink: 0;
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .command-palette-file-path {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    font-size: var(--text-body);
+    line-height: var(--text-caption--line-height);
+    letter-spacing: -0.04px;
+  }
+
+  .command-palette-file-dir {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--fg-muted);
+    font-weight: 440;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .command-palette-file-name {
+    flex-shrink: 0;
+    color: var(--fg-base);
+    font-weight: 530;
+    white-space: nowrap;
+  }
+
+  .command-palette-icon {
+    flex-shrink: 0;
+    color: var(--fg-faint);
+  }
+
+  .command-palette-avatar {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-gray);
+    --avatar-border: var(--avatar-border-gray);
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: var(--radius-xs);
+    background:
+      linear-gradient(180deg, var(--avatar-highlight) 0%, transparent 100%),
+      var(--avatar-bg);
+    box-shadow: inset 0 0 0 0.5px var(--avatar-border);
+    color: var(--avatar-fg);
+    font-size: var(--text-caption);
+    font-weight: 530;
+    line-height: 1;
+    letter-spacing: 0.05px;
+    text-transform: uppercase;
+    text-shadow: 0 0 4px var(--avatar-shadow);
+    user-select: none;
+  }
+
+  .command-palette-avatar[data-variant="orange"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-orange);
+    --avatar-border: var(--avatar-border-orange);
+  }
+
+  .command-palette-avatar[data-variant="yellow"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-yellow);
+    --avatar-border: var(--avatar-border-yellow);
+  }
+
+  .command-palette-avatar[data-variant="cyan"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-cyan);
+    --avatar-border: var(--avatar-border-cyan);
+  }
+
+  .command-palette-avatar[data-variant="green"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-green);
+    --avatar-border: var(--avatar-border-green);
+  }
+
+  .command-palette-avatar[data-variant="red"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-red);
+    --avatar-border: var(--avatar-border-red);
+  }
+
+  .command-palette-avatar[data-variant="pink"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-pink);
+    --avatar-border: var(--avatar-border-pink);
+  }
+
+  .command-palette-avatar[data-variant="blue"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-blue);
+    --avatar-border: var(--avatar-border-blue);
+  }
+
+  .command-palette-avatar[data-variant="purple"] .command-palette-avatar-surface {
+    --avatar-bg: var(--avatar-bg-purple);
+    --avatar-border: var(--avatar-border-purple);
+  }
+
+  .command-palette-avatar[data-unread] .command-palette-avatar-surface {
+    -webkit-mask-image: radial-gradient(circle 4.5px at 100% 0, transparent 4px, black 5px);
+    mask-image: radial-gradient(circle 4.5px at 100% 0, transparent 4px, black 5px);
+  }
+
+  .command-palette-unread-dot {
+    position: absolute;
+    z-index: 3;
+    width: 6px;
+    height: 6px;
+    right: -3px;
+    top: -3px;
+    border-radius: 9999px;
+    background: var(--fg-accent);
+    pointer-events: none;
+  }
+
+  .command-palette-match {
+    background: transparent;
+    color: var(--fg-accent);
+  }
+
+  [data-component="activity-ring"] {
+    position: relative;
+    display: block;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--fg-muted);
+  }
+
+  [data-component="activity-ring"] > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    opacity: var(--still);
+  }
+
+  .command-palette-state {
+    display: grid;
+    min-height: 120px;
+    place-items: center;
+    color: var(--fg-muted);
+    font-size: var(--text-body);
+    font-weight: 440;
+    line-height: var(--text-caption--line-height);
+    letter-spacing: -0.04px;
+  }
+
+  /* Composer slash suggestions: the same 28px rows, anchored above the
+     composer as a raised panel with no header chrome. */
+  .command-suggestion-list {
+    position: absolute;
+    inset-inline: 0;
+    top: -8px;
+    z-index: 40;
+    display: flex;
+    max-height: min(45vh, 320px);
+    flex-direction: column;
+    padding: 6px;
+    overflow-y: auto;
+    border-radius: 10px;
+    background: var(--bg-base);
+    box-shadow: var(--elevation-raised);
+    transform: translateY(-100%);
+    scrollbar-width: none;
+    scroll-padding-block: 18px;
+  }
+
+  .command-suggestion-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Right-aligned trigger hint in the composer add menu. The 20px column
+     matches the desktop menu; longer labels such as Ctrl+U grow to fit so the
+     panel never clips them. */
+  .composer-add-shortcut {
+    margin-inline-start: auto;
+    min-width: 20px;
+    flex-shrink: 0;
+    text-align: center;
+    white-space: nowrap;
+    color: var(--fg-faint);
+    font-size: var(--text-caption);
+    font-weight: 530;
+    line-height: 1;
+    letter-spacing: 0.05px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .command-suggestion-row {
+    display: flex;
+    width: 100%;
+    height: 28px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .command-suggestion-row[data-active] {
+    background: var(--overlay-hover);
+    outline: none;
+  }
+
+  .command-suggestion-label {
+    flex-shrink: 0;
+    color: var(--fg-base);
+    font-size: var(--text-body);
+    line-height: var(--text-caption--line-height);
+  }
+
+  .command-suggestion-description {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    color: var(--fg-muted);
+    font-size: var(--text-body);
+    font-weight: 440;
+    line-height: var(--text-caption--line-height);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .command-suggestion-keybind {
+    flex-shrink: 0;
+    color: var(--fg-muted);
+    font-size: var(--text-body);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--text-caption--line-height);
+  }
+
+  .command-suggestion-empty {
+    padding: 4px 8px;
+    color: var(--fg-muted);
+    font-size: var(--text-body);
+    line-height: var(--text-caption--line-height);
+  }
+
+  /* Side rail rows mirror the reference tab strip: a 28px single-line session
+     row, a pressed overlay for the active tab and a close button that only
+     appears on hover or keyboard focus. */
+  .side-tab[data-orientation="vertical"] {
+    height: 28px;
+  }
+
+  .side-tab[data-orientation="vertical"][data-kind="settings"] {
+    height: 28px;
+  }
+
+  /* The title fades under the trailing controls instead of ellipsizing, as in
+     the reference strip. Hover, focus, the active tab and status marks reserve
+     the 24px the close/status slot covers. */
+  .top-tab-link {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 4px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 4px), transparent 100%);
+  }
+
+  .side-tab:is(:hover, :focus-within, [data-active="true"], [data-status]) .top-tab-link {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 40px), transparent calc(100% - 24px));
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 40px), transparent calc(100% - 24px));
+  }
+
+  /* Narrow titlebar tabs collapse to their icon; the close button only returns
+     on hover, as in the reference strip. */
+  @container (max-width: 64px) {
+    .top-tab-link {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .top-tab-title {
+      display: none;
+    }
+  }
+
+  @container (max-width: 44px) {
+    .top-tab-link {
+      gap: 0;
+    }
+
+    .side-tab:not(:hover):not(:focus-within) .top-tab-close {
+      display: none;
+    }
+  }
+
+  /* The reference hides the divider when the Projects section is collapsed. */
+  .side-tabs-list:has([data-projects-collapsed="true"]) .side-tabs-divider {
+    display: none;
+  }
+
+  /* The rail draws its own scroll thumb in the shell inset, matching the
+     reference 12px track with a 4px pill. */
+  .side-tabs-thumb-track {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: -11px;
+    z-index: 100;
+    width: 12px;
+    pointer-events: none;
+  }
+
+  .side-tabs-thumb {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    border-radius: 9999px;
+    opacity: 0;
+    pointer-events: auto;
+    cursor: default;
+    touch-action: none;
+    transition: opacity 200ms ease;
+    user-select: none;
+  }
+
+  .side-tabs-thumb[data-visible="true"] {
+    opacity: 1;
+  }
+
+  .side-tabs-thumb::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 4px;
+    transform: translateX(-50%);
+    border-radius: 9999px;
+    background: var(--border-muted);
+    backdrop-filter: blur(4px);
+    transition: background-color 150ms ease;
+  }
+
+  .side-tabs-thumb:hover::after,
+  .side-tabs-thumb[data-dragging="true"]::after {
+    background: var(--border-strong);
+  }
+
+  /* Reference rail rows use the hover overlay for keyboard focus instead of
+     the global outline. */
+  .side-rail-row:focus-visible {
+    outline: none;
+    background-image: linear-gradient(var(--overlay-hover), var(--overlay-hover));
+  }
+
+  .side-rail-row[data-state="pressed"]:focus-visible {
+    background-image: linear-gradient(var(--overlay-pressed), var(--overlay-pressed));
+  }
+
+  .side-rail-row[data-selected="true"]:focus-visible {
+    background-image: linear-gradient(var(--overlay-selected), var(--overlay-selected));
+  }
+
+  .side-rail-action:focus-visible {
+    outline: none;
+    background-image: linear-gradient(var(--overlay-hover), var(--overlay-hover));
+  }
+
+  .side-rail-action[data-state="pressed"]:focus-visible {
+    background-image: linear-gradient(var(--overlay-pressed), var(--overlay-pressed));
+  }
+
+  .side-tab:has(:focus-visible):not([data-active="true"]):not([data-dragging="true"]):not([data-editing="true"]) {
+    background-image: linear-gradient(var(--overlay-hover), var(--overlay-hover));
+  }
+
+  .side-tab-link:focus-visible {
+    outline: none;
+  }
+
+  .side-tab[data-active="true"],
+  .side-tab[data-active="true"]:hover:not(:disabled):not([data-disabled="true"]) {
+    background-image:
+      linear-gradient(var(--overlay-pressed), var(--overlay-pressed));
+  }
+
+  .side-tab-link {
+    padding-inline: 6px;
+    color: var(--fg-faint);
+    column-gap: 6px;
+  }
+
+  /* Higher specificity than the link's `h-full` utility, so each row can own
+     half of the neighboring 3px gap as hit area without painting it. */
+  .side-tab[data-orientation="vertical"] .side-tab-link {
+    align-self: flex-start;
+    height: calc(100% + var(--side-tab-hit-before, 0px) + var(--side-tab-hit-after, 0px));
+    margin-block-start: calc(-1 * var(--side-tab-hit-before, 0px));
+    padding-block: var(--side-tab-hit-before, 0px) var(--side-tab-hit-after, 0px);
+  }
+
+  /* Every row gets half of each 3px gap as extra hit area without painting a
+     taller background, as in the reference vertical strip. */
+  .side-tab + .side-tab {
+    --side-tab-hit-before: 1.5px;
+  }
+
+  .side-tab:has(+ .side-tab) {
+    --side-tab-hit-after: 1.5px;
+  }
+
+  .side-tab[data-title-overflow="true"]:not([data-editing="true"]) .side-tab-link {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent calc(100% - 8px));
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent calc(100% - 8px));
+  }
+
+  /* Hover, focus, the active tab and status marks reserve the close/status
+     slot; the title fades under it instead of being permanently shortened. */
+  .side-tab:is(:hover, :has(:focus-visible), [data-active="true"], [data-status]):not([data-editing="true"]) .side-tab-link {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 48px), transparent calc(100% - 32px));
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 48px), transparent calc(100% - 32px));
+  }
+
+  .side-tab-link:hover {
+    color: var(--fg-base);
+  }
+
+  .side-tab[data-active="true"] .side-tab-link {
+    color: var(--fg-base);
+  }
+
+  .side-tab-copy {
+    display: flex;
+    min-width: 0;
+  }
+
+  .side-tab-title {
+    min-width: 0;
+    overflow: hidden;
+    color: inherit;
+    font-size: var(--text-body);
+    font-weight: 530;
+    line-height: 16px;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  /* The rename field replaces the title in place, so it fills the copy slot
+     instead of sizing itself from its default character width. */
+  .side-tab[data-editing="true"] .side-tab-title {
+    height: 16px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    line-height: 16px;
+  }
+
+  /* Resize handles: an 8px hit area with a pill that appears after a short
+     hover dwell, as on the reference panel edges. */
+  .resize-handle-h::after,
+  .resize-handle-v::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    border-radius: 9999px;
+    background: var(--handle-pill);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 110ms ease-out, background-color 150ms ease-out;
+  }
+
+  .resize-handle-h::after {
+    width: 4px;
+    height: 40px;
+  }
+
+  .resize-handle-v::after {
+    width: 40px;
+    height: 4px;
+  }
+
+  .resize-handle-h:hover::after,
+  .resize-handle-v:hover::after {
+    opacity: 1;
+    transition-delay: 200ms;
+  }
+
+  /* The rail feathers each edge once rows are hidden behind it, matching the
+     reference vertical tab strip. */
+  .side-tabs-list {
+    padding-block-end: 16px;
+    scroll-padding-block: 16px;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 var(--side-tabs-fade-top, 0px),
+      #000 calc(100% - var(--side-tabs-fade-bottom, 0px)),
+      transparent
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 var(--side-tabs-fade-top, 0px),
+      #000 calc(100% - var(--side-tabs-fade-bottom, 0px)),
+      transparent
+    );
+  }
+
+  .side-tab-actions {
+    position: absolute;
+    inset-inline-end: 4px;
+    inset-block: 0;
+    margin-block: auto;
+    display: flex;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .side-tab-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .side-tab-close {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .side-tab:hover .side-tab-close,
+  .side-tab:has(:focus-visible) .side-tab-close {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .side-tab[data-editing="true"] .side-tab-actions {
+    display: none;
+  }
+
+  @media (hover: hover) {
+    .side-tab:hover .side-tab-status {
+      opacity: 0;
+    }
+  }
+}

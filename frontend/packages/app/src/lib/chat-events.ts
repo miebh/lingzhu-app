@@ -10,7 +10,7 @@ import type {
   TimelineEntry,
   UsageTotals,
 } from "@lingzhu/ui/types";
-import { switchChanges } from "@lingzhu/ui/types";
+import { switchChanges } from "@lingzhu/ui/domain/chat";
 
 /**
  * Folds one core event into a chat. Kept free of React so the transcript rules

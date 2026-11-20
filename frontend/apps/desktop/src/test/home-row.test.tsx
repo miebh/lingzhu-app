@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
-import { HomeDashboard } from "@lingzhu/app/components/HomeDashboard";
+import { HomeDashboard } from "@lingzhu/app/components/home/HomeDashboard";
 
 const row = {
   key: "w\u0000s1",

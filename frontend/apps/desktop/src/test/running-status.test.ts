@@ -21,7 +21,8 @@ vi.mock("@/lib/api", () => ({
 import { applyEvent } from "@lingzhu/app/lib/chat-events";
 import { pendingEntries } from "@lingzhu/app/lib/pending";
 import { useChatStore } from "@/store/chat";
-import { blankChat, chatKey, type ChatState, type CoreEvent } from "@lingzhu/ui/types";
+import { blankChat, chatKey } from "@lingzhu/ui/domain/chat";
+import { type ChatState, type CoreEvent } from "@lingzhu/ui/types";
 
 const key = chatKey("/w", "s1");
 

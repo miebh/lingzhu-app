@@ -10,7 +10,7 @@ import { useSeenSessions } from "./useSeenSessions";
 import { useSessionPrefetch } from "./useSessionPrefetch";
 import { useSessionTabsSync } from "./useSessionTabsSync";
 import { useShortcuts } from "./useShortcuts";
-import { chatKey } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
 import { useChatStore } from "../store/chat";
 
 /**

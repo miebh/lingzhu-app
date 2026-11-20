@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "@lingzhu/ui/icons";
 import { t } from "@lingzhu/ui/i18n";
 import type { HomeSessionRow as HomeSessionRowData } from "@lingzhu/ui/types";
-import { ProjectAvatar } from "../ProjectAvatar";
+import { ProjectAvatar } from "../workspace/ProjectAvatar";
 
 interface Props {
   rows: HomeSessionRowData[];

@@ -76,7 +76,7 @@ describe("user-facing copy is localized", () => {
   });
 
   test("the document language follows the UI language", () => {
-    const i18n = readFileSync(join(PACKAGES, "ui/src/i18n.ts"), "utf8");
+    const i18n = readFileSync(join(PACKAGES, "ui/src/i18n/index.ts"), "utf8");
     expect(i18n).toContain('document.documentElement.lang = next === "zh" ? "zh-CN" : "en"');
   });
 });

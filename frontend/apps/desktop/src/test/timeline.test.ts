@@ -2,7 +2,8 @@ import { describe, expect, test } from "vitest";
 import { timelineRows } from "@lingzhu/session-ui/timeline";
 import { timelinePresets } from "@lingzhu/session-ui/timeline-detail";
 import { applyEvent } from "@/lib/chat-events";
-import { entriesFromMessages, type ChatState, type CoreEvent, type Message, type TimelineEntry, type ToolRun } from "@lingzhu/ui/types";
+import { entriesFromMessages } from "@lingzhu/ui/domain/chat";
+import { type ChatState, type CoreEvent, type Message, type TimelineEntry, type ToolRun } from "@lingzhu/ui/types";
 
 function tool(id: string, name: string, extra: Partial<ToolRun> = {}): TimelineEntry {
   return {

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Composer } from "../../../components/Composer";
+import { Composer } from "../../../components/session/Composer";
 import { useShell } from "../../ShellProvider";
 import { useActiveChat } from "../../hooks";
 import { useComposerCommands } from "../../useComposerCommands";

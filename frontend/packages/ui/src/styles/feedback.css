@@ -1,0 +1,173 @@
+/* Tooltip enter/leave: 120ms in, 80ms out at 96% scale, like the reference. */
+.tooltip-surface[data-state="delayed-open"],
+.tooltip-surface[data-state="instant-open"] {
+  animation: tooltip-surface-in 120ms ease-out;
+}
+
+.tooltip-surface[data-state="closed"] {
+  animation: tooltip-surface-out 80ms ease-in forwards;
+}
+
+@keyframes tooltip-surface-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tooltip-surface-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* User bubbles settle into a run with a short spring-like radius change. */
+.user-message-bubble {
+  transition: border-radius 200ms cubic-bezier(0.2, 0, 0, 1);
+  animation: user-message-in 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes user-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The quiet compaction line carries a slow travelling highlight so background
+   housekeeping stays noticeable without drawing a full divider. */
+.timeline-quiet-line {
+  position: relative;
+  overflow: hidden;
+}
+
+.timeline-quiet-line::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 30%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--fg-base) 8%, transparent),
+    transparent
+  );
+  animation: timeline-quiet-sweep 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes timeline-quiet-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(420%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-quiet-line::after {
+    animation: none;
+  }
+}
+
+/* The quiet compaction divider enters without moving the timeline: only
+   opacity and the light's position change, and the box keeps its height. */
+[data-component="session-compaction-message"][data-quiet] {
+  --compaction-delay: 0ms;
+}
+
+[data-component="session-compaction-message"][data-quiet][data-enter="grace"] {
+  --compaction-delay: 400ms;
+}
+
+[data-component="session-compaction-message"][data-quiet][data-enter] .timeline-quiet-line::after {
+  animation-delay: var(--compaction-delay);
+}
+
+[data-component="session-compaction-message"][data-quiet][data-enter] {
+  animation: compaction-entrance-fade 320ms ease-out var(--compaction-delay) both;
+}
+
+@keyframes compaction-entrance-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-component="session-compaction-message"][data-quiet][data-enter] {
+    animation-duration: 200ms;
+  }
+
+  [data-component="session-compaction-message"][data-quiet][data-enter] .timeline-quiet-line::after {
+    animation: none;
+  }
+}
+
+/* A prompt that joined a live turn grows in where it landed, so the reader
+   sees it arrive instead of finding it already in place. */
+.steer-arrival {
+  animation: steer-arrival-in 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes steer-arrival-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scaleY(0.98);
+    transform-origin: top;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .steer-arrival {
+    animation: none;
+  }
+}
+
+/* A notice rises into the corner from just below, so it reads as arriving
+   rather than as part of the surface it floats over. */
+.notice-arrive {
+  animation: notice-arrive-in 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes notice-arrive-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-arrive {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-message-bubble {
+    transition: none;
+    animation: none;
+  }
+}

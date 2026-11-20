@@ -1,6 +1,7 @@
 import { api } from "../lib/api";
 import { messageOf } from "../lib/errors";
-import { chatKey, type InboxItem } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type InboxItem } from "@lingzhu/ui/types";
 import { notify } from "../store/notify";
 import { useChatStore } from "../store/chat";
 

@@ -1,0 +1,52 @@
+.composer-add-item {
+  height: var(--spacing-control-sm);
+}
+
+/* While its menu is open the add trigger keeps the muted icon and shows the
+   pressed overlay, matching the desktop composer. */
+.composer-add-trigger[data-state="open"] {
+  background-image: linear-gradient(var(--overlay-pressed), var(--overlay-pressed));
+  color: var(--fg-base);
+}
+
+/* The draft surface fades under its 16px top padding and, once a caret sits
+   above it, under the end padding too, like the reference composer. */
+.composer-scroll {
+  --composer-scroll-end: calc(12px - var(--scrollbar-size, 0px));
+  scrollbar-gutter: stable;
+  scroll-padding-block: 16px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 16px,
+    black calc(100% - var(--composer-fade-bottom, 0px)),
+    transparent
+  );
+}
+/* The control strip fades its edges only while controls sit past them, and
+   keeps focus rings inside the clipped viewport. */
+.composer-controls {
+  scroll-padding-inline: 16px;
+}
+
+.composer-controls-start {
+  mask-image: linear-gradient(to right, transparent, black 16px);
+}
+
+.composer-controls-end {
+  mask-image: linear-gradient(to right, black calc(100% - 16px), transparent);
+}
+
+.composer-controls-start.composer-controls-end {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 16px,
+    black calc(100% - 16px),
+    transparent
+  );
+}
+
+.composer-controls :is(button, [role="button"]):focus-visible {
+  outline-offset: -2px;
+}

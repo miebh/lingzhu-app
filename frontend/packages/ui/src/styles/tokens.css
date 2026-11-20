@@ -1,0 +1,602 @@
+/* Two schemes ship: dark by default and a white/gray/emerald light scheme. The
+   single root attribute is the only switch and components never branch on it. */
+@custom-variant dark (&:where([data-color-scheme="dark"] *));
+
+@theme {
+  /* Drop the default palette so consumers cannot reach primitive hues. */
+  --color-*: initial;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  --font-terminal: var(--font-mono);
+
+  /* Weight ramp across Inter's variable axis: regular / medium / bold. */
+  --font-weight-regular: 440;
+  --font-weight-medium: 530;
+  --font-weight-bold: 670;
+
+  /* Type roles: caption / meta / body / reading. Line heights sit on a 4px grid. */
+  --text-caption: 11px;
+  --text-caption--line-height: 16px;
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+  --text-body: 13px;
+  --text-body--line-height: 20px;
+  --text-row: 14px;
+  --text-row--line-height: 20px;
+  --text-reading: 14px;
+  --text-reading--line-height: 24px;
+  /* Reference prose: 14px at 160% line height. */
+  --text-prose: 14px;
+  --text-prose--line-height: 1.6;
+
+
+  /* Reading measure is derived from characters, not percentages. */
+  --container-measure-narrow: 60ch;
+
+  /* Session geometry: the transcript and composer share one 744px outer axis
+     (720px content plus a 12px gutter), the sidebar is 280px, dialogs 400px. */
+  --session-header-height: 48px;
+  --container-dialog: 480px;
+  --container-dialog-wide: 640px;
+  --container-dialog-large: 720px;
+  --container-dialog-model: 480px;
+  --container-dialog-manage: 640px;
+  --container-settings: 720px;
+  --container-sidebar: 280px;
+  /* Shared by the transcript, permission dock and composer so their edges
+     align (`--container-session`: 720px content plus its gutter). */
+  --container-session: 744px;
+
+  /* Control heights and spacing roles. Values stay on the 4px ladder. */
+  --spacing-control-xs: 24px;
+  --spacing-control-sm: 28px;
+  --spacing-control-md: 32px;
+  --spacing-dialog-body: 480px;
+  --spacing-dialog-model: 368px;
+  --spacing-dialog-connect: 512px;
+
+  /* Window chrome: the Windows overlay titlebar is 44px tall and its native
+     caption buttons sit 46x32 at the top edge. macOS keeps its 36px inset. */
+  --spacing-chrome-titlebar: 44px;
+  --spacing-chrome-titlebar-mac: 36px;
+  --spacing-caption-button: 46px;
+  --spacing-caption-height: 32px;
+
+  /* Tab strip: every tab block keeps the same width regardless of its title. */
+
+  --spacing-inline-sm: 6px;
+  --spacing-inset-panel: 24px;
+
+  /* Radius ladder: chip / control / panel. */
+  --radius-xs: 4px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Semantic slots. Values resolve from the runtime palette below. */
+  --color-bg-base: var(--bg-base);
+  --color-bg-deep: var(--bg-deep);
+  --color-bg-layer-01: var(--bg-layer-01);
+  --color-bg-layer-02: var(--bg-layer-02);
+  --color-bg-layer-03: var(--bg-layer-03);
+  --color-bg-layer-04: var(--bg-layer-04);
+  --color-bg-accent: var(--bg-accent);
+  --color-bg-button-neutral: var(--bg-button-neutral);
+  --color-bg-raised: var(--bg-raised);
+  --color-bg-float: var(--bg-float);
+  /* The composer surface is its own slot because it must read as a step above
+     the transcript in light mode and reuse the dark layer-01 step in dark. */
+  --color-bg-composer-surface: var(--composer-surface);
+  /* Embedded HTML documents paint their own canvas, so this slot stays a
+     document surface in both modes instead of following the app theme. */
+  --color-bg-document: var(--bg-document);
+
+  --color-text-base: var(--fg-base);
+  --color-text-muted: var(--fg-muted);
+  --color-text-faint: var(--fg-faint);
+  /* Icon roles mirror the reference's separate icon layer: base is one step
+     brighter than muted so glyphs keep their intended contrast. */
+  --color-icon-base: var(--fg-icon-base);
+  --color-icon-muted: var(--fg-icon-muted);
+  --color-icon-faint: var(--fg-icon-faint);
+  --color-text-inverse: var(--fg-inverse);
+  --color-text-float: var(--fg-float);
+  --color-text-accent: var(--fg-accent);
+
+  --color-border-weak: var(--border-weak);
+  --color-border-base: var(--border-base);
+  --color-border-strong: var(--border-strong);
+  --color-border-muted: var(--border-muted);
+  --color-border-focus: var(--border-focus);
+  --color-overlay-scrim: var(--overlay-scrim);
+
+  --shadow-elevation-raised: var(--elevation-raised);
+  --shadow-elevation-floating: var(--elevation-floating);
+  --shadow-elevation-overlay: var(--elevation-overlay);
+  /* The smallest shadow in the stack: a hairline under inline dots. */
+  --shadow-elevation-elements: var(--elevation-elements);
+
+  --color-state-fg-success: var(--state-fg-success);
+  --color-state-bg-success: var(--state-bg-success);
+  --color-state-border-success: var(--state-border-success);
+  --color-state-bg-warning: var(--state-bg-warning);
+  --color-state-fg-warning: var(--state-fg-warning);
+  --color-state-border-warning: var(--state-border-warning);
+  --color-state-bg-danger: var(--state-bg-danger);
+  --color-state-fg-danger: var(--state-fg-danger);
+  --color-state-border-danger: var(--state-border-danger);
+  --color-state-bg-info: var(--state-bg-info);
+  --color-state-fg-info: var(--state-fg-info);
+  --color-state-border-info: var(--state-border-info);
+
+  /* Aliases used by shadcn/ui primitives, mapped onto the same slots. */
+  --color-background: var(--bg-base);
+  --color-foreground: var(--fg-base);
+}
+
+/* ---------------------------------------------------------------------------
+   Primitive scales. This file is the only place allowed to hold color
+   literals. Semantic slots below only use these names.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* Neutral: the desktop grey scale, 12 monotonic steps. */
+  --p-neutral-100: oklch(0.9851 0 0);
+  --p-neutral-200: oklch(0.9612 0 0);
+  --p-neutral-300: oklch(0.9491 0 0);
+  --p-neutral-400: oklch(0.8914 0 0);
+  --p-neutral-500: oklch(0.7508 0 0);
+  --p-neutral-600: oklch(0.5999 0 0);
+  --p-neutral-700: oklch(0.4748 0 0);
+  --p-neutral-800: oklch(0.3485 0 0);
+  --p-neutral-900: oklch(0.3012 0 0);
+  --p-neutral-1000: oklch(0.2603 0 0);
+  --p-neutral-1100: oklch(0.2002 0 0);
+  --p-neutral-1200: oklch(0.1344 0 0);
+
+  /* Info (blue). The accent hue is emerald, so blue only carries the info state. */
+  --p-blue-100: oklch(0.9789 0.0099 267.36);
+  --p-blue-200: oklch(0.9582 0.0183 269.09);
+  --p-blue-300: oklch(0.8706 0.0599 267.42);
+  --p-blue-400: oklch(0.8006 0.0998 267.79);
+  --p-blue-500: oklch(0.6995 0.1531 268.25);
+  --p-blue-600: oklch(0.5502 0.2319 268.11);
+  --p-blue-700: oklch(0.4746 0.2776 264.72);
+  --p-blue-800: oklch(0.5052 0.219 267.96);
+  --p-blue-900: oklch(0.4659 0.2016 267.99);
+  --p-blue-1000: oklch(0.4202 0.1721 267.77);
+  --p-blue-1100: oklch(0.3812 0.1463 267.84);
+  --p-blue-1200: oklch(0.2289 0.0884 260.56);
+
+  /* Danger (red). */
+  --p-red-100: oklch(0.9555 0.0175 21.81);
+  --p-red-200: oklch(0.9 0.0371 21.99);
+  --p-red-300: oklch(0.8405 0.0641 23.31);
+  --p-red-400: oklch(0.7758 0.1052 23.35);
+  --p-red-500: oklch(0.705 0.1548 23.22);
+  --p-red-600: oklch(0.6455 0.2051 22.89);
+  --p-red-700: oklch(0.5795 0.2052 22.74);
+  --p-red-800: oklch(0.519 0.1751 23);
+  --p-red-900: oklch(0.4505 0.1495 22.98);
+  --p-red-1000: oklch(0.3894 0.125 22.91);
+  --p-red-1100: oklch(0.3314 0.1001 22.89);
+  --p-red-1200: oklch(0.2758 0.0754 22.31);
+
+  /* Warning (yellow). */
+  --p-yellow-100: oklch(0.9844 0.0189 93.66);
+  --p-yellow-200: oklch(0.9544 0.0429 87.96);
+  --p-yellow-300: oklch(0.9247 0.0651 89.92);
+  --p-yellow-400: oklch(0.8945 0.0849 88.83);
+  --p-yellow-500: oklch(0.866 0.1153 88.48);
+  --p-yellow-600: oklch(0.8403 0.1408 83.81);
+  --p-yellow-700: oklch(0.786 0.1451 82.2);
+  --p-yellow-800: oklch(0.7249 0.1303 85.38);
+  --p-yellow-900: oklch(0.645 0.1103 85.42);
+  --p-yellow-1000: oklch(0.566 0.0902 85.74);
+  --p-yellow-1100: oklch(0.4589 0.0643 85.45);
+  --p-yellow-1200: oklch(0.3757 0.0442 88.09);
+
+  /* Accent and success (emerald). The hue sits at 163deg so the accent reads
+     as emerald rather than the yellow-leaning green it replaced; the middle
+     steps keep the same lightness ladder and are clipped to sRGB. */
+  --p-green-100: oklch(0.9647 0.0274 163);
+  --p-green-200: oklch(0.9247 0.0493 163);
+  --p-green-300: oklch(0.8891 0.0744 163);
+  --p-green-400: oklch(0.8498 0.1141 163);
+  --p-green-500: oklch(0.7899 0.1495 163);
+  --p-green-600: oklch(0.7441 0.161 163);
+  --p-green-700: oklch(0.6659 0.143 163);
+  --p-green-800: oklch(0.56 0.121 163);
+  --p-green-900: oklch(0.5059 0.109 163);
+  --p-green-1000: oklch(0.4362 0.094 163);
+  --p-green-1100: oklch(0.3705 0.079 163);
+  --p-green-1200: oklch(0.2998 0.0601 163);
+
+  /* Transparency ladder for layering, borders and interaction states. */
+  --p-alpha-white-0: oklch(1 0 0 / 0%);
+  --p-alpha-white-6: oklch(1 0 0 / 6%);
+  --p-alpha-white-8: oklch(1 0 0 / 8%);
+  --p-alpha-white-10: oklch(1 0 0 / 10%);
+  --p-alpha-white-16: oklch(1 0 0 / 16%);
+  --p-alpha-white-20: oklch(1 0 0 / 20%);
+  --p-alpha-white-30: oklch(1 0 0 / 30%);
+  --p-alpha-white-40: oklch(1 0 0 / 40%);
+  --p-alpha-white-100: oklch(1 0 0);
+  --p-alpha-black-4: oklch(0 0 0 / 4%);
+  --p-alpha-black-6: oklch(0 0 0 / 6%);
+  --p-alpha-black-8: oklch(0 0 0 / 8%);
+  --p-alpha-black-10: oklch(0 0 0 / 10%);
+  --p-alpha-black-12: oklch(0 0 0 / 12%);
+  --p-alpha-black-16: oklch(0 0 0 / 16%);
+  --p-alpha-black-20: oklch(0 0 0 / 20%);
+  --p-alpha-black-24: oklch(0 0 0 / 24%);
+  --p-alpha-black-30: oklch(0 0 0 / 30%);
+  --p-alpha-black-40: oklch(0 0 0 / 40%);
+  --p-alpha-black-60: oklch(0 0 0 / 60%);
+
+  /* Fixed project-avatar identities. They sit outside the neutral scale so a
+     project keeps its tint across themes. */
+  --p-avatar-fg: #ffffff;
+  --p-avatar-bg-orange: #723d22;
+  --p-avatar-border-orange: #ff8648;
+  --p-avatar-bg-yellow: #68552b;
+  --p-avatar-border-yellow: #e7af36;
+  --p-avatar-bg-cyan: #005a6e;
+  --p-avatar-border-cyan: #0096b8;
+  --p-avatar-bg-green: #006340;
+  --p-avatar-border-green: #00cc8d;
+  --p-avatar-bg-red: #7a1f23;
+  --p-avatar-border-red: #d92e3c;
+  --p-avatar-bg-pink: #8c2d61;
+  --p-avatar-border-pink: #e4429e;
+  --p-avatar-bg-blue: #263fa9;
+  --p-avatar-border-blue: #7698fd;
+  --p-avatar-bg-purple: #361f83;
+  --p-avatar-border-purple: #7152f4;
+  --p-avatar-bg-gray: #5c5c5c;
+  --p-avatar-border-gray: #aeaeae;
+
+  /* Windows caption close surface (native system red). */
+  --p-window-close: #c42b1c;
+  --p-window-close-fg: #fafafa;
+  --window-close: var(--p-window-close);
+  --window-close-fg: var(--p-window-close-fg);
+
+  /* Switch: layered tracks and raised thumbs, as in the reference. */
+  --switch-track-off:
+    linear-gradient(180deg, var(--p-alpha-white-0) 0%, var(--p-alpha-white-20) 100%),
+    linear-gradient(var(--bg-layer-04), var(--bg-layer-04));
+  --switch-track-on:
+    linear-gradient(180deg, var(--p-alpha-white-0) 0%, var(--p-alpha-white-10) 100%),
+    linear-gradient(var(--bg-accent), var(--bg-accent));
+  --switch-thumb-off:
+    linear-gradient(180deg, var(--p-alpha-white-100) 0%, var(--p-alpha-white-0) 100%),
+    linear-gradient(var(--p-neutral-200), var(--p-neutral-200));
+  --switch-thumb-on:
+    linear-gradient(180deg, var(--p-alpha-white-100) 0%, var(--p-alpha-white-0) 100%),
+    linear-gradient(var(--p-neutral-300), var(--p-neutral-300));
+  --elevation-switch-off:
+    inset 0 1px 1px 0 var(--p-alpha-black-8),
+    inset 0 0.5px 0.5px 0 var(--p-alpha-black-8),
+    inset 0 0 0 0.5px var(--p-alpha-black-10);
+  --elevation-switch-on:
+    inset 0 2px 2px 0 var(--p-alpha-black-10),
+    inset 0 1px 1px 0 var(--p-alpha-black-10),
+    inset 0 0 0 0.5px var(--p-alpha-black-20);
+  --elevation-elements: 0 0.5px 0.5px 0 var(--p-alpha-black-40);
+}
+
+/* ---------------------------------------------------------------------------
+   Semantic slots for the only shipped mode.
+   --------------------------------------------------------------------------- */
+
+[data-color-scheme="dark"] {
+  color-scheme: dark;
+  /* The reference's explicit dark map: base #161616, deep #080808, layers
+     1000/900/800/700, text #fafafa with muted #aeaeae and faint #808080. */
+  --bg-base: var(--p-neutral-1100);
+  --bg-deep: var(--p-neutral-1200);
+  --bg-layer-01: var(--p-neutral-1000);
+  --bg-layer-02: var(--p-neutral-900);
+  --bg-layer-03: var(--p-neutral-800);
+  --bg-layer-04: var(--p-neutral-700);
+  --bg-inverse: var(--p-neutral-100);
+  --bg-contrast: var(--p-neutral-700);
+  --bg-accent: var(--p-green-700);
+  /* Primary and submit controls use the most saturated emerald step so the
+     accent reads clearly against the neutral surfaces. */
+  --bg-control-accent: var(--p-green-600);
+  --fg-control-accent: var(--p-neutral-1200);
+  --bg-button-neutral: var(--p-alpha-white-6);
+  --bg-accent-soft: color-mix(in oklch, var(--p-green-400) 14%, transparent);
+  --bg-raised: color-mix(in oklab, var(--p-neutral-1000) 60%, var(--p-neutral-1100));
+  /* Fixed dark float surface, as the reference standard tooltip uses in both modes. */
+  --bg-float: var(--p-neutral-1100);
+  /* Dark mode keeps the page surface for the standalone composer and steps up
+     to layer-01 for the session dock, which the component applies itself. */
+  --composer-surface: var(--bg-base);
+  /* A sandboxed HTML document paints its own canvas, so it stays a light
+     document surface in both modes rather than inheriting the app theme. */
+  --bg-document: var(--p-neutral-100);
+
+  --fg-base: var(--p-neutral-100);
+  --fg-muted: var(--p-neutral-500);
+  --fg-faint: var(--p-neutral-600);
+  --fg-icon-base: var(--p-neutral-400);
+  --fg-icon-muted: var(--p-neutral-500);
+  --fg-icon-faint: var(--p-neutral-700);
+  /* The pill drawn on a hovered resize handle. It is its own slot because the
+     handle is a structural affordance, not text or an icon. */
+  --handle-pill: var(--p-neutral-600);
+  --fg-inverse: var(--p-neutral-1100);
+  --fg-contrast: var(--p-neutral-100);
+  --fg-float: var(--p-neutral-100);
+  --fg-accent: var(--p-green-500);
+
+  /* Code syntax slots mirrored from the reference theme; only these rules
+     choose the hues, every code surface consumes the role. */
+  --syntax-comment: #ffffff6c;
+  --syntax-regexp: #ffffff9e;
+  --syntax-string: #00ceb9;
+  --syntax-keyword: #ffffff6c;
+  --syntax-primitive: #ffba92;
+  --syntax-operator: #ffffff6c;
+  --syntax-variable: #ffffffef;
+  --syntax-property: #ff9ae2;
+  --syntax-type: #ecf58c;
+  --syntax-constant: #93e9f6;
+  --syntax-punctuation: #ffffff6c;
+
+  --border-weak: var(--p-alpha-white-8);
+  --border-base: var(--p-alpha-white-10);
+  --border-strong: var(--p-alpha-white-20);
+  --border-focus: var(--p-green-600);
+
+  --state-bg-success: var(--p-green-1200);
+  --state-fg-success: var(--p-green-500);
+  --state-border-success: var(--p-green-900);
+  --state-bg-warning: var(--p-yellow-1200);
+  --state-fg-warning: var(--p-yellow-500);
+  --state-border-warning: var(--p-yellow-900);
+  --state-bg-danger: var(--p-red-1200);
+  --state-fg-danger: var(--p-red-500);
+  --state-border-danger: var(--p-red-900);
+  --state-bg-info: var(--p-blue-1200);
+  --state-fg-info: var(--p-blue-500);
+  --state-border-info: var(--p-blue-900);
+
+  /* Diff rows use the desktop's transparent color washes over the base
+     surface rather than the stronger success/danger state fills. The addition
+     wash follows the accent scale so it stays emerald like the rest. */
+  --diff-add-bg: color-mix(in oklab, var(--p-green-400) 10%, transparent);
+  --diff-add-fg: var(--p-green-400);
+  --diff-remove-bg: color-mix(in oklab, #f17471 10%, transparent);
+  --diff-remove-fg: #f17471;
+
+  --overlay-hover: var(--p-alpha-white-6);
+  --overlay-pressed: var(--p-alpha-white-10);
+  --overlay-selected: var(--p-alpha-white-8);
+  --overlay-scrim: var(--p-alpha-black-60);
+  --overlay-contrast-hover: var(--p-alpha-black-24);
+  --overlay-contrast-pressed: var(--p-alpha-black-40);
+
+  --border-muted: var(--p-alpha-white-8);
+
+  --scrollbar-thumb: var(--border-muted);
+  --scrollbar-thumb-hover: var(--border-strong);
+
+  /* Elevated surfaces: a 0.5px light hairline ring plus soft dark shadows,
+     the dark-mode inversion of a light elevation stack. */
+  --elevation-raised:
+    0 2px 4px 0 var(--p-alpha-black-30),
+    0 1px 2px 0 var(--p-alpha-black-30),
+    0 0 0 0.5px var(--p-alpha-white-16),
+    0 -0.5px 0 0 var(--p-alpha-white-6);
+  --elevation-floating:
+    0 8px 16px 0 var(--p-alpha-black-30),
+    0 4px 8px 0 var(--p-alpha-black-30),
+    0 0 0 0.5px var(--p-alpha-white-16),
+    0 -0.5px 0 0 var(--p-alpha-white-6);
+  --elevation-overlay:
+    0 16px 32px 0 var(--p-alpha-black-30),
+    0 8px 16px 0 var(--p-alpha-black-30),
+    0 0 0 0.5px var(--p-alpha-white-16),
+    0 -0.5px 0 0 var(--p-alpha-white-6);
+  --elevation-input:
+    0 1px 1.5px 0 var(--p-alpha-black-10),
+    0 0 0 0.5px var(--p-alpha-black-12);
+  --elevation-button-neutral:
+    0 1px 1.5px 0 var(--p-alpha-black-10),
+    0 0 0 0.5px var(--p-alpha-black-12);
+  --elevation-button-contrast:
+    0 1px 2px 0 var(--p-alpha-black-40),
+    0 0 0 0.5px var(--p-alpha-white-40);
+
+  --avatar-fg: var(--p-avatar-fg);
+  --avatar-highlight: var(--p-alpha-white-16);
+  --avatar-shadow: var(--p-alpha-black-30);
+  --avatar-bg-orange: var(--p-avatar-bg-orange);
+  --avatar-border-orange: var(--p-avatar-border-orange);
+  --avatar-bg-yellow: var(--p-avatar-bg-yellow);
+  --avatar-border-yellow: var(--p-avatar-border-yellow);
+  --avatar-bg-cyan: var(--p-avatar-bg-cyan);
+  --avatar-border-cyan: var(--p-avatar-border-cyan);
+  --avatar-bg-green: var(--p-avatar-bg-green);
+  --avatar-border-green: var(--p-avatar-border-green);
+  --avatar-bg-red: var(--p-avatar-bg-red);
+  --avatar-border-red: var(--p-avatar-border-red);
+  --avatar-bg-pink: var(--p-avatar-bg-pink);
+  --avatar-border-pink: var(--p-avatar-border-pink);
+  --avatar-bg-blue: var(--p-avatar-bg-blue);
+  --avatar-border-blue: var(--p-avatar-border-blue);
+  --avatar-bg-purple: var(--p-avatar-bg-purple);
+  --avatar-border-purple: var(--p-avatar-border-purple);
+  --avatar-bg-gray: var(--p-avatar-bg-gray);
+  --avatar-border-gray: var(--p-avatar-border-gray);
+}
+
+/* ---------------------------------------------------------------------------
+   Light mode mirrors the same semantic slots; components never branch on it.
+   --------------------------------------------------------------------------- */
+
+[data-color-scheme="light"] {
+  color-scheme: light;
+  /* White page, gray chrome, emerald accent: the page keeps the lightest
+     neutral step, the window chrome (title bar, sidebar) steps down to a
+     visibly gray surface, and the layer ladder carries the gray card and
+     control steps. */
+  --bg-base: var(--p-neutral-100);
+  --bg-deep: var(--p-neutral-300);
+  --bg-layer-01: var(--p-neutral-200);
+  --bg-layer-02: var(--p-neutral-300);
+  --bg-layer-03: var(--p-neutral-400);
+  --bg-layer-04: var(--p-neutral-500);
+  --bg-inverse: var(--p-neutral-1100);
+  --bg-contrast: var(--p-neutral-1000);
+  --bg-accent: var(--p-green-900);
+  /* Primary and submit controls take the same deep emerald step so the fill
+     reads as the accent against the white page; the label is the near-white
+     step. */
+  --bg-control-accent: var(--p-green-900);
+  --fg-control-accent: var(--p-neutral-100);
+  --bg-button-neutral: var(--p-alpha-black-6);
+  --bg-accent-soft: color-mix(in oklch, var(--p-green-400) 14%, transparent);
+  --bg-raised: var(--p-alpha-white-100);
+  --bg-float: var(--p-neutral-1100);
+  /* The composer sits on top of the transcript, so it needs a surface that
+     reads as a step above the page. In light mode the page is already the
+     lightest neutral, so the composer is the raised white surface; the hairline
+     ring in the component carries the edge. */
+  --composer-surface: var(--bg-raised);
+  --bg-document: var(--p-neutral-100);
+
+  --fg-base: var(--p-neutral-1100);
+  --fg-muted: var(--p-neutral-700);
+  --fg-faint: var(--p-neutral-600);
+  --fg-icon-base: var(--p-neutral-800);
+  --fg-icon-muted: var(--p-neutral-700);
+  --fg-icon-faint: var(--p-neutral-500);
+  /* Light mode draws the pill a step darker so it reads on the light page. */
+  --handle-pill: var(--p-neutral-500);
+  --fg-inverse: var(--p-neutral-100);
+  --fg-contrast: var(--p-neutral-100);
+  --fg-float: var(--p-neutral-100);
+  --fg-accent: var(--p-green-1000);
+
+  /* Light syntax stays inside the theme's three families: gray for comments
+     and punctuation, near-black for variables, and three emerald steps for
+     keywords, types and primitives. */
+  --syntax-comment: #8f8f8f;
+  --syntax-regexp: #6f6f6f;
+  --syntax-string: #017853;
+  --syntax-keyword: #8f8f8f;
+  --syntax-primitive: #016142;
+  --syntax-operator: #6f6f6f;
+  --syntax-variable: #171717;
+  --syntax-property: #016142;
+  --syntax-type: #024c34;
+  --syntax-constant: #017853;
+  --syntax-punctuation: #6f6f6f;
+
+  --border-weak: var(--p-alpha-black-8);
+  --border-base: var(--p-alpha-black-10);
+  --border-strong: var(--p-alpha-black-20);
+  --border-focus: var(--p-green-800);
+
+  --state-bg-success: var(--p-green-100);
+  --state-fg-success: var(--p-green-1100);
+  --state-border-success: var(--p-green-300);
+  --state-bg-warning: var(--p-yellow-100);
+  --state-fg-warning: var(--p-yellow-1100);
+  --state-border-warning: var(--p-yellow-300);
+  --state-bg-danger: var(--p-red-100);
+  --state-fg-danger: var(--p-red-1100);
+  --state-border-danger: var(--p-red-300);
+  --state-bg-info: var(--p-blue-100);
+  --state-fg-info: var(--p-blue-1100);
+  --state-border-info: var(--p-blue-300);
+
+  --diff-add-bg: color-mix(in oklab, var(--p-green-700) 12%, transparent);
+  --diff-add-fg: var(--p-green-1100);
+  --diff-remove-bg: color-mix(in oklab, var(--p-red-700) 12%, transparent);
+  --diff-remove-fg: var(--p-red-1100);
+
+  --overlay-hover: var(--p-alpha-black-6);
+  --overlay-pressed: var(--p-alpha-black-10);
+  /* Selection is the one place the accent leaves the gray ladder: rows,
+     keyboard-selected chips and text selection read as an emerald wash. */
+  --overlay-selected: color-mix(in oklab, var(--p-green-700) 12%, transparent);
+  --overlay-scrim: var(--p-alpha-black-40);
+  --overlay-contrast-hover: var(--p-alpha-white-16);
+  --overlay-contrast-pressed: var(--p-alpha-white-30);
+
+  --border-muted: var(--p-alpha-black-8);
+
+  --scrollbar-thumb: var(--border-muted);
+  --scrollbar-thumb-hover: var(--border-strong);
+
+  --elevation-raised:
+    0 2px 4px 0 var(--p-alpha-black-4),
+    0 1px 2px -1px var(--p-alpha-black-8),
+    0 0 0 0.5px var(--p-alpha-black-12);
+  --elevation-floating:
+    0 8px 16px 0 var(--p-alpha-black-4),
+    0 4px 8px 0 var(--p-alpha-black-8),
+    0 0 0 0.5px var(--p-alpha-black-12);
+  --elevation-overlay:
+    0 16px 32px 0 var(--p-alpha-black-4),
+    0 8px 16px 0 var(--p-alpha-black-8),
+    0 0 0 0.5px var(--p-alpha-black-12);
+  --elevation-input:
+    0 1px 1.5px 0 var(--p-alpha-black-6),
+    0 0 0 0.5px var(--p-alpha-black-12);
+  --elevation-button-neutral:
+    0 1px 2px 0 var(--p-alpha-black-40),
+    0 0 0 0.5px var(--p-alpha-white-20),
+    0 -0.5px 0 0 var(--p-alpha-white-10);
+  --elevation-button-contrast:
+    0 1px 2px 0 var(--p-alpha-black-20),
+    0 0 0 0.5px var(--p-green-800);
+
+  --avatar-fg: var(--p-avatar-fg);
+  --avatar-highlight: var(--p-alpha-black-8);
+  --avatar-shadow: var(--p-alpha-black-16);
+  --avatar-bg-orange: var(--p-avatar-bg-orange);
+  --avatar-border-orange: var(--p-avatar-border-orange);
+  --avatar-bg-yellow: var(--p-avatar-bg-yellow);
+  --avatar-border-yellow: var(--p-avatar-border-yellow);
+  --avatar-bg-cyan: var(--p-avatar-bg-cyan);
+  --avatar-border-cyan: var(--p-avatar-border-cyan);
+  --avatar-bg-green: var(--p-avatar-bg-green);
+  --avatar-border-green: var(--p-avatar-border-green);
+  --avatar-bg-red: var(--p-avatar-bg-red);
+  --avatar-border-red: var(--p-avatar-border-red);
+  --avatar-bg-pink: var(--p-avatar-bg-pink);
+  --avatar-border-pink: var(--p-avatar-border-pink);
+  --avatar-bg-blue: var(--p-avatar-bg-blue);
+  --avatar-border-blue: var(--p-avatar-border-blue);
+  --avatar-bg-purple: var(--p-avatar-bg-purple);
+  --avatar-border-purple: var(--p-avatar-border-purple);
+  --avatar-bg-gray: var(--p-avatar-bg-gray);
+  --avatar-border-gray: var(--p-avatar-border-gray);
+}
+
+/* App preferences. Density only tightens macro spacing; the fixed control
+   heights (24/28/32) are never remapped. Timeline width reuses the session
+   container token so the transcript and composer stay on one axis. */
+[data-density="compact"] {
+  --spacing-inset-panel: 16px;
+}
+
+[data-timeline-width="focused"] {
+  --container-session: 640px;
+}
+
+[data-timeline-width="wide"] {
+  --container-session: 960px;
+}

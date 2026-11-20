@@ -25,7 +25,8 @@ import { useChatStore } from "@/store/chat";
 import { usePreferencesStore } from "@/store/preferences";
 import { useViewStore } from "@/store/view";
 import { useWorkspaceStore } from "@/store/workspaces";
-import { chatKey, type ChatState } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type ChatState } from "@lingzhu/ui/types";
 
 const durable = chatKey("/w", "s1");
 

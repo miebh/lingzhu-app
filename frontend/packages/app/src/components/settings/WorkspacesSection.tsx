@@ -7,7 +7,7 @@ import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
 import { t } from "@lingzhu/ui/i18n";
 import type { AppPreferences, ProjectInfo, WorkspaceInfo } from "@lingzhu/ui/types";
-import { ProjectAvatar } from "../ProjectAvatar";
+import { ProjectAvatar } from "../workspace/ProjectAvatar";
 import { SettingsField, SettingsRow, SettingsSection, SettingsSelect } from "./primitives";
 
 interface Props {

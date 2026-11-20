@@ -1,20 +1,20 @@
 import type { ComponentType } from "react";
-import { EnvironmentDialog } from "../../components/EnvironmentDialog";
-import { FormsDialog } from "../../components/FormsDialog";
-import { InboxDialog } from "../../components/InboxDialog";
-import { JobsDialog } from "../../components/JobsDialog";
-import { LogDialog } from "../../components/LogDialog";
-import { MediaDialog } from "../../components/MediaDialog";
-import { PairingDialog } from "../../components/PairingDialog";
-import { PromptOnceDialog } from "../../components/PromptOnceDialog";
-import { ReferenceDialog } from "../../components/ReferenceDialog";
-import { RunCommandDialog } from "../../components/RunCommandDialog";
-import { SchedulesDialog } from "../../components/SchedulesDialog";
-import { ShareDialog } from "../../components/ShareDialog";
-import { SkillsDialog } from "../../components/SkillsDialog";
-import { SyntheticDialog } from "../../components/SyntheticDialog";
-import { UsageDialog } from "../../components/UsageDialog";
-import { WaitSessionDialog } from "../../components/WaitSessionDialog";
+import { EnvironmentDialog } from "../../components/dialogs/EnvironmentDialog";
+import { FormsDialog } from "../../components/dialogs/FormsDialog";
+import { InboxDialog } from "../../components/dialogs/InboxDialog";
+import { JobsDialog } from "../../components/dialogs/JobsDialog";
+import { LogDialog } from "../../components/dialogs/LogDialog";
+import { MediaDialog } from "../../components/dialogs/MediaDialog";
+import { PairingDialog } from "../../components/dialogs/PairingDialog";
+import { PromptOnceDialog } from "../../components/dialogs/PromptOnceDialog";
+import { ReferenceDialog } from "../../components/dialogs/ReferenceDialog";
+import { RunCommandDialog } from "../../components/dialogs/RunCommandDialog";
+import { SchedulesDialog } from "../../components/dialogs/SchedulesDialog";
+import { ShareDialog } from "../../components/dialogs/ShareDialog";
+import { SkillsDialog } from "../../components/dialogs/SkillsDialog";
+import { SyntheticDialog } from "../../components/dialogs/SyntheticDialog";
+import { UsageDialog } from "../../components/dialogs/UsageDialog";
+import { WaitSessionDialog } from "../../components/dialogs/WaitSessionDialog";
 import { dismissDialog, useDialogEntry } from "../../store/dialogs";
 
 type SessionDialogID =

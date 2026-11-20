@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { Messages } from "@lingzhu/session-ui/Messages";
-import { SideTabs } from "@/components/SideTabs";
-import { HomeDashboard } from "@/components/HomeDashboard";
+import { SideTabs } from "@/components/shell/SideTabs";
+import { HomeDashboard } from "@/components/home/HomeDashboard";
 import { SegmentedControl } from "@lingzhu/ui/segmented-control";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import { setPierreAvailable } from "@lingzhu/session-ui/pierre";

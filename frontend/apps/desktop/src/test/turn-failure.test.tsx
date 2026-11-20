@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
-import { entriesFromMessages, type ChatState, type Message, type TimelineEntry } from "@lingzhu/ui/types";
+import { entriesFromMessages } from "@lingzhu/ui/domain/chat";
+import { type ChatState, type Message, type TimelineEntry } from "@lingzhu/ui/types";
 
 function chat(entries: TimelineEntry[]): ChatState {
   return {

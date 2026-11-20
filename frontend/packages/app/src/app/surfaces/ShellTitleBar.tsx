@@ -1,5 +1,5 @@
-import { TitleBar } from "../../components/TitleBar";
-import { TopTabs } from "../../components/TopTabs";
+import { TitleBar } from "../../components/shell/TitleBar";
+import { TopTabs } from "../../components/shell/TopTabs";
 import { useShell } from "../ShellProvider";
 import { useTopTabsProps } from "../useTabStripProps";
 

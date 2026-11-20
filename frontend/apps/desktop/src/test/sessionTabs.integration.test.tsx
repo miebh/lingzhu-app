@@ -2,9 +2,10 @@ import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
-import { SideTabs } from "@/components/SideTabs";
+import { SideTabs } from "@/components/shell/SideTabs";
 import { planTabDelete, type SideTab, type StoredSessionTab } from "@/lib/sessionTabs";
-import { chatKey, type SessionInfo } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type SessionInfo } from "@lingzhu/ui/types";
 
 function Harness() {
   const durable: StoredSessionTab = { key: chatKey("/w", "s1"), path: "/w", sessionID: "s1" };

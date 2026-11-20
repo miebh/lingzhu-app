@@ -1,0 +1,45 @@
+@layer base {
+  * {
+    border-color: var(--border-base);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    background: var(--bg-base);
+    text-wrap-style: pretty;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    text-wrap-style: auto;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    text-wrap-style: stable;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: var(--text-reading);
+    line-height: var(--text-reading--line-height);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+}

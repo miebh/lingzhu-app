@@ -1,4 +1,4 @@
-import { HomeDashboard } from "../../../components/HomeDashboard";
+import { HomeDashboard } from "../../../components/home/HomeDashboard";
 import { useShell } from "../../ShellProvider";
 import { useHomeRows } from "../../hooks";
 

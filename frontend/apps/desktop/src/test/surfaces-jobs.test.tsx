@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
-import { SessionActivityChips } from "@/components/SessionActivityChips";
-import { JobsDialog } from "@/components/JobsDialog";
+import { SessionActivityChips } from "@/components/session/SessionActivityChips";
+import { JobsDialog } from "@/components/dialogs/JobsDialog";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
 
 const { api: mockApi } = await vi.hoisted(async () => await import("./support/api-mock"));

@@ -24,7 +24,7 @@ import { addPanelTab, closePanelTabState, reorderPanelTabs } from "../../../pack
 import { sessionChanges, timelineRows } from "../../../packages/session-ui/src/timeline.ts";
 import { reasoningDuration, reasoningHeading } from "../../../packages/session-ui/src/reasoning.ts";
 import { effectiveTabLayout } from "../../../packages/app/src/lib/layout.ts";
-import { setLanguage, t } from "../../../packages/ui/src/i18n.ts";
+import { setLanguage, t } from "../../../packages/ui/src/i18n/index.ts";
 
 const sourceRoots = [
   new URL("../../../packages/app/src/", import.meta.url),

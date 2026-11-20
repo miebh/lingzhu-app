@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { entriesFromMessages, turnUsageByPrompt, type Message } from "@lingzhu/ui/types";
+import { entriesFromMessages, turnUsageByPrompt } from "@lingzhu/ui/domain/chat";
+import { type Message } from "@lingzhu/ui/types";
 
 /** Milliseconds past a fixed base, rendered as the RFC3339 core timestamps use. */
 const at = (ms: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, 0, ms)).toISOString();

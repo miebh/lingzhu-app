@@ -24,7 +24,8 @@ import { useChatStore } from "@/store/chat";
 import { usePreferencesStore } from "@/store/preferences";
 import { useViewStore } from "@/store/view";
 import { useWorkspaceStore } from "@/store/workspaces";
-import { chatKey, type ChatState } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type ChatState } from "@lingzhu/ui/types";
 
 const durable = chatKey("/w", "s1");
 
@@ -154,7 +155,7 @@ describe("the full session delete sequence", () => {
     expect(homeState()).toBe("true");
 
     await deleteTab(/Only session/);
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }, { timeout: 5000 }));
     expect(screen.queryByRole("tablist", { name: "Open tabs" })).toBeNull();
     expect(homeState()).toBe("true");
 

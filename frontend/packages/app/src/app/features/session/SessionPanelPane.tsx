@@ -1,4 +1,4 @@
-import { SessionSidePanel } from "../../../components/SessionSidePanel";
+import { SessionSidePanel } from "../../../components/session/SessionSidePanel";
 import { useShell } from "../../ShellProvider";
 import { useActiveChat, useAtHome } from "../../hooks";
 import { modelWindow } from "../../../lib/contextUsage";

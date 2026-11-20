@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from "vitest";
 import { TextShimmer } from "@lingzhu/ui/TextShimmer";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import { Messages } from "@lingzhu/session-ui/Messages";
-import { SessionHeader } from "@/components/SessionHeader";
+import { SessionHeader } from "@/components/session/SessionHeader";
 import { setLanguage } from "@lingzhu/ui/i18n";
 import type { TimelineEntry } from "@lingzhu/ui/types";
 import { chat } from "./support/chat";

@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "@lingzhu/app/App";
-import { ErrorBoundary } from "@lingzhu/app/components/ErrorBoundary";
+import { ErrorBoundary } from "@lingzhu/app/components/shell/ErrorBoundary";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import "@lingzhu/ui/theme.css";
 

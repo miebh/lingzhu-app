@@ -4,7 +4,8 @@ import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import { applyEvent } from "@/lib/chat-events";
-import { entriesFromMessages, type ChatState, type CoreEvent, type Message, type TimelineEntry } from "@lingzhu/ui/types";
+import { entriesFromMessages } from "@lingzhu/ui/domain/chat";
+import { type ChatState, type CoreEvent, type Message, type TimelineEntry } from "@lingzhu/ui/types";
 
 function chat(entries: TimelineEntry[], running = false): ChatState {
   return {

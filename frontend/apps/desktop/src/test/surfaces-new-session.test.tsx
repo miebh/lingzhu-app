@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
-import { NewSessionHome } from "@/components/NewSessionHome";
+import { NewSessionHome } from "@/components/session/NewSessionHome";
 import { api } from "@/lib/api";
 
 vi.mock("@/lib/api", () => import("./support/api-mock"));

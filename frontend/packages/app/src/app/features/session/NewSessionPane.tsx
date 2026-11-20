@@ -1,4 +1,4 @@
-import { NewSessionHome } from "../../../components/NewSessionHome";
+import { NewSessionHome } from "../../../components/session/NewSessionHome";
 import { useShell } from "../../ShellProvider";
 import { useComposerCommands } from "../../useComposerCommands";
 

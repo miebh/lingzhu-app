@@ -1,0 +1,197 @@
+@layer components {
+  .shell-submessage-in {
+    animation: shell-submessage-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes shell-submessage-in {
+    from {
+      opacity: 0;
+      filter: blur(2px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+
+  [data-slot="webfetch-link-text"] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-slot="webfetch-link-icon"] {
+    flex-shrink: 0;
+    color: var(--fg-accent);
+  }
+
+  @media (hover: hover) {
+    [data-slot="webfetch-link-icon"] {
+      display: none;
+    }
+
+    [data-slot="exa-tool-link"].webfetch-link:hover [data-slot="webfetch-link-text"],
+    [data-slot="basic-tool-tool-subtitle"].webfetch-link:hover [data-slot="webfetch-link-text"] {
+      text-underline-offset: 2px;
+      text-decoration: underline;
+    }
+
+    [data-slot="exa-tool-link"].webfetch-link:hover [data-slot="webfetch-link-icon"],
+    [data-slot="basic-tool-tool-subtitle"].webfetch-link:hover [data-slot="webfetch-link-icon"] {
+      display: inline-flex;
+    }
+  }
+
+  [data-slot="exa-tool-more"] {
+    align-self: flex-start;
+    color: var(--fg-muted);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    font-weight: 440;
+    text-align: left;
+    transition: color 0.15s;
+  }
+
+  [data-slot="exa-tool-more"]:hover {
+    color: var(--fg-base);
+  }
+
+  [data-component="reasoning-part"] [data-slot="collapsible-content"] {
+    padding-block: 4px;
+  }
+
+  [data-component="reasoning-part"] [data-slot="collapsible-trigger"] {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 28px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  [data-component="reasoning-part"] [data-slot="collapsible-trigger"]:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+
+  [data-component="reasoning-part"] [data-slot="collapsible-arrow"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  [data-component="reasoning-part"]:hover [data-slot="collapsible-arrow"],
+  [data-component="reasoning-part"] [data-slot="collapsible-trigger"]:focus-visible [data-slot="collapsible-arrow"],
+  [data-component="reasoning-part"] [data-slot="collapsible-trigger"][aria-expanded="true"] [data-slot="collapsible-arrow"] {
+    opacity: 1;
+  }
+
+  [data-component="tool-part-wrapper"] {
+    width: 100%;
+    min-width: 0;
+    /* Revealing a tool lands it below the sticky group header. */
+    scroll-margin-top: var(--sticky-accordion-top, 0px);
+  }
+
+  [data-component="session-shell-message"] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  @media (hover: none) {
+    [data-component="collapsible"].tool-collapsible > [data-slot="collapsible-trigger"] [data-slot="collapsible-arrow"],
+    [data-component="read-tool-group"] [data-slot="read-tool-group-arrow"],
+    [data-component="reasoning-part"] [data-slot="collapsible-arrow"],
+    [data-component="task-tool-card"] [data-component="task-tool-action"] {
+      opacity: 1;
+    }
+  }
+
+  /* Per-character shimmer: each glyph has a faint base and a delayed peak
+     layer, so the highlight travels across the text like the reference. */
+  [data-component="text-shimmer"] {
+    display: inline-flex;
+    align-items: baseline;
+    white-space: pre;
+  }
+
+  [data-component="text-shimmer"] [data-slot="text-shimmer-char"] {
+    display: inline-grid;
+    position: relative;
+    white-space: pre;
+  }
+
+  [data-component="text-shimmer"] [data-slot="text-shimmer-char-base"],
+  [data-component="text-shimmer"] [data-slot="text-shimmer-char-peak"] {
+    grid-area: 1 / 1;
+    white-space: pre;
+  }
+
+  [data-component="text-shimmer"] [data-slot="text-shimmer-char-base"] {
+    color: var(--fg-faint);
+  }
+
+  [data-component="text-shimmer"] [data-slot="text-shimmer-char-peak"] {
+    color: var(--fg-base);
+    opacity: 0;
+  }
+
+  [data-component="text-shimmer"][data-active="true"] [data-slot="text-shimmer-char-peak"] {
+    animation: text-shimmer-char 1200ms linear infinite;
+    animation-delay: calc(var(--shimmer-index) * 45ms);
+  }
+
+  @keyframes text-shimmer-char {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    10%,
+    30% {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-component="text-shimmer"][data-active="true"] [data-slot="text-shimmer-char-peak"] {
+      animation: none;
+    }
+  }
+
+  .reasoning-markdown.markdown-body {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    color: var(--fg-muted);
+  }
+
+  .reasoning-markdown.markdown-body :is(h1, h2, h3, h4, h5, h6) {
+    margin-top: 24px;
+    margin-bottom: 0;
+    font-size: inherit;
+    line-height: inherit;
+    font-weight: inherit;
+    color: inherit;
+  }
+
+  .reasoning-markdown.markdown-body :is(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+  }
+
+  .reasoning-markdown.markdown-body :is(strong, b) {
+    color: var(--fg-muted);
+  }
+
+  .reasoning-markdown.markdown-body p:has(strong) {
+    margin-top: 24px;
+    margin-bottom: 0;
+  }
+
+  .reasoning-markdown.markdown-body p:has(strong):first-child {
+    margin-top: 0;
+  }
+}

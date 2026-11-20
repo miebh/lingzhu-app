@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityRing } from "@lingzhu/ui/ActivityRing";
-import type { SideTab } from "../lib/sessionTabs";
+import type { SideTab } from "./sessionTabs";
 
 /** One row being renamed inline in a tab strip. */
 export interface TabEditing {

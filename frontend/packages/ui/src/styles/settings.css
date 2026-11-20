@@ -1,0 +1,116 @@
+/* Settings switches sit inside a 4px hit-area inset, like the reference row control. */
+[data-slot="settings-row-control"]:has(> [data-slot="switch"]) {
+  padding: 4px;
+}
+
+/* Settings surface: the header fades its lower edge into the scrolling body. */
+.settings-header::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 24px;
+  background: linear-gradient(to bottom, var(--bg-base), transparent);
+  pointer-events: none;
+}
+
+/* The rail fades its edges only while content is hidden behind them; the
+   scroll timeline keeps a list that fits free of any fade. */
+@property --settings-nav-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --settings-nav-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@supports (animation-timeline: scroll()) {
+  .settings-nav-groups {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black var(--settings-nav-fade-start),
+      black calc(100% - var(--settings-nav-fade-end)),
+      transparent
+    );
+    animation:
+      settings-nav-fade-start linear both,
+      settings-nav-fade-end linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range:
+      0 24px,
+      calc(100% - 24px) 100%;
+  }
+}
+
+@keyframes settings-nav-fade-start {
+  to {
+    --settings-nav-fade-start: 24px;
+  }
+}
+
+@keyframes settings-nav-fade-end {
+  from {
+    --settings-nav-fade-end: 24px;
+  }
+}
+
+/* A chosen search result flashes its row, then the highlight fades away. */
+.settings-target-flash {
+  position: relative;
+  isolation: isolate;
+  outline: none;
+}
+
+.settings-target-flash::before {
+  content: "";
+  position: absolute;
+  inset-block: -2px;
+  inset-inline: -8px;
+  z-index: -1;
+  border-radius: 6px;
+  background: var(--bg-layer-03);
+  pointer-events: none;
+  animation: settings-target-reveal 1.8s ease-out forwards;
+}
+
+@keyframes settings-target-reveal {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-target-flash::before {
+    animation-duration: 0.01s;
+  }
+}
+/* The rail draws its own clear button, so the browser's stays hidden. */
+.settings-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+/* The review file tree fades its edges only while content is hidden behind
+   them, matching the reference sidebar tree. */
+.review-tree-scroll {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--review-fade-top, 0px),
+    #000 calc(100% - var(--review-fade-bottom, 0px)),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--review-fade-top, 0px),
+    #000 calc(100% - var(--review-fade-bottom, 0px)),
+    transparent
+  );
+}

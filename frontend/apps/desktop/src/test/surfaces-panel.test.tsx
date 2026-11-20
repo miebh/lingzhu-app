@@ -5,7 +5,7 @@ import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
 import { useShell } from "@/app/ShellProvider";
 import { useUiStore } from "@/store/ui";
-import { SessionSidePanel } from "@/components/SessionSidePanel";
+import { SessionSidePanel } from "@/components/session/SessionSidePanel";
 import type { SidePanelTab } from "@/lib/sidePanel";
 import { ReviewFileTree } from "@lingzhu/session-ui/ReviewFileTree";
 import { setLanguage } from "@lingzhu/ui/i18n";

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ActivityRing } from "@lingzhu/ui/ActivityRing";
 import { t } from "@lingzhu/ui/i18n";
 import type { HomeSessionRow as HomeSessionRowData } from "@lingzhu/ui/types";
-import { ProjectAvatar } from "../ProjectAvatar";
+import { ProjectAvatar } from "../workspace/ProjectAvatar";
 
 interface Props {
   row: HomeSessionRowData;

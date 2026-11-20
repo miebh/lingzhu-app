@@ -1,14 +1,4 @@
-import {
-  createContext,
-  memo,
-  useContext,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Code,
   ChevronsUpDown,
@@ -44,111 +34,41 @@ import { timelineDetail } from "@lingzhu/session-ui/timeline-detail";
 import { stripAnsi } from "@lingzhu/ui/format";
 import { capitalize } from "@lingzhu/ui/text";
 import { useT, t, type MessageKey } from "@lingzhu/ui/i18n";
+import { disclosureView, useDisclosure } from "./disclosure";
 
 type Args = Record<string, unknown>;
 
-const TITLE_KEYS: Record<string, MessageKey> = {
-  read: "toolRead",
-  list: "toolList",
-  glob: "toolGlob",
-  grep: "toolGrep",
-  shell: "toolShell",
-  execute: "toolExecute",
-  browser: "toolBrowser",
-  webfetch: "toolWebfetch",
-  websearch: "toolWebsearch",
-  edit: "toolEdit",
-  write: "toolWrite",
-  patch: "toolPatch",
-  apply_patch: "toolPatch",
-  question: "toolQuestions",
-  skill: "toolSkill",
-  subagent: "toolAgent",
-};
+/**
+ * One row per tool id. The title, subtitle, args and renderer live together so
+ * adding a tool means adding one entry instead of editing every switch below.
+ */
+interface ToolSpec {
+  title: MessageKey;
+  /** File-change tools share the accordion renderer and the file grouping. */
+  file?: boolean;
+  subtitle?: (tool: ToolRun, args: Args) => string;
+  args?: (tool: ToolRun, args: Args) => string[];
+  render?: (tool: ToolRun, context: ToolRenderContext) => ReactNode;
+}
+
+interface ToolRenderContext {
+  detail: TimelineDetail;
+  groupKey: string;
+  onOpenSession?: (id: string) => void;
+  workspace?: string;
+  runningSubagents?: ReadonlySet<string>;
+  shellOutput?: (tool: ToolRun) => ShellOutputSource | undefined;
+  summaryOnly?: boolean;
+}
 
 /** Localized display name for a tool id; unknown MCP tools keep their raw name. */
 function toolName(name: string): string {
-  const key = TITLE_KEYS[name];
-  return key ? t(key) : name;
+  const spec = TOOL_SPECS[name];
+  return spec ? t(spec.title) : name;
 }
 
-const isFileTool = (name: string) =>
-  name === "edit" || name === "write" || name === "patch" || name === "apply_patch";
+const isFileTool = (name: string) => TOOL_SPECS[name]?.file === true;
 const IMAGE_PATH = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i;
-
-const ToolScopeContext = createContext("");
-
-/** Keeps disclosure slices inside one session; tool IDs repeat across sessions. */
-export function ToolScopeProvider({ scope, children }: { scope: string; children: ReactNode }) {
-  return <ToolScopeContext.Provider value={scope}>{children}</ToolScopeContext.Provider>;
-}
-
-// Expanded state survives virtualization and transcript re-renders, like the
-// desktop disclosure store. Every row keys its own slice.
-const disclosures = new Map<string, boolean>();
-// Listeners are scoped to their slice: toggling one card must not wake every
-// mounted tool row, and a long transcript mounts many of them.
-const disclosureListeners = new Map<string, Set<() => void>>();
-
-// Aliases are joined into one signature so the effect keeps a stable dependency
-// while the component reads each key separately.
-const DISCLOSURE_SEPARATOR = "\u0000";
-
-function disclosureValue(keys: readonly string[], fallback: boolean) {
-  for (const key of keys) {
-    const value = disclosures.get(key);
-    if (value !== undefined) return value;
-  }
-  return fallback;
-}
-
-/**
- * Open state for one disclosure. A row may pass several keys for the same
- * block: the first is the durable identity and later ones are aliases that
- * cover a rebuilt key. Reading prefers the first key that has a stored value,
- * and writing records the choice under every key, so an expanded block stays
- * expanded when a live transcript row is replaced by its persisted copy.
- */
-export function useDisclosure(key: string | readonly string[], fallback = false) {
-  const scope = useContext(ToolScopeContext);
-  const keys = (typeof key === "string" ? [key] : key).map((item) => (scope ? `${scope}:${item}` : item));
-  const signature = keys.join(DISCLOSURE_SEPARATOR);
-  const [open, setOpenState] = useState(() => disclosureValue(keys, fallback));
-
-  useEffect(() => {
-    const scoped = signature.split(DISCLOSURE_SEPARATOR);
-    const update = () => setOpenState(disclosureValue(scoped, fallback));
-    const listeners = scoped.map((item) => {
-      const set = disclosureListeners.get(item) ?? new Set<() => void>();
-      set.add(update);
-      disclosureListeners.set(item, set);
-      return [item, set] as const;
-    });
-    // A key can join a block after the user already opened it, such as the
-    // first tool that arrives after a thought. Carry the stored choice onto the
-    // new alias so the next render still finds it.
-    if (scoped.some((item) => disclosures.get(item) !== undefined)) {
-      const stored = disclosureValue(scoped, fallback);
-      for (const item of scoped) {
-        if (disclosures.get(item) === undefined) disclosures.set(item, stored);
-      }
-    }
-    update();
-    return () => {
-      for (const [item, set] of listeners) {
-        set.delete(update);
-        if (set.size === 0) disclosureListeners.delete(item);
-      }
-    };
-  }, [signature, fallback]);
-
-  const setOpen = (next: boolean) => {
-    for (const item of keys) disclosures.set(item, next);
-    for (const item of keys) disclosureListeners.get(item)?.forEach((listener) => listener());
-  };
-
-  return [open, setOpen] as const;
-}
 
 // Parsed arguments are reused across a row's many call sites (title, subtitle,
 // path, read args). The cache is keyed by the raw string, which is stable for a
@@ -201,40 +121,28 @@ function toolTitle(tool: ToolRun, args = parseArgs(tool.arguments)): string {
 
 const LABEL_KEYS = ["description", "query", "url", "path", "pattern", "name"];
 
-function toolSubtitle(tool: ToolRun, args = parseArgs(tool.arguments)): string {
-  switch (tool.name) {
-    case "read":
-    case "edit":
-    case "write":
-    case "patch":
-      return splitPath(stringArg(args, "path")).name;
-    case "list":
-    case "glob":
-    case "grep":
-      return displayDirectory(stringArg(args, "path"));
-    case "shell":
-    case "execute":
-      return stringArg(args, "command");
-    case "websearch":
-      return stringArg(args, "query");
-    case "webfetch":
-      return stringArg(args, "url");
-    case "subagent":
-      return stringArg(args, "description") || stringArg(args, "agent");
-    case "question": {
-      const questions = Array.isArray(args.questions) ? args.questions : [];
-      return questions.length
-        ? t(questions.length === 1 ? "toolQuestionOne" : "toolQuestionsMany", { count: questions.length })
-        : "";
-    }
-    default: {
-      for (const key of LABEL_KEYS) {
-        const value = stringArg(args, key);
-        if (value) return value;
-      }
-      return "";
-    }
+function genericSubtitle(args: Args): string {
+  for (const key of LABEL_KEYS) {
+    const value = stringArg(args, key);
+    if (value) return value;
   }
+  return "";
+}
+
+function fileSubtitle(_tool: ToolRun, args: Args): string {
+  return splitPath(stringArg(args, "path")).name;
+}
+
+function directorySubtitle(_tool: ToolRun, args: Args): string {
+  return displayDirectory(stringArg(args, "path"));
+}
+
+function commandSubtitle(_tool: ToolRun, args: Args): string {
+  return stringArg(args, "command");
+}
+
+function toolSubtitle(tool: ToolRun, args = parseArgs(tool.arguments)): string {
+  return TOOL_SPECS[tool.name]?.subtitle?.(tool, args) ?? genericSubtitle(args);
 }
 
 function displayDirectory(path: string): string {
@@ -248,18 +156,19 @@ function genericArgs(args: Args): string[] {
     .map(([key, value]) => `${key}=${String(value)}`);
 }
 
+function patternArgs(_tool: ToolRun, args: Args): string[] {
+  return stringArg(args, "pattern") ? [`pattern=${stringArg(args, "pattern")}`] : [];
+}
+
+function grepArgs(_tool: ToolRun, args: Args): string[] {
+  return [
+    stringArg(args, "pattern") ? `pattern=${stringArg(args, "pattern")}` : "",
+    stringArg(args, "include") ? `include=${stringArg(args, "include")}` : "",
+  ].filter(Boolean);
+}
+
 function toolArgs(tool: ToolRun, args = parseArgs(tool.arguments)): string[] {
-  switch (tool.name) {
-    case "glob":
-      return stringArg(args, "pattern") ? [`pattern=${stringArg(args, "pattern")}`] : [];
-    case "grep":
-      return [
-        stringArg(args, "pattern") ? `pattern=${stringArg(args, "pattern")}` : "",
-        stringArg(args, "include") ? `include=${stringArg(args, "include")}` : "",
-      ].filter(Boolean);
-    default:
-      return genericArgs(args);
-  }
+  return TOOL_SPECS[tool.name]?.args?.(tool, args) ?? genericArgs(args);
 }
 
 function readArgs(args: Args): string[] {
@@ -358,9 +267,18 @@ export function BasicTool(props: BasicToolProps) {
   const generatedID = useId();
   const key = props.id ?? generatedID;
   const [storedOpen, setStoredOpen] = useDisclosure(key, props.defaultOpen ?? false);
-  const open = props.forceOpen || props.open || storedOpen;
-  const expandable = props.hasContent ?? Boolean(props.children);
   const pending = props.pending ?? (props.status === "streaming" || props.status === "running");
+  const view = disclosureView({
+    stored: storedOpen,
+    open: props.open,
+    forceOpen: props.forceOpen,
+    hasContent: props.hasContent,
+    hasChildren: Boolean(props.children),
+    locked: props.locked,
+    pending,
+    allowOpenWhilePending: props.allowOpenWhilePending,
+  });
+  const { open, expandable, canToggle } = view;
   // A mounted body keeps its diff scroll, image state and disclosure children
   // alive when the row collapses, as the reference Collapsible does.
   const [mounted, setMounted] = useState(open);
@@ -370,8 +288,7 @@ export function BasicTool(props: BasicToolProps) {
   }, [open]);
 
   const toggle = () => {
-    if (props.locked || !expandable) return;
-    if (pending && !props.allowOpenWhilePending) return;
+    if (!canToggle) return;
     const next = !open;
     setStoredOpen(next);
     props.onOpenChange?.(next);
@@ -2174,6 +2091,114 @@ function GenericTool({ tool }: { tool: ToolRun }) {
   );
 }
 
+function questionSubtitle(_tool: ToolRun, args: Args): string {
+  const questions = Array.isArray(args.questions) ? args.questions : [];
+  return questions.length
+    ? t(questions.length === 1 ? "toolQuestionOne" : "toolQuestionsMany", { count: questions.length })
+    : "";
+}
+
+function subagentSubtitle(_tool: ToolRun, args: Args): string {
+  return stringArg(args, "description") || stringArg(args, "agent");
+}
+
+function fileToolContent(tool: ToolRun, context: ToolRenderContext): ReactNode {
+  if (context.summaryOnly) {
+    return (
+      <BasicTool
+        id={`${tool.name}:${tool.id}`}
+        title={toolTitle(tool)}
+        subtitle={toolSubtitle(tool)}
+        pending={!tool.done}
+      />
+    );
+  }
+  return (
+    <FileGroup
+      tools={[tool]}
+      detail={context.detail}
+      groupKey={context.groupKey}
+      showHeader={tool.name === "edit"}
+    />
+  );
+}
+
+const TOOL_SPECS: Record<string, ToolSpec> = {
+  read: {
+    title: "toolRead",
+    subtitle: fileSubtitle,
+    render: (tool, context) => <ReadTool tool={tool} workspace={context.workspace} />,
+  },
+  list: {
+    title: "toolList",
+    subtitle: directorySubtitle,
+    render: (tool, context) => <ListTool tool={tool} summaryOnly={context.summaryOnly} />,
+  },
+  glob: {
+    title: "toolGlob",
+    subtitle: directorySubtitle,
+    args: patternArgs,
+    render: (tool, context) => <SearchTool tool={tool} summaryOnly={context.summaryOnly} />,
+  },
+  grep: {
+    title: "toolGrep",
+    subtitle: directorySubtitle,
+    args: grepArgs,
+    render: (tool, context) => <SearchTool tool={tool} summaryOnly={context.summaryOnly} />,
+  },
+  shell: {
+    title: "toolShell",
+    subtitle: commandSubtitle,
+    render: (tool, context) => (
+      <ShellTool
+        tool={tool}
+        defaultOpen={context.detail.shell.details === "expanded"}
+        shellOutput={context.shellOutput?.(tool)}
+      />
+    ),
+  },
+  execute: {
+    title: "toolExecute",
+    subtitle: commandSubtitle,
+    render: (tool) => <ExecuteTool tool={tool} />,
+  },
+  browser: { title: "toolBrowser" },
+  webfetch: {
+    title: "toolWebfetch",
+    subtitle: (_tool, args) => stringArg(args, "url"),
+    render: (tool) => <WebfetchTool tool={tool} />,
+  },
+  websearch: {
+    title: "toolWebsearch",
+    subtitle: (_tool, args) => stringArg(args, "query"),
+    render: (tool) => <WebsearchTool tool={tool} />,
+  },
+  edit: { title: "toolEdit", file: true, subtitle: fileSubtitle, render: fileToolContent },
+  write: { title: "toolWrite", file: true, subtitle: fileSubtitle, render: fileToolContent },
+  patch: { title: "toolPatch", file: true, subtitle: fileSubtitle, render: fileToolContent },
+  apply_patch: { title: "toolPatch", file: true, render: fileToolContent },
+  subagent: {
+    title: "toolAgent",
+    subtitle: subagentSubtitle,
+    render: (tool, context) => (
+      <SubagentCard
+        tool={tool}
+        onOpenSession={context.onOpenSession}
+        runningSubagents={context.runningSubagents}
+      />
+    ),
+  },
+  question: {
+    title: "toolQuestions",
+    subtitle: questionSubtitle,
+    render: (tool) => <QuestionTool tool={tool} />,
+  },
+  skill: {
+    title: "toolSkill",
+    render: (tool) => <SkillTool tool={tool} />,
+  },
+};
+
 function ToolDisplay({
   tool,
   detail,
@@ -2238,67 +2263,16 @@ function ToolDisplay({
 
   if (tool.name === "question" && !tool.done) return null;
 
-  let content: ReactNode = null;
-  switch (tool.name) {
-    case "read":
-      content = <ReadTool tool={tool} workspace={workspace} />;
-      break;
-    case "list":
-      content = <ListTool tool={tool} summaryOnly={summaryOnly} />;
-      break;
-    case "glob":
-    case "grep":
-      content = <SearchTool tool={tool} summaryOnly={summaryOnly} />;
-      break;
-    case "webfetch":
-      content = <WebfetchTool tool={tool} />;
-      break;
-    case "websearch":
-      content = <WebsearchTool tool={tool} />;
-      break;
-    case "shell":
-      content = (
-        <ShellTool
-          tool={tool}
-          defaultOpen={detail.shell.details === "expanded"}
-          shellOutput={shellOutput?.(tool)}
-        />
-      );
-      break;
-    case "edit":
-    case "write":
-    case "patch":
-    case "apply_patch":
-      content = summaryOnly ? (
-        <BasicTool
-          id={`${tool.name}:${tool.id}`}
-          title={toolTitle(tool)}
-          subtitle={toolSubtitle(tool)}
-          pending={!tool.done}
-        />
-      ) : (
-        <FileGroup
-          tools={[tool]}
-          detail={detail}
-          groupKey={groupKey}
-          showHeader={tool.name === "edit"}
-        />
-      );
-      break;
-    case "subagent":
-      content = (
-        <SubagentCard tool={tool} onOpenSession={onOpenSession} runningSubagents={runningSubagents} />
-      );
-      break;
-    case "question":
-      content = <QuestionTool tool={tool} />;
-      break;
-    case "skill":
-      content = <SkillTool tool={tool} />;
-      break;
-    default:
-      content = <GenericTool tool={tool} />;
-  }
+  const content =
+    TOOL_SPECS[tool.name]?.render?.(tool, {
+      detail,
+      groupKey,
+      onOpenSession,
+      workspace,
+      runningSubagents,
+      shellOutput,
+      summaryOnly,
+    }) ?? <GenericTool tool={tool} />;
 
   return (
     <div data-component="tool-part-wrapper" data-timeline-part-id={tool.id}>

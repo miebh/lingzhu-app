@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@lingzhu/ui/dropdown-menu";
-import { ConfirmDialog } from "../Dialogs";
+import { ConfirmDialog } from "../dialogs/Dialogs";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
 import { t, useT } from "@lingzhu/ui/i18n";

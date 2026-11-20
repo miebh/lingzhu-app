@@ -1,7 +1,7 @@
-import { BatchExportDialog } from "../../components/BatchExportDialog";
-import { ConfirmDialog, MoveSessionDialog, RenameDialog, WorktreeDialog } from "../../components/Dialogs";
-import { ManageModelsDialog } from "../../components/ManageModelsDialog";
-import { TransferDialog } from "../../components/TransferDialog";
+import { BatchExportDialog } from "../../components/dialogs/BatchExportDialog";
+import { ConfirmDialog, MoveSessionDialog, RenameDialog, WorktreeDialog } from "../../components/dialogs/Dialogs";
+import { ManageModelsDialog } from "../../components/dialogs/ManageModelsDialog";
+import { TransferDialog } from "../../components/dialogs/TransferDialog";
 import { useChatStore } from "../../store/chat";
 import { dismissDialog as dismiss, useDialogEntry } from "../../store/dialogs";
 import { useWorkspaceStore } from "../../store/workspaces";

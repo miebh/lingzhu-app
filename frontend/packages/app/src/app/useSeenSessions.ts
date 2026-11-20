@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { chatKey, type SessionInfo, type WorkspaceInfo } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type SessionInfo, type WorkspaceInfo } from "@lingzhu/ui/types";
 import { useTabsStore } from "../store/tabs";
 
 interface Options {

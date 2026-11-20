@@ -1,4 +1,5 @@
-import { chatKey, type SessionInfo } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type SessionInfo } from "@lingzhu/ui/types";
 
 export interface StoredSessionTab {
   key: string;

@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
-import { SessionSummaryMenu } from "@/components/SessionSummaryMenu";
+import { SessionSummaryMenu } from "@/components/session/SessionSummaryMenu";
 import { SESSION_SUMMARY_EVENT } from "@/lib/keybinds";
 import { api } from "@/lib/api";
 

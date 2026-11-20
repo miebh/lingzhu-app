@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { chatKey } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
 import { api } from "../lib/api";
 import { notifySession } from "../store/notify";
 import { usePreferencesStore } from "../store/preferences";

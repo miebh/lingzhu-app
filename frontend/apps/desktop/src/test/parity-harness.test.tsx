@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,26 +9,37 @@ import { setPierreAvailable } from "@lingzhu/session-ui/pierre";
 import type { ChatState, TimelineEntry } from "@lingzhu/ui/types";
 
 function componentStyles() {
-  const css = readFileSync(path.resolve(import.meta.dirname, "../../../../packages/ui/src/theme.css"), "utf8");
-  const start = css.indexOf("@layer components {");
-  if (start < 0) return "";
-  let depth = 0;
-  let end = start;
-  for (let index = css.indexOf("{", start); index < css.length; index += 1) {
-    if (css[index] === "{") depth += 1;
-    else if (css[index] === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        end = index;
-        break;
+  const css = stylesheet();
+  const chunks: string[] = [];
+  let from = 0;
+  while (true) {
+    const start = css.indexOf("@layer components {", from);
+    if (start < 0) break;
+    let depth = 0;
+    let end = start;
+    for (let index = css.indexOf("{", start); index < css.length; index += 1) {
+      if (css[index] === "{") depth += 1;
+      else if (css[index] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          end = index;
+          break;
+        }
       }
     }
+    chunks.push(css.slice(css.indexOf("{", start) + 1, end));
+    from = end + 1;
   }
-  return css.slice(css.indexOf("{", start) + 1, end);
+  return chunks.join("\n");
 }
 
 function stylesheet() {
-  return readFileSync(path.resolve(import.meta.dirname, "../../../../packages/ui/src/theme.css"), "utf8");
+  const root = path.resolve(import.meta.dirname, "../../../../packages/ui/src");
+  const styles = path.join(root, "styles");
+  const entry = readFileSync(path.join(root, "theme.css"), "utf8");
+  const names = [...entry.matchAll(/@import "\.\/styles\/([^"]+)"/g)].map((match) => match[1]);
+  const order = names.length > 0 ? names : readdirSync(styles).filter((name) => name.endsWith(".css")).sort();
+  return [entry, ...order.map((name) => readFileSync(path.join(styles, name), "utf8"))].join("\n");
 }
 
 function block(css: string, opener: string) {

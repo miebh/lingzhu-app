@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { removeTabsForSessions } from "@/lib/sessionTabs";
-import { chatKey } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
 
 const tab = (path: string, id: string) => ({ key: chatKey(path, id), path, sessionID: id });
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
-import { Toast } from "@/components/Toast";
+import { Toast } from "@/components/shell/Toast";
 import { notify, notifySession, useNotifyStore } from "@lingzhu/app/store/notify";
 
 describe("completion notice", () => {

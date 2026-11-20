@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { ClosedSideTab, SideTab } from "../lib/sessionTabs";
-import { chatKey, type SessionInfo } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type SessionInfo } from "@lingzhu/ui/types";
 import { useChatStore } from "../store/chat";
 import { unreadKeys as computeUnread } from "./useSeenSessions";
 import { selectClosedTabs, selectSideTabs, useTabsStore } from "../store/tabs";

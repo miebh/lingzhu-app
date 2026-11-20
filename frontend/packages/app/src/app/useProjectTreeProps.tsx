@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
-import { Sidebar } from "../components/Sidebar";
-import { chatKey } from "@lingzhu/ui/types";
+import { Sidebar } from "../components/workspace/Sidebar";
+import { chatKey } from "@lingzhu/ui/domain/chat";
 import { useShell } from "./ShellProvider";
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";

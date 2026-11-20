@@ -2,13 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
-import { SessionHeader } from "@/components/SessionHeader";
+import { SessionHeader } from "@/components/session/SessionHeader";
 import { applyEvent } from "@/lib/chat-events";
 import { setLanguage } from "@lingzhu/ui/i18n";
 import { TimelineSection } from "@/components/settings/TimelineSection";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import { defaultPreferences } from "@/lib/preferences";
-import { entriesFromMessages, type ChatState, type TimelineEntry } from "@lingzhu/ui/types";
+import { entriesFromMessages } from "@lingzhu/ui/domain/chat";
+import { type ChatState, type TimelineEntry } from "@lingzhu/ui/types";
 
 const chat = (entries: TimelineEntry[]): ChatState =>
   ({

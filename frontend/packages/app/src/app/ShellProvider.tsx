@@ -8,7 +8,7 @@ import { effectiveKeybinds } from "../lib/keybinds";
 import { effectiveTabLayout } from "../lib/layout";
 import { t } from "@lingzhu/ui/i18n";
 import { isFilePanelTab, CONFIG_FILE_TAB, type SidePanelTab, type SidePanelTabID } from "../lib/sidePanel";
-import { chatKey } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
 import { useCatalog } from "../store/catalog";
 import type { Catalog } from "../store/catalog";
 import { useActiveChatID, useChatHome, useChatStore } from "../store/chat";

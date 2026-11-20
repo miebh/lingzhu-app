@@ -1,0 +1,189 @@
+/* Interface layout picker: miniature previews of the top strip and side rail. */
+.interface-mode {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.interface-mode-option {
+  --preview-ink: var(--bg-layer-03);
+  --preview-ink-strong: var(--bg-layer-04);
+  position: relative;
+  display: flex;
+  width: 120px;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background-color: var(--bg-layer-02);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.interface-mode-option:hover {
+  border-color: var(--border-strong);
+}
+
+.interface-mode-option[data-checked="true"] {
+  --preview-ink-strong: color-mix(in srgb, var(--bg-accent) 70%, transparent);
+  border-color: var(--border-focus);
+}
+
+.interface-mode-option[data-checked="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px var(--border-focus);
+  pointer-events: none;
+}
+
+.interface-mode-option:has(input:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.interface-mode-option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.interface-mode-sketch {
+  display: flex;
+  overflow: hidden;
+  height: 52px;
+  margin: 10px 10px 0;
+  border: 0.5px solid var(--border-base);
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background-color: var(--bg-base);
+}
+
+.interface-mode-sketch[data-mode="horizontal"] {
+  flex-direction: column;
+}
+
+.interface-mode-strip {
+  display: flex;
+  gap: 3px;
+  padding: 4px 5px;
+  border-bottom: 0.5px solid var(--border-base);
+  background-image: linear-gradient(var(--overlay-pressed), var(--overlay-pressed));
+}
+
+.interface-mode-strip .interface-mode-tab {
+  width: 18px;
+}
+
+.interface-mode-rail {
+  display: flex;
+  width: 28px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 5px;
+  border-right: 0.5px solid var(--border-base);
+  background-image: linear-gradient(var(--overlay-pressed), var(--overlay-pressed));
+}
+
+.interface-mode-tab {
+  height: 5px;
+  border-radius: 2px;
+  background-color: color-mix(in srgb, var(--preview-ink-strong) 45%, transparent);
+}
+
+.interface-mode-tab[data-active="true"] {
+  background-color: var(--preview-ink-strong);
+}
+
+.interface-mode-page {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+}
+
+.interface-mode-line {
+  width: 80%;
+  height: 3px;
+  border-radius: 1.5px;
+  background-color: var(--preview-ink);
+}
+
+.interface-mode-line + .interface-mode-line {
+  width: 56%;
+}
+
+.interface-mode-composer {
+  height: 8px;
+  margin-top: auto;
+  border-radius: 3px;
+  background-color: var(--bg-layer-02);
+  box-shadow: inset 0 0 0 0.5px var(--border-base);
+}
+
+.interface-mode-name {
+  padding: 6px 10px;
+  border-top: 0.5px solid var(--border-base);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 530;
+  line-height: 16px;
+  color: var(--fg-muted);
+  background-color: var(--bg-base);
+}
+
+.interface-mode-option:hover .interface-mode-name,
+.interface-mode-option[data-checked="true"] .interface-mode-name {
+  color: var(--fg-base);
+}
+/* Inbox preview rows: a status dot and an inbox line. */
+.interface-mode-tab[data-inbox="true"] {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background-color: transparent;
+}
+
+.interface-mode-tab[data-inbox="true"]::after {
+  content: "";
+  height: 3px;
+  flex: 1;
+  border-radius: 1.5px;
+  background-color: color-mix(in srgb, var(--preview-ink-strong) 45%, transparent);
+}
+
+.interface-mode-tab[data-inbox="true"][data-active="true"]::after {
+  background-color: var(--preview-ink-strong);
+}
+
+.interface-mode-tab i[data-status] {
+  width: 4px;
+  height: 4px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-color: var(--bg-layer-04);
+}
+
+.interface-mode-tab i[data-status="approval"] {
+  background-color: var(--state-fg-warning);
+}
+
+.interface-mode-tab i[data-status="done"] {
+  background-color: var(--state-fg-success);
+}
+
+.interface-mode-tab i[data-status="working"] {
+  background-color: var(--state-fg-info, var(--state-fg-success));
+}

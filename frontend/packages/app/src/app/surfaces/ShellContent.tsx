@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import { SessionHeader, SessionPanelToggle } from "../../components/SessionHeader";
-import { SessionSummaryMenu } from "../../components/SessionSummaryMenu";
+import { SessionHeader, SessionPanelToggle } from "../../components/session/SessionHeader";
+import { SessionSummaryMenu } from "../../components/session/SessionSummaryMenu";
 import { api } from "../../lib/api";
 import { contextUsage, modelCost, modelWindow } from "../../lib/contextUsage";
 import { CONFIG_FILE_TAB } from "../../lib/sidePanel";

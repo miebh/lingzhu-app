@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { render } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
-import { SideTabs } from "@lingzhu/app/components/SideTabs";
+import { SideTabs } from "@lingzhu/app/components/shell/SideTabs";
 import { describeElement } from "@lingzhu/devtools/inspector";
 
 // The real nesting: AppShell > ShellLayout > ShellSidebar > SideTabs.

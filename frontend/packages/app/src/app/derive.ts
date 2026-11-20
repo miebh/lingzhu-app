@@ -1,14 +1,6 @@
 import { workspaceName } from "../lib/history";
-import {
-  chatKey,
-  type AppPreferences,
-  type ChatState,
-  type HomeSessionRow,
-  type InboxEntry,
-  type SessionInfo,
-  type SessionLocation,
-  type WorkspaceInfo,
-} from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type AppPreferences, type ChatState, type HomeSessionRow, type InboxEntry, type SessionInfo, type SessionLocation, type WorkspaceInfo } from "@lingzhu/ui/types";
 
 /**
  * The parent chain for the session header, resolved from the loaded session

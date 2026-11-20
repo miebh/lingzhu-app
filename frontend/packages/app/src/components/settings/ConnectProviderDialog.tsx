@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Search, Unplug, X } from "@lingzhu/ui/icons";
-import { ConfirmDialog } from "@/components/Dialogs";
+import { ConfirmDialog } from "@/components/dialogs/Dialogs";
 import { Badge } from "@lingzhu/ui/badge";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";

@@ -1,4 +1,4 @@
-import { MobileDrawer } from "../../components/MobileDrawer";
+import { MobileDrawer } from "../../components/shell/MobileDrawer";
 import { useShell } from "../ShellProvider";
 
 /** Floating shell chrome: the mobile drawer. */

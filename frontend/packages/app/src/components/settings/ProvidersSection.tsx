@@ -2,7 +2,7 @@
 import { Check, ChevronDown, CircleAlert, Pencil, Plus, RefreshCw, Unplug } from "@lingzhu/ui/icons";
 import { Badge } from "@lingzhu/ui/badge";
 import { Loader } from "@lingzhu/ui/loader";
-import { ConfirmDialog } from "../Dialogs";
+import { ConfirmDialog } from "../dialogs/Dialogs";
 import { Button } from "@lingzhu/ui/button";
 import {
   DropdownMenu,

@@ -1,0 +1,105 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+const ToolScopeContext = createContext("");
+
+/** Keeps disclosure slices inside one session; tool IDs repeat across sessions. */
+export function ToolScopeProvider({ scope, children }: { scope: string; children: ReactNode }) {
+  return <ToolScopeContext.Provider value={scope}>{children}</ToolScopeContext.Provider>;
+}
+
+// Expanded state survives virtualization and transcript re-renders, like the
+// desktop disclosure store. Every row keys its own slice.
+const disclosures = new Map<string, boolean>();
+// Listeners are scoped to their slice: toggling one card must not wake every
+// mounted tool row, and a long transcript mounts many of them.
+const disclosureListeners = new Map<string, Set<() => void>>();
+
+// Aliases are joined into one signature so the effect keeps a stable dependency
+// while the component reads each key separately.
+const DISCLOSURE_SEPARATOR = "\u0000";
+
+function disclosureValue(keys: readonly string[], fallback: boolean) {
+  for (const key of keys) {
+    const value = disclosures.get(key);
+    if (value !== undefined) return value;
+  }
+  return fallback;
+}
+
+/**
+ * Open state for one disclosure. A row may pass several keys for the same
+ * block: the first is the durable identity and later ones are aliases that
+ * cover a rebuilt key. Reading prefers the first key that has a stored value,
+ * and writing records the choice under every key, so an expanded block stays
+ * expanded when a live transcript row is replaced by its persisted copy.
+ */
+export function useDisclosure(key: string | readonly string[], fallback = false) {
+  const scope = useContext(ToolScopeContext);
+  const keys = (typeof key === "string" ? [key] : key).map((item) => (scope ? `${scope}:${item}` : item));
+  const signature = keys.join(DISCLOSURE_SEPARATOR);
+  const [open, setOpenState] = useState(() => disclosureValue(keys, fallback));
+
+  useEffect(() => {
+    const scoped = signature.split(DISCLOSURE_SEPARATOR);
+    const update = () => setOpenState(disclosureValue(scoped, fallback));
+    const listeners = scoped.map((item) => {
+      const set = disclosureListeners.get(item) ?? new Set<() => void>();
+      set.add(update);
+      disclosureListeners.set(item, set);
+      return [item, set] as const;
+    });
+    // A key can join a block after the user already opened it, such as the
+    // first tool that arrives after a thought. Carry the stored choice onto the
+    // new alias so the next render still finds it.
+    if (scoped.some((item) => disclosures.get(item) !== undefined)) {
+      const stored = disclosureValue(scoped, fallback);
+      for (const item of scoped) {
+        if (disclosures.get(item) === undefined) disclosures.set(item, stored);
+      }
+    }
+    update();
+    return () => {
+      for (const [item, set] of listeners) {
+        set.delete(update);
+        if (set.size === 0) disclosureListeners.delete(item);
+      }
+    };
+  }, [signature, fallback]);
+
+  const setOpen = (next: boolean) => {
+    for (const item of keys) disclosures.set(item, next);
+    for (const item of keys) disclosureListeners.get(item)?.forEach((listener) => listener());
+  };
+
+  return [open, setOpen] as const;
+}
+
+export interface DisclosureInput {
+  stored: boolean;
+  open?: boolean;
+  forceOpen?: boolean;
+  hasContent?: boolean;
+  hasChildren: boolean;
+  locked?: boolean;
+  pending?: boolean;
+  allowOpenWhilePending?: boolean;
+}
+
+export interface DisclosureView {
+  open: boolean;
+  expandable: boolean;
+  canToggle: boolean;
+}
+
+/**
+ * Resolves the visible disclosure state from the stored choice and the row's
+ * props. Keeping the precedence here makes every tool row follow the same
+ * rules: forceOpen wins, a locked row has no body, and a pending row stays
+ * collapsed unless it explicitly allows reading while it runs.
+ */
+export function disclosureView(input: DisclosureInput): DisclosureView {
+  const expandable = input.hasContent ?? input.hasChildren;
+  const open = Boolean(input.forceOpen || input.open || input.stored);
+  const canToggle = expandable && !input.locked && (!input.pending || Boolean(input.allowOpenWhilePending));
+  return { open, expandable, canToggle };
+}

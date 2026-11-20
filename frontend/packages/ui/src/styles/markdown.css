@@ -1,0 +1,90 @@
+/* Assistant prose reads at the reference regular weight (440), inherited by
+   paragraphs, lists and blockquotes so replies are not lighter than user
+   bubbles. */
+.markdown-body {
+  font-weight: var(--font-weight-regular);
+}
+
+/* Streaming replies reveal new words with the reference's short entrance. */
+.markdown-word {
+  display: inline;
+  animation: markdown-word-enter 180ms ease-out both;
+}
+
+@keyframes markdown-word-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.03em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-word {
+    animation: none;
+  }
+}
+
+/* Markdown task lists: the checkbox hangs in the list marker's gutter while
+   the item itself keeps its text spine. */
+.markdown-body li:has(> input[type="checkbox"]),
+.markdown-body li:has(> p > input[type="checkbox"]) {
+  position: relative;
+  list-style-type: none;
+}
+
+.markdown-body li > input[type="checkbox"],
+.markdown-body li > p > input[type="checkbox"] {
+  position: absolute;
+  top: 4px;
+  inset-inline-start: -20px;
+  margin: 0;
+}
+
+/* A heading's own bottom margin sets the gap to its section, so the next
+   block's top margin cannot push it away. */
+.markdown-body :is(h1, h2, h3, h4, h5, h6) + :is(p, ul, ol, blockquote, .markdown-code) {
+  margin-top: 0;
+}
+
+/* A rendered Mermaid diagram paints from the role slots, so light and dark
+   share one rule and no literal colour enters the diagram. */
+[data-component="markdown-mermaid"] {
+  --pele-bg: var(--bg-layer-02);
+  --pele-fg: var(--fg-base);
+  --pele-muted: var(--fg-muted);
+  --pele-line: var(--fg-icon-base);
+  --pele-surface: var(--bg-base);
+  --pele-surface-alt: var(--bg-layer-03);
+  --pele-border: var(--border-strong);
+  --pele-accent: var(--fg-accent);
+  --pele-critical: var(--state-fg-danger);
+  --pele-error: var(--state-fg-danger);
+  --pele-font: var(--font-sans);
+  --pele-font-mono: var(--font-mono);
+  --pele-radius: var(--radius-md);
+}
+
+/* A list item's first paragraph joins the item's own line box. */
+.markdown-body li > p:first-child {
+  display: inline;
+  margin-block: 0;
+}
+
+/* Task-list checkboxes sit in the list's negative margin, as in the reference. */
+.markdown-body li:has(> input[type="checkbox"]),
+.markdown-body li:has(> p > input[type="checkbox"]) {
+  position: relative;
+  list-style: none;
+}
+
+.markdown-body li > input[type="checkbox"],
+.markdown-body li > p > input[type="checkbox"] {
+  position: absolute;
+  top: 4px;
+  inset-inline-start: -20px;
+  margin: 0;
+}

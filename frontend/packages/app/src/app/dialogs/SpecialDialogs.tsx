@@ -1,6 +1,6 @@
-import { CommandPalette } from "../../components/CommandPalette";
-import { RevertDialog } from "../../components/RevertDialog";
-import { SummaryDialog } from "../../components/SummaryDialog";
+import { CommandPalette } from "../../components/shell/CommandPalette";
+import { RevertDialog } from "../../components/dialogs/RevertDialog";
+import { SummaryDialog } from "../../components/dialogs/SummaryDialog";
 import { useChatStore } from "../../store/chat";
 import { dismissDialog as dismiss, openDialog, useDialogEntry } from "../../store/dialogs";
 import { useShell } from "../ShellProvider";

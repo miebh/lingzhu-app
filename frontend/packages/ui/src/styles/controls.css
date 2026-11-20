@@ -1,0 +1,95 @@
+@layer components {
+  /* Interaction feedback is a translucent layer over the opaque surface below,
+     never a replacement of the surface color. */
+  .interactive {
+    background-image: none;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .interactive:hover:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-state="hover"],
+  .interactive[data-highlighted] {
+    background-image: linear-gradient(var(--overlay-hover), var(--overlay-hover));
+  }
+
+  .interactive:active:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-state="pressed"] {
+    background-image: linear-gradient(var(--overlay-pressed), var(--overlay-pressed));
+  }
+
+  .interactive[data-selected="true"] {
+    background-image: linear-gradient(var(--overlay-selected), var(--overlay-selected));
+  }
+
+  /* Multi-select: a pointer sweep must not pulse rows. Hover and press feedback
+     are suppressed, and the selected overlay stays put even while hovered. */
+  .interactive[data-selecting="true"]:hover:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"]:active:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"][data-state="hover"],
+  .interactive[data-selecting="true"][data-state="pressed"] {
+    background-image: none;
+  }
+
+  .interactive[data-selecting="true"][data-selected="true"],
+  .interactive[data-selecting="true"][data-selected="true"]:hover:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"][data-selected="true"]:active:not(:disabled):not([data-disabled="true"]),
+  .interactive[data-selecting="true"][data-selected="true"][data-state="hover"],
+  .interactive[data-selecting="true"][data-selected="true"][data-state="pressed"] {
+    background-image: linear-gradient(var(--overlay-selected), var(--overlay-selected));
+  }
+
+  /* Primary controls carry the green accent as a flat fill; hover and press
+     are translucent overlays rather than glossy highlight gradients. */
+  .contrast {
+    background-color: var(--bg-control-accent);
+    background-image: none;
+    color: var(--fg-control-accent);
+    box-shadow: var(--elevation-button-contrast);
+  }
+
+  .contrast:hover:not(:disabled):not([data-disabled="true"]),
+  .contrast[data-state="hover"] {
+    background-image: linear-gradient(var(--overlay-contrast-hover), var(--overlay-contrast-hover));
+  }
+
+  .contrast:active:not(:disabled):not([data-disabled="true"]),
+  .contrast[data-state="pressed"] {
+    background-image: linear-gradient(var(--overlay-contrast-pressed), var(--overlay-contrast-pressed));
+  }
+
+  /* Composer submit: flat accent fill, matching the primary control. */
+  .submit {
+    background-color: var(--bg-control-accent);
+    background-image: none;
+    color: var(--fg-control-accent);
+    box-shadow: var(--elevation-button-contrast);
+  }
+
+  .submit:hover:not(:disabled),
+  .submit[data-state="hover"] {
+    background-image: linear-gradient(var(--overlay-contrast-hover), var(--overlay-contrast-hover));
+  }
+
+  .submit:active:not(:disabled),
+  .submit[data-state="pressed"] {
+    background-image: linear-gradient(var(--overlay-contrast-pressed), var(--overlay-contrast-pressed));
+  }
+
+  /* Reference spinner: the ring's head travels while the 20% track stays put. */
+  [data-component="loader-v2"] {
+    display: block;
+    flex-shrink: 0;
+    color: var(--fg-muted);
+    transform-origin: center;
+    animation: loader-v2-spin 900ms linear infinite;
+  }
+
+  @keyframes loader-v2-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}

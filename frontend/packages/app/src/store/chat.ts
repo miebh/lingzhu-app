@@ -4,19 +4,8 @@ import { entryAttachments } from "@lingzhu/ui/attachments";
 import { applyEvent, nextEntryKey } from "../lib/chat-events";
 import { isSessionNotFound, messageOf } from "../lib/errors";
 import { splitModelID } from "../lib/models";
-import {
-  blankChat,
-  chatKey,
-  entriesFromMessages,
-  type ChatState,
-  type CoreEvent,
-  type ModelSelection,
-  type PromptAttachment,
-  type PromptComment,
-  type PromptReference,
-  type QuestionResponse,
-  type WorkspaceInfo,
-} from "@lingzhu/ui/types";
+import { blankChat, chatKey, entriesFromMessages } from "@lingzhu/ui/domain/chat";
+import { type ChatState, type CoreEvent, type ModelSelection, type PromptAttachment, type PromptComment, type PromptReference, type QuestionResponse, type WorkspaceInfo } from "@lingzhu/ui/types";
 import { useCatalogStore, type Catalog } from "./catalog";
 import { notify } from "./notify";
 import { usePreferencesStore } from "./preferences";

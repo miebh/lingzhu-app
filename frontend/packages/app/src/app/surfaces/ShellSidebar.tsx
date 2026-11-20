@@ -7,8 +7,8 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { SideTabs } from "../../components/SideTabs";
-import { Sidebar } from "../../components/Sidebar";
+import { SideTabs } from "../../components/shell/SideTabs";
+import { Sidebar } from "../../components/workspace/Sidebar";
 import {
   panelContentOpacity,
   panelSpring,

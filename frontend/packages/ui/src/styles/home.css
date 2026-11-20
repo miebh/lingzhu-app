@@ -1,0 +1,104 @@
+/* Home project rows paint the surface on the row, fade the label under the
+   hover actions and keep the strip visible while its menu is open. */
+[data-home-row] {
+  --project-row-surface: var(--bg-base);
+  background: var(--project-row-surface);
+}
+
+[data-home-row]:hover,
+[data-home-row]:focus-within,
+[data-home-row][data-menu="true"] {
+  --project-row-surface: var(--bg-layer-01);
+}
+
+[data-home-row][data-selected="true"] {
+  --project-row-surface: var(--bg-layer-03);
+}
+
+[data-home-row][data-dimmed="true"] {
+  --project-row-surface: color-mix(in srgb, var(--bg-base) 60%, var(--bg-base));
+}
+
+[data-home-row] > button {
+  background: transparent;
+}
+
+[data-slot="home-row-actions"] {
+  background: linear-gradient(to right, transparent, var(--project-row-surface) 8px);
+}
+
+[data-home-row]:is(:hover, :focus-within, [data-menu="true"]) [data-slot="home-row-label"] {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 44px),
+    transparent calc(100% - 36px)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 44px),
+    transparent calc(100% - 36px)
+  );
+}
+
+/* The home session list reserves a scrollbar thumb track beside the rows and
+   reveals rows as they load. */
+[data-component="home-session-scroll-track"] {
+  pointer-events: none;
+}
+
+[data-component="home-session-skeleton"] {
+  opacity: 0;
+  transition: opacity 150ms cubic-bezier(0.4, 0, 1, 1);
+  mask-image: linear-gradient(90deg, rgb(0 0 0 / 0.55) 35%, #000 50%, rgb(0 0 0 / 0.55) 65%);
+  mask-size: 300% 100%;
+  animation: home-session-skeleton-sweep 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+[data-component="home-session-skeleton"][data-visible] {
+  opacity: 1;
+  transition: opacity 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes home-session-skeleton-sweep {
+  from {
+    mask-position: 100% 0;
+  }
+
+  to {
+    mask-position: 0% 0;
+  }
+}
+
+@media (max-width: 767px) {
+  [data-component="home-session-row-container"][data-project-name="true"],
+  [data-component="home-session-row-container"][data-project-name="true"] [data-component="home-session-row"],
+  [data-component="home-session-search-row"][data-project-name="true"] {
+    height: 48px;
+    padding-block: 0;
+  }
+
+  [data-project-name="true"] [data-slot="home-session-labels"] {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    text-align: start;
+  }
+
+  [data-project-name="true"] [data-slot="home-session-labels"] > * {
+    max-width: 100%;
+    flex: none;
+    font-size: 13px;
+    line-height: var(--text-caption--line-height);
+  }
+}
+
+:root[data-motion="reduce"] [data-component="home-session-skeleton"] {
+  animation: none;
+  mask-image: none;
+  transition: none;
+}

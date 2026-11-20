@@ -1,8 +1,8 @@
 import type { ComponentProps } from "react";
 import { System } from "@wailsio/runtime";
-import { InboxList } from "../components/InboxList";
-import type { SideTabs } from "../components/SideTabs";
-import type { TopTabs } from "../components/TopTabs";
+import { InboxList } from "../components/shell/InboxList";
+import type { SideTabs } from "../components/shell/SideTabs";
+import type { TopTabs } from "../components/shell/TopTabs";
 import { useShell } from "./ShellProvider";
 import { useInboxEntries } from "./hooks";
 

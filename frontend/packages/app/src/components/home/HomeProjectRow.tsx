@@ -11,7 +11,7 @@ import { t, type MessageKey } from "@lingzhu/ui/i18n";
 import type { WorkspaceInfo } from "@lingzhu/ui/types";
 import { api } from "../../lib/api";
 import { notify } from "../../app/useApp";
-import { ProjectAvatar } from "../ProjectAvatar";
+import { ProjectAvatar } from "../workspace/ProjectAvatar";
 
 interface Props {
   workspace: WorkspaceInfo;

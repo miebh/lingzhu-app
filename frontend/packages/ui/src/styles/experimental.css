@@ -1,0 +1,14 @@
+.terminal-font {
+  font-family: var(--font-terminal);
+}
+
+
+/* Experimental previews. */
+:root[data-new-icons="true"] svg path {
+  stroke-width: 1.35;
+}
+
+:root[data-question-ui="dock"] [role="region"][aria-label="Questions"] > div {
+  border-radius: 12px;
+  box-shadow: var(--elevation-floating);
+}

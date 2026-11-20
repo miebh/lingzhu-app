@@ -5,7 +5,8 @@ import { useChatStore } from "@lingzhu/app/store/chat";
 import { usePreferencesStore } from "@lingzhu/app/store/preferences";
 import { useNotifyStore } from "@lingzhu/app/store/notify";
 import { defaultPreferences } from "@lingzhu/app/lib/preferences";
-import { chatKey, type ChatState } from "@lingzhu/ui/types";
+import { chatKey } from "@lingzhu/ui/domain/chat";
+import { type ChatState } from "@lingzhu/ui/types";
 
 const { notifyTask, setWatchedSession, setNoticeCopy } = await vi.hoisted(async () => ({
   notifyTask: vi.fn(async (_notice: unknown) => undefined),

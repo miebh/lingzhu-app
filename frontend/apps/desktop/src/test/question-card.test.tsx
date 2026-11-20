@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
-import { QuestionCard } from "@/components/QuestionCard";
+import { QuestionCard } from "@/components/session/QuestionCard";
 import type { QuestionRequest } from "@lingzhu/ui/types";
 
 const request = (questions: QuestionRequest["questions"]): QuestionRequest => ({
