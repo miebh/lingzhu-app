@@ -13,9 +13,7 @@ import {
   Code,
   ChevronsUpDown,
   ChevronRight,
-  Plug,
   SquareArrow,
-  Terminal,
   TriangleAlert,
 } from "@lingzhu/ui/icons";
 import { Dialog, DialogContent, DialogTitle } from "@lingzhu/ui/dialog";
@@ -309,7 +307,6 @@ function matchCount(tool: ToolRun, output: string): number | undefined {
 
 interface BasicToolProps {
   id?: string;
-  icon?: ReactNode;
   title?: string;
   titleNode?: ReactNode;
   trigger?: ReactNode | ((open: boolean) => ReactNode);
@@ -413,11 +410,6 @@ export function BasicTool(props: BasicToolProps) {
             ) : (
               <div data-slot="basic-tool-tool-info-structured">
                 <div data-slot="basic-tool-tool-info-main">
-                  {props.icon && (
-                    <span data-slot="basic-tool-tool-icon" className="shrink-0 self-center text-text-faint">
-                      {props.icon}
-                    </span>
-                  )}
                   {props.titleNode ?? (
                     <span data-slot="basic-tool-tool-title">
                       <TextShimmer text={props.title ?? ""} active={pending} />
@@ -857,7 +849,7 @@ function FileRow({
             <span data-slot="apply-patch-file-info">
               <FileTypeIcon path={file.path} />
               <span data-slot="apply-patch-file-name-container">
-                {path.directory && <span data-slot="apply-patch-directory">{`\u202A${path.directory}\u202C`}</span>}
+                {path.directory && <span data-slot="apply-patch-directory">{path.directory}</span>}
                 <span data-slot="apply-patch-filename">{path.name}</span>
               </span>
             </span>
@@ -1496,24 +1488,25 @@ function ReadTool({ tool, workspace }: { tool: ToolRun; workspace?: string }) {
   );
 }
 
-function ListTool({ tool }: { tool: ToolRun }) {
+function ListTool({ tool, summaryOnly }: { tool: ToolRun; summaryOnly?: boolean }) {
   const tr = useT();
   const args = parseArgs(tool.arguments);
-  const count = tool.done ? matchCount(tool, tool.output ?? "") : undefined;
+  const title = tr("toolList");
+  const subtitle = displayDirectory(stringArg(args, "path"));
+  const output = tool.output ?? "";
+
+  if (summaryOnly) return <SearchSummary tool={tool} title={title} subtitle={subtitle} />;
 
   return (
-    <SearchSummary
-      tool={tool}
-      title={tr("toolList")}
-      subtitle={displayDirectory(stringArg(args, "path"))}
-      trailing={
-        count ? (
-          <span data-slot="context-tool-group-matches">
-            {tr(count === 1 ? "toolFileOne" : "toolFilesMany", { count })}
-          </span>
-        ) : undefined
-      }
-    />
+    <BasicTool
+      id={`list:${tool.id}`}
+      title={title}
+      subtitle={subtitle}
+      pending={!tool.done}
+      hasContent={Boolean(output)}
+    >
+      {output && <ToolOutput text={output} />}
+    </BasicTool>
   );
 }
 
@@ -1522,25 +1515,60 @@ function ListTool({ tool }: { tool: ToolRun }) {
  * the reference timeline. The match count stays on the row so the result is
  * still legible at a glance.
  */
-function SearchTool({ tool }: { tool: ToolRun }) {
+function SearchTool({ tool, summaryOnly }: { tool: ToolRun; summaryOnly?: boolean }) {
   const tr = useT();
   const args = parseArgs(tool.arguments);
   const count = tool.done ? matchCount(tool, tool.output ?? "") : undefined;
   const title = tool.name === "glob" ? tr("toolGlob") : tr("toolGrep");
-  const trailing = count ? (
-    <span data-slot="context-tool-group-matches">
-      {tr(count === 1 ? "toolMatchOne" : "toolMatchesMany", { count })}
-    </span>
-  ) : undefined;
+  const subtitle = displayDirectory(stringArg(args, "path"));
+  const searchArgs = toolArgs(tool, args);
+  const output = tool.output ?? "";
+
+  if (summaryOnly) {
+    const trailing = count ? (
+      <span data-slot="context-tool-group-matches">
+        {tr(count === 1 ? "toolMatchOne" : "toolMatchesMany", { count })}
+      </span>
+    ) : undefined;
+
+    return (
+      <SearchSummary
+        tool={tool}
+        title={title}
+        subtitle={subtitle}
+        args={searchArgs}
+        trailing={trailing}
+      />
+    );
+  }
 
   return (
-    <SearchSummary
-      tool={tool}
+    <BasicTool
+      id={`${tool.name}:${tool.id}`}
       title={title}
-      subtitle={displayDirectory(stringArg(args, "path"))}
-      args={toolArgs(tool, args)}
-      trailing={trailing}
-    />
+      subtitle={subtitle}
+      args={searchArgs}
+      pending={!tool.done}
+      hasContent={Boolean(output)}
+    >
+      {output && <ToolOutput text={output} />}
+    </BasicTool>
+  );
+}
+
+/** Raw search output, scrollable and capped like the reference tool row. */
+function ToolOutput({ text }: { text: string }) {
+  const tr = useT();
+  return (
+    <div
+      data-component="tool-output"
+      data-scrollable
+      tabIndex={0}
+      role="region"
+      aria-label={tr("scrollableContent")}
+    >
+      <Markdown text={text} />
+    </div>
   );
 }
 
@@ -1762,7 +1790,7 @@ function ExecuteCallRow({
         }}
       >
         <span data-slot="execute-tool-call-marker">
-          {failed ? <TriangleAlert className="size-4" /> : <span data-slot="execute-tool-call-arrow">›</span>}
+          {failed ? <TriangleAlert className="size-3.5" /> : <span data-slot="execute-tool-call-arrow">›</span>}
         </span>
         {call?.tool && (
           <span data-slot="execute-tool-call-name">
@@ -1897,7 +1925,6 @@ function ExecuteTool({ tool }: { tool: ToolRun }) {
         id={`execute:${tool.id}`}
         title={tr("toolExecute")}
         subtitleNode={subtitle ? <ShellSubmessage text={subtitle} animate={pending} /> : undefined}
-        icon={<Terminal className="size-3.5" />}
         hideSubtitleWhenOpen
         status={error ? "error" : pending ? "running" : "completed"}
         allowOpenWhilePending
@@ -1913,7 +1940,7 @@ function ExecuteTool({ tool }: { tool: ToolRun }) {
                   aria-label={tr("toolExecuteViewCode")}
                   title={tr("toolExecuteViewCode")}
                   aria-haspopup="dialog"
-                  className="grid size-5 place-items-center rounded-xs text-text-faint hover:text-text-base"
+                  className="grid size-6 place-items-center rounded-xs text-text-faint hover:text-text-base"
                   onClick={(event) => {
                     event.stopPropagation();
                     setCodeOpen(true);
@@ -2114,12 +2141,7 @@ function SubagentCard({
                 <div data-slot="basic-tool-tool-info-main">
                   {running && <ActivityRing size={16} />}
                   <span data-component="task-tool-title">{title}</span>
-                  {subtitle && (
-                    <span data-slot="basic-tool-tool-subtitle">
-                      {subtitle}
-                      {background ? ` ${tr("toolBackground")}` : ""}
-                    </span>
-                  )}
+                  {subtitle && <span data-slot="basic-tool-tool-subtitle">{subtitle}</span>}
                 </div>
                 {clickable && (
                   <div data-component="task-tool-action">
@@ -2139,16 +2161,13 @@ function GenericTool({ tool }: { tool: ToolRun }) {
   const tr = useT();
   const args = parseArgs(tool.arguments);
   const label = toolSubtitle(tool, args);
-  const server = typeof tool.metadata?.mcpServer === "string" ? tool.metadata.mcpServer : "";
   const rawName =
     typeof tool.metadata?.mcpTool === "string" && tool.metadata.mcpTool ? tool.metadata.mcpTool : tool.name;
-  const detail = [server, label].filter(Boolean).join(" · ");
   return (
     <BasicTool
       id={`generic:${tool.id}`}
-      icon={server ? <Plug className="size-3.5" /> : undefined}
       title={tr("toolCalled", { name: rawName })}
-      subtitle={detail}
+      subtitle={label}
       args={genericArgs(args)}
       pending={!tool.done}
     />
@@ -2225,11 +2244,11 @@ function ToolDisplay({
       content = <ReadTool tool={tool} workspace={workspace} />;
       break;
     case "list":
-      content = <ListTool tool={tool} />;
+      content = <ListTool tool={tool} summaryOnly={summaryOnly} />;
       break;
     case "glob":
     case "grep":
-      content = <SearchTool tool={tool} />;
+      content = <SearchTool tool={tool} summaryOnly={summaryOnly} />;
       break;
     case "webfetch":
       content = <WebfetchTool tool={tool} />;

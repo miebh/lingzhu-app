@@ -14,7 +14,6 @@ import { timelineStatus, type TimelineStatus } from "@lingzhu/session-ui/status"
 import { instructionSourceLabels, noticeLabel } from "@lingzhu/session-ui/notice";
 import { MessageNav, messageNavItems } from "@lingzhu/session-ui/MessageNav";
 import { createTimelineVirtualizer, timelineVirtualDefaults, type VirtualItem } from "@lingzhu/session-ui/timeline-virtual";
-import { trackNestedRails } from "@lingzhu/session-ui/nested-rail";
 import {
   GRACE_ELAPSED_EVENT,
   createCompactionEntranceState,
@@ -195,7 +194,6 @@ export function Messages({
   const [measureTick, bumpMeasure] = useReducer((value: number) => value + 1, 0);
   const t = useT();
   const rowKeys = useRef<string[]>([]);
-  const railRoot = useRef<HTMLDivElement>(null);
   const virtualizer = useRef<ReturnType<typeof createTimelineVirtualizer> | null>(null);
   if (!virtualizer.current) {
     virtualizer.current = createTimelineVirtualizer({
@@ -642,25 +640,6 @@ export function Messages({
     if (virtual && pinned.current) engine.scrollToEnd();
   }, [engine, rows.length, virtual]);
 
-  // Rails follow real ink, so they must be re-measured when rows mount, grow or
-  // collapse. The tracker also owns the hover highlight and strip clicks, and
-  // it survives every scroll frame: only a re-measure is requested, never a new
-  // listener set.
-  const rails = useRef<{ schedule: () => void; dispose: () => void } | null>(null);
-  useEffect(() => {
-    const root = railRoot.current;
-    if (!root) return;
-    const tracker = trackNestedRails(root);
-    rails.current = tracker;
-    return () => {
-      tracker.dispose();
-      rails.current = null;
-    };
-  }, []);
-  useEffect(() => {
-    rails.current?.schedule();
-  }, [rowCount, measureTick, virtual]);
-
   const virtualItems: VirtualItem[] = virtual ? engine.getVirtualItems() : [];
 
   // A hit scrolls into view; the CSS highlight marks every occurrence, with the
@@ -848,7 +827,6 @@ export function Messages({
         )}
         <div
           className="mx-auto flex w-full max-w-session flex-col px-4 pt-6 md:px-6"
-          ref={railRoot}
           style={bottomInset > 0 ? { paddingBottom: bottomInset + 16 } : undefined}
         >
           {empty && <EmptyState />}

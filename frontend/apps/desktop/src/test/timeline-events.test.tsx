@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
@@ -22,7 +22,7 @@ function tool(id: string, name: string, args: string, extra: Partial<TimelineEnt
 }
 
 describe("search tools", () => {
-  test("a glob row shows its pattern and match count, never the raw list", async () => {
+  test("a glob row shows its pattern and expands to the raw list", async () => {
     const { container } = render(
       <TooltipProvider>
         <Messages
@@ -33,12 +33,15 @@ describe("search tools", () => {
     );
 
     await waitFor(() => expect(container.textContent).toContain("pattern=**/*.ts"));
-    expect(container.textContent).toContain("2 matches");
-    // The reference timeline never shows the raw result of a search.
     expect(container.textContent).not.toContain("src/a.ts");
+
+    const trigger = container.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]')!;
+    fireEvent.click(trigger);
+    await waitFor(() => expect(container.querySelector('[data-component="tool-output"]')).toBeTruthy());
+    expect(container.querySelector('[data-component="tool-output"]')?.textContent).toContain("src/a.ts");
   });
 
-  test("a grep row keeps its match count without its output", async () => {
+  test("a grep row expands to its output", async () => {
     const { container } = render(
       <TooltipProvider>
         <Messages
@@ -52,9 +55,13 @@ describe("search tools", () => {
       </TooltipProvider>,
     );
 
-    await waitFor(() => expect(container.textContent).toContain("3 matches"));
-    expect(container.textContent).toContain("include=*.ts");
-    expect(container.textContent).not.toContain("needle\n");
+    await waitFor(() => expect(container.textContent).toContain("include=*.ts"));
+    expect(container.textContent).not.toContain("src/a.ts");
+
+    const trigger = container.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]')!;
+    fireEvent.click(trigger);
+    await waitFor(() => expect(container.querySelector('[data-component="tool-output"]')).toBeTruthy());
+    expect(container.querySelector('[data-component="tool-output"]')?.textContent).toContain("src/a.ts:1");
   });
 });
 
@@ -139,7 +146,7 @@ describe("background notices", () => {
 });
 
 describe("nested rails", () => {
-  test("a collapsed group rail is measured from its content ink", async () => {
+  test("a group rail uses the fixed inset", async () => {
     const { container } = render(
       <TooltipProvider>
         <Messages
@@ -164,10 +171,7 @@ describe("nested rails", () => {
       expect(found).toBeTruthy();
       return found!;
     });
-    // The tracker owns the rail: hovering its strip highlights that rail, and
-    // the CSS falls back to a fixed inset when no ink was measured (jsdom
-    // reports zero-size boxes).
-    content.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 0, clientY: 0 }));
-    expect(content.hasAttribute("data-rail-hover")).toBe(true);
+    expect(content.style.getPropertyValue("--rail-top")).toBe("");
+    expect(content.style.getPropertyValue("--rail-bottom")).toBe("");
   });
 });

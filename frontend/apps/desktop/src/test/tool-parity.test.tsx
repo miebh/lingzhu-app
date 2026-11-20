@@ -30,7 +30,7 @@ const tool = (id: string, name: string, argumentsJson = "{}", extra: Partial<Tim
 });
 
 describe("tool timeline parity", () => {
-  test("an MCP tool card shows its server and raw tool name", async () => {
+  test("an MCP tool card shows its raw tool name", async () => {
     render(
       <TooltipProvider>
         <Messages
@@ -45,8 +45,7 @@ describe("tool timeline parity", () => {
     );
 
     await waitFor(() => expect(screen.getByText("Called `search`")).toBeTruthy());
-    expect(screen.getByText("github · x")).toBeTruthy();
-    expect(document.querySelector('[data-slot="basic-tool-tool-icon"]')).toBeTruthy();
+    expect(screen.getByText("x")).toBeTruthy();
   });
 
   test("an interrupted tool renders as cancelled, not an error", async () => {
@@ -195,7 +194,7 @@ describe("tool timeline parity", () => {
     expect(details.style.getPropertyValue("--execute-details-number-width")).toBe("1ch");
   });
 
-  test("a list row shows its directory and never the raw listing", async () => {
+  test("a list row shows its directory and expands to the raw listing", async () => {
     const { rerender } = render(
       <TooltipProvider>
         <Messages detail="everything" chat={chat([tool("1", "list", '{"path":"/repo"}', { done: false })])} />
@@ -209,8 +208,10 @@ describe("tool timeline parity", () => {
         <Messages detail="everything" chat={chat([tool("1", "list", '{"path":"/repo"}', { output: "PEAK" })])} />
       </TooltipProvider>,
     );
-    // The reference shows what was searched, never the raw list it returned.
+    // The output stays closed until the row is opened, as the reference does.
     expect(screen.queryByText("PEAK")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /List/ }));
+    expect(await screen.findByText("PEAK")).toBeTruthy();
     expect(screen.getByText("/repo")).toBeTruthy();
   });
 

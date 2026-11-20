@@ -719,7 +719,7 @@ describe("timeline surfaces", () => {
     );
     expect(screen.getByText("General")).toBeTruthy();
     expect(screen.getByText(/inspect tests/)).toBeTruthy();
-    expect(screen.getByText(/\(background\)/)).toBeTruthy();
+    expect(screen.queryByText(/\(background\)/)).toBeNull();
     expect(document.querySelector('[data-entry="subagent"]')).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Open General session" }));
     expect(onOpenSession).toHaveBeenCalledWith("sub_42");
