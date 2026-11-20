@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { Plug, Save } from "@lingzhu/ui/icons";
+import { Icon, Plug, Save } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
 import { Input } from "@lingzhu/ui/input";
@@ -327,10 +327,23 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
             ? tr("mcpDisabled")
             : tr("starting");
 
+  // Mirrors the status dot used by the settings extension rows so a server
+  // reads the same in both places.
+  const statusDot = (status: string) =>
+    status === "connected"
+      ? "bg-state-fg-success"
+      : status === "failed"
+        ? "bg-state-fg-danger"
+        : status === "needs_auth"
+          ? "bg-state-fg-warning"
+          : "bg-text-faint";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
+      <DialogContent size="large" height="body" className="flex flex-col">
+        {/* Reserve the close-button gutter so the refresh control does not sit
+            underneath the dialog's top-right close affordance. */}
+        <div className="flex items-start justify-between gap-4 pe-8">
           <div className="min-w-0">
             <DialogTitle className="flex items-center gap-2">
               <Plug className="size-4 text-text-faint" />
@@ -349,9 +362,9 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
         <NoticeBanner notice={notice} shrink />
 
         <div className="mt-4 flex min-h-0 flex-1 gap-3">
-          <div className="w-56 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
+          <div className="w-64 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01">
             {servers.length === 0 ? (
-              <p className="px-2 py-1 text-meta text-text-faint">
+              <p className="p-3 text-meta text-text-faint">
                 {loading ? "Loading…" : "No MCP servers connected."}
               </p>
             ) : (
@@ -360,61 +373,70 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
                   key={server.name}
                   type="button"
                   onClick={() => selectServer(server.name)}
-                  className={`interactive flex w-full flex-col gap-0.5 px-2 py-1.5 text-left text-meta ${
-                    selected === server.name
-                      ? "bg-bg-layer-02 text-text-base"
-                      : "text-text-muted hover:text-text-base"
+                  className={`interactive flex w-full items-start gap-2 border-b border-border-base px-3 py-2 text-left last:border-b-0 ${
+                    selected === server.name ? "bg-bg-layer-02" : ""
                   }`}
                 >
-                  <span className="w-full truncate">{server.name}</span>
-                  <span
-                    className={`w-full truncate text-caption ${
-                      server.status === "failed"
-                        ? "text-state-fg-danger"
-                        : server.status === "connected"
-                          ? "text-text-faint"
-                          : "text-state-fg-warning"
-                    }`}
-                  >
-                    {server.status === "connected"
-                      ? `${server.tools.length} tool${server.tools.length === 1 ? "" : "s"} · ${server.resources.length} resource${
-                          server.resources.length === 1 ? "" : "s"
-                        }`
-                      : statusText(server.status)}
+                  <Icon art="mcp" className="mt-0.5 size-4 shrink-0 text-icon-muted" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-body font-[530] leading-4 text-text-base">
+                      {server.name}
+                    </span>
+                    <span
+                      className={`mt-1 flex items-center gap-1.5 text-caption leading-4 ${
+                        server.status === "failed"
+                          ? "text-state-fg-danger"
+                          : server.status === "connected"
+                            ? "text-text-faint"
+                            : "text-text-muted"
+                      }`}
+                    >
+                      <span
+                        className={`size-1.5 shrink-0 rounded-full ${statusDot(server.status)}`}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">
+                        {server.status === "connected"
+                          ? `${server.tools.length} tool${server.tools.length === 1 ? "" : "s"} · ${server.resources.length} resource${
+                              server.resources.length === 1 ? "" : "s"
+                            }`
+                          : statusText(server.status)}
+                      </span>
+                    </span>
                   </span>
                 </button>
               ))
             )}
           </div>
 
-          <div className="min-h-0 min-w-0 flex-1 overflow-auto rounded-md border border-border-base">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
             {!current ? (
               <p className="p-3 text-meta text-text-faint">
                 {loading ? "Loading…" : "Select a server to see its tools and resources."}
               </p>
             ) : (
               <>
-                <div className="flex items-start gap-2 border-b border-border-base px-3 py-1.5">
+                <div className="flex shrink-0 items-start gap-2 border-b border-border-base px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-body text-text-base">{current.name}</p>
+                    <p className="truncate text-body font-[530] leading-4 text-text-base">{current.name}</p>
                     {current.title && current.title !== current.name && (
-                      <p className="truncate text-caption text-text-faint">{current.title}</p>
+                      <p className="mt-1 truncate text-caption leading-4 text-text-faint">{current.title}</p>
                     )}
                     <p
-                      className={`text-caption ${
-                        current.status === "failed"
-                          ? "text-state-fg-danger"
-                          : current.status === "connected"
-                            ? "text-text-faint"
-                            : "text-state-fg-warning"
+                      className={`mt-1 flex items-center gap-1.5 text-caption leading-4 ${
+                        current.status === "failed" ? "text-state-fg-danger" : "text-text-muted"
                       }`}
                     >
-                      {statusText(current.status)}
-                      {current.error ? ` · ${current.error}` : ""}
+                      <span
+                        className={`size-1.5 shrink-0 rounded-full ${statusDot(current.status)}`}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{statusText(current.status)}</span>
                     </p>
                   </div>
                   {(current.status === "failed" || current.status === "disabled") && (
                     <Button
+                      className="shrink-0"
                       type="button"
                       variant="outline"
                       size="xs"
@@ -426,6 +448,7 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
                   )}
                   {current.status === "connected" && (
                     <Button
+                      className="shrink-0"
                       type="button"
                       variant="outline"
                       size="xs"
@@ -437,6 +460,7 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
                   )}
                   {current.status === "needs_auth" && (
                     <Button
+                      className="shrink-0"
                       type="button"
                       variant="outline"
                       size="xs"
@@ -447,6 +471,12 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
                     </Button>
                   )}
                 </div>
+                {current.error && (
+                  <ErrorBanner
+                    error={current.error}
+                    className="mx-3 mt-2 max-h-24 shrink-0 overflow-auto"
+                  />
+                )}
                 {auth?.server === current.name && (
                   <div className="flex flex-wrap items-center gap-2 border-b border-border-base px-3 py-2">
                     <Input
@@ -472,216 +502,237 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
                   </div>
                 )}
                 {!currentConnected && (
-                  <p className="border-b border-border-base px-3 py-2 text-meta text-text-faint">
+                  <p className="px-3 py-3 text-meta text-text-faint">
                     The server is not connected. Reconnect it to browse tools and resources.
                   </p>
                 )}
                 {currentConnected && (
-                  <>
-                <div className="border-b border-border-base px-3 py-2">
-                  <p className="text-caption text-text-faint">Tools</p>
-                  {current.tools.length === 0 ? (
-                    <p className="mt-1 text-meta text-text-faint">No tools.</p>
-                  ) : (
-                    <ul className="mt-1 flex flex-col gap-1">
-                      {current.tools.map((tool) => (
-                        <li key={tool.effective} className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-meta text-text-base">{tool.effective}</span>
-                          {tool.name !== tool.effective && (
-                            <span className="font-mono text-caption text-text-faint">
-                              raw {tool.name}
-                            </span>
-                          )}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            className="ml-auto"
-                            onClick={() => {
-                              setToolName(tool.name);
-                              setToolArgs("{}");
-                              setToolResult(undefined);
-                              setToolError("");
-                            }}
-                          >
-                            Call
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                {current.events && (
-                  <div className="border-b border-border-base px-3 py-2">
-                    <p className="text-caption text-text-faint">Events</p>
-                    {eventsLoading ? (
-                      <p className="mt-1 text-meta text-text-faint">Loading…</p>
-                    ) : eventsError ? (
-                      <p className="mt-1 text-caption text-state-fg-danger">{eventsError}</p>
-                    ) : events.length === 0 ? (
-                      <p className="mt-1 text-meta text-text-faint">No events.</p>
-                    ) : (
-                      <ul className="mt-1 flex flex-col gap-1">
-                        {events.map((event) => (
-                          <li key={event.name}>
-                            <p className="font-mono text-meta text-text-base">{event.name}</p>
-                            <p className="text-caption text-text-faint">
-                              {event.description ?? ""}
-                              {event.delivery?.length ? ` [${event.delivery.join(", ")}]` : ""}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    <div className="border-b border-border-base px-3 py-2">
+                      <p className="text-caption font-[530] text-text-faint">Tools</p>
+                      {current.tools.length === 0 ? (
+                        <p className="mt-1 text-meta text-text-faint">No tools.</p>
+                      ) : (
+                        <ul className="mt-1 flex flex-col gap-1">
+                          {current.tools.map((tool) => (
+                            <li key={tool.effective} className="flex items-start gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className="truncate font-mono text-meta text-text-base"
+                                  title={tool.effective}
+                                >
+                                  {tool.effective}
+                                </p>
+                                {tool.name !== tool.effective && (
+                                  <p
+                                    className="truncate font-mono text-caption text-text-faint"
+                                    title={tool.name}
+                                  >
+                                    raw {tool.name}
+                                  </p>
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                className="shrink-0 px-0 text-text-accent hover:text-text-accent/80"
+                                onClick={() => {
+                                  setToolName(tool.name);
+                                  setToolArgs("{}");
+                                  setToolResult(undefined);
+                                  setToolError("");
+                                }}
+                              >
+                                Call
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {current.events && (
+                      <div className="border-b border-border-base px-3 py-2">
+                        <p className="text-caption font-[530] text-text-faint">Events</p>
+                        {eventsLoading ? (
+                          <p className="mt-1 text-meta text-text-faint">Loading…</p>
+                        ) : eventsError ? (
+                          <p className="mt-1 text-caption text-state-fg-danger">{eventsError}</p>
+                        ) : events.length === 0 ? (
+                          <p className="mt-1 text-meta text-text-faint">No events.</p>
+                        ) : (
+                          <ul className="mt-1 flex flex-col gap-1">
+                            {events.map((event) => (
+                              <li key={event.name}>
+                                <p className="font-mono text-meta text-text-base">{event.name}</p>
+                                <p className="text-caption text-text-faint">
+                                  {event.description ?? ""}
+                                  {event.delivery?.length ? ` [${event.delivery.join(", ")}]` : ""}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
-                <div className="px-3 py-2">
-                  <p className="text-caption text-text-faint">Resources</p>
-                  {current.resources.length === 0 ? (
-                    <p className="mt-1 text-meta text-text-faint">No resources.</p>
-                  ) : (
-                    <ul className="mt-1 flex flex-col gap-1">
-                      {current.resources.map((resource) => (
-                        <li key={`${resource.uri}:${resource.name}`} className="flex items-start gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-mono text-meta text-text-base">
-                              {resource.uri || resource.uriTemplate || resource.name}
-                            </p>
-                            <p className="truncate text-caption text-text-faint">
-                              {resource.name}
-                              {resource.mimeType ? ` · ${resource.mimeType}` : ""}
-                              {resource.description ? ` · ${resource.description}` : ""}
-                            </p>
-                          </div>
-                          {resource.uri && (
+                    <div className="border-b border-border-base px-3 py-2">
+                      <p className="text-caption font-[530] text-text-faint">Resources</p>
+                      {current.resources.length === 0 ? (
+                        <p className="mt-1 text-meta text-text-faint">No resources.</p>
+                      ) : (
+                        <ul className="mt-1 flex flex-col gap-1">
+                          {current.resources.map((resource) => (
+                            <li
+                              key={`${resource.uri}:${resource.name}`}
+                              className="flex items-start gap-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className="truncate font-mono text-meta text-text-base"
+                                  title={resource.uri || resource.uriTemplate || resource.name}
+                                >
+                                  {resource.uri || resource.uriTemplate || resource.name}
+                                </p>
+                                <p
+                                  className="truncate text-caption text-text-faint"
+                                  title={[resource.name, resource.mimeType, resource.description]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                >
+                                  {[resource.name, resource.mimeType, resource.description]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              </div>
+                              {resource.uri && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="xs"
+                                  className="shrink-0 px-0 text-text-accent hover:text-text-accent/80"
+                                  disabled={reading === resource.uri}
+                                  onClick={() => void readResource(current.name, resource.uri ?? "")}
+                                >
+                                  {reading === resource.uri ? "Reading…" : "Read"}
+                                </Button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    {contents && (
+                      <div className="border-b border-border-base">
+                        <div className="flex items-center gap-2 px-3 py-2 text-caption text-text-faint">
+                          <span className="min-w-0 flex-1 truncate font-mono">{contentURI}</span>
+                          <Button type="button" variant="outline" size="xs" onClick={() => void saveResource()}>
+                            <Save />
+                            {tr("dialogSaveFile")}
+                          </Button>
+                          <Button type="button" variant="outline" size="xs" onClick={() => setContents(undefined)}>
+                            Close
+                          </Button>
+                        </div>
+                        <div className="max-h-48 overflow-auto px-3 pb-2">
+                          {contents.length === 0 ? (
+                            <p className="text-meta text-text-faint">Resource returned no content.</p>
+                          ) : (
+                            contents.map((part, index) => (
+                              <div key={`${part.uri}:${index}`} className="py-1">
+                                <p className="text-caption text-text-faint">
+                                  {part.mimeType || "unknown type"}
+                                  {part.blob ? ` · ${Math.round((part.blob.length * 3) / 4)} bytes` : ""}
+                                </p>
+                                {part.text ? (
+                                  <pre className="mt-1 max-h-40 overflow-auto rounded-md border border-border-base bg-bg-layer-01 p-2 font-mono text-caption leading-5 whitespace-pre-wrap break-all text-text-muted select-text">
+                                    {part.text}
+                                  </pre>
+                                ) : part.blob ? (
+                                  <p className="mt-1 text-meta text-text-faint">
+                                    {tr("dialogBinaryNotDisplayed")}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <div className="px-3 py-2">
+                      <p className="text-caption font-[530] text-text-faint">Invoke tool</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Input
+                          value={toolName}
+                          aria-label={tr("mCPMCPToolName")}
+                          placeholder={tr("dialogToolName")}
+                          onChange={(event) => setToolName(event.target.value)}
+                          className="min-w-32 flex-1 select-text font-mono"
+                        />
+                        <Button type="button" size="xs" disabled={toolBusy} onClick={() => void callTool()}>
+                          {toolBusy ? "Calling…" : "Call"}
+                        </Button>
+                      </div>
+                      <Textarea
+                        value={toolArgs}
+                        aria-label={tr("mCPMCPToolArguments")}
+                        placeholder="{}"
+                        onChange={(event) => setToolArgs(event.target.value)}
+                        className="mt-1 min-h-16 select-text font-mono text-caption"
+                      />
+                      {toolError && (
+                        <p className="mt-1 text-caption text-state-fg-danger select-text">{toolError}</p>
+                      )}
+                      {toolResult && (
+                        <div className="mt-2 rounded-md border border-border-base bg-bg-layer-01">
+                          <div className="flex items-center gap-2 border-b border-border-base px-2 py-1 text-caption text-text-faint">
+                            <span className={toolResult.isError ? "text-state-fg-danger" : "text-state-fg-success"}>
+                              {toolResult.isError ? "error" : "ok"}
+                            </span>
                             <Button
                               type="button"
                               variant="outline"
                               size="xs"
-                              disabled={reading === resource.uri}
-                              onClick={() => void readResource(current.name, resource.uri ?? "")}
+                              className="ml-auto"
+                              onClick={() => void saveToolResult()}
                             >
-                              {reading === resource.uri ? "Reading…" : "Read"}
+                              <Save />
+                              {tr("dialogSaveFile")}
                             </Button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <div className="border-t border-border-base px-3 py-2">
-                  <p className="text-caption text-text-faint">Invoke tool</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Input
-                      value={toolName}
-                      aria-label={tr("mCPMCPToolName")}
-                      placeholder={tr("dialogToolName")}
-                      onChange={(event) => setToolName(event.target.value)}
-                      className="min-w-32 flex-1 select-text font-mono"
-                    />
-                    <Button type="button" size="xs" disabled={toolBusy} onClick={() => void callTool()}>
-                      {toolBusy ? "Calling…" : "Call"}
-                    </Button>
-                  </div>
-                  <Textarea
-                    value={toolArgs}
-                    aria-label={tr("mCPMCPToolArguments")}
-                    placeholder="{}"
-                    onChange={(event) => setToolArgs(event.target.value)}
-                    className="mt-1 min-h-16 select-text font-mono text-caption"
-                  />
-                  {toolError && (
-                    <p className="mt-1 text-caption text-state-fg-danger select-text">{toolError}</p>
-                  )}
-                  {toolResult && (
-                    <div className="mt-2 rounded-md border border-border-base bg-bg-base">
-                      <div className="flex items-center gap-2 border-b border-border-base px-2 py-1 text-caption text-text-faint">
-                        <span className={toolResult.isError ? "text-state-fg-danger" : "text-state-fg-success"}>
-                          {toolResult.isError ? "error" : "ok"}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="xs"
-                          className="ml-auto"
-                          onClick={() => void saveToolResult()}
-                        >
-                          <Save />
-                          {tr("dialogSaveFile")}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="xs"
-                          onClick={() => setToolResult(undefined)}
-                        >
-                          Clear
-                        </Button>
-                      </div>
-                      <div className="max-h-48 overflow-auto p-2">
-                        {toolResult.content.length === 0 && toolResult.structuredContent === undefined && (
-                          <p className="text-caption text-text-faint">No content.</p>
-                        )}
-                        {toolResult.content.map((part, index) => (
-                          <div key={`${part.type}:${index}`} className="py-1">
-                            <p className="text-caption text-text-faint">
-                              {part.type}
-                              {part.mimeType ? ` · ${part.mimeType}` : ""}
-                              {part.uri ? ` · ${part.uri}` : ""}
-                              {part.data ? ` · ${Math.round((part.data.length * 3) / 4)} bytes` : ""}
-                            </p>
-                            {part.text && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              onClick={() => setToolResult(undefined)}
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                          <div className="max-h-48 overflow-auto p-2">
+                            {toolResult.content.length === 0 && toolResult.structuredContent === undefined && (
+                              <p className="text-caption text-text-faint">No content.</p>
+                            )}
+                            {toolResult.content.map((part, index) => (
+                              <div key={`${part.type}:${index}`} className="py-1">
+                                <p className="text-caption text-text-faint">
+                                  {part.type}
+                                  {part.mimeType ? ` · ${part.mimeType}` : ""}
+                                  {part.uri ? ` · ${part.uri}` : ""}
+                                  {part.data ? ` · ${Math.round((part.data.length * 3) / 4)} bytes` : ""}
+                                </p>
+                                {part.text && (
+                                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-caption leading-5 text-text-muted select-text">
+                                    {part.text}
+                                  </pre>
+                                )}
+                              </div>
+                            ))}
+                            {toolResult.structuredContent !== undefined && (
                               <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-caption leading-5 text-text-muted select-text">
-                                {part.text}
+                                {JSON.stringify(toolResult.structuredContent, null, 2)}
                               </pre>
                             )}
                           </div>
-                        ))}
-                        {toolResult.structuredContent !== undefined && (
-                          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-caption leading-5 text-text-muted select-text">
-                            {JSON.stringify(toolResult.structuredContent, null, 2)}
-                          </pre>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                  </>
-                )}
-
-                {currentConnected && contents && (
-                  <div className="border-t border-border-base">
-                    <div className="flex items-center gap-2 px-3 py-1.5 text-caption text-text-faint">
-                      <span className="min-w-0 flex-1 truncate font-mono">{contentURI}</span>
-                      <Button type="button" variant="outline" size="xs" onClick={() => void saveResource()}>
-                        <Save />
-                        {tr("dialogSaveFile")}
-                      </Button>
-                      <Button type="button" variant="outline" size="xs" onClick={() => setContents(undefined)}>
-                        Close
-                      </Button>
-                    </div>
-                    <div className="max-h-48 overflow-auto px-3 pb-2">
-                      {contents.length === 0 ? (
-                        <p className="text-meta text-text-faint">Resource returned no content.</p>
-                      ) : (
-                        contents.map((part, index) => (
-                          <div key={`${part.uri}:${index}`} className="py-1">
-                            <p className="text-caption text-text-faint">
-                              {part.mimeType || "unknown type"}
-                              {part.blob ? ` · ${Math.round((part.blob.length * 3) / 4)} bytes` : ""}
-                            </p>
-                            {part.text ? (
-                              <pre className="mt-1 max-h-40 overflow-auto rounded-md border border-border-base bg-bg-base p-2 font-mono text-caption leading-5 whitespace-pre-wrap break-all text-text-muted select-text">
-                                {part.text}
-                              </pre>
-                            ) : part.blob ? (
-                              <p className="mt-1 text-meta text-text-faint">
-                                {tr("dialogBinaryNotDisplayed")}
-                              </p>
-                            ) : null}
-                          </div>
-                        ))
+                        </div>
                       )}
                     </div>
                   </div>
@@ -691,7 +742,7 @@ export function MCPDialog({ open, workspace, name, server, onOpenChange }: Props
           </div>
         </div>
 
-        <p className="mt-2 text-caption text-text-faint">
+        <p className="mt-2 shrink-0 text-caption text-text-faint">
           Only connected servers appear here; transport settings and credentials are never returned.
         </p>
       </DialogContent>
