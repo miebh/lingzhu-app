@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { Command, Play } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -20,25 +21,26 @@ interface Props {
 }
 
 /** Runs one slash command as a session turn with optional arguments and text. */
-export function RunCommandDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function RunCommandDialog(props: Props) {
   const tr = useT();
-  const [commands, setCommands] = useState<SlashCommand[]>([]);
-  const [name, setName] = useState("");
-  const [argumentsValue, setArgumentsValue] = useState("");
-  const [text, setText] = useState("");
-  const [delivery, setDelivery] = useState<"steer" | "queue">("steer");
-  const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [commands, setCommands] = createSignal<SlashCommand[]>([]);
+  const [name, setName] = createSignal("");
+  const [argumentsValue, setArgumentsValue] = createSignal("");
+  const [text, setText] = createSignal("");
+  const [delivery, setDelivery] = createSignal<"steer" | "queue">("steer");
+  const [loading, setLoading] = createSignal(false);
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
 
   const load = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setLoading(true);
     try {
       const next = await api.commands(workspace);
       setCommands(next);
-      setName((current) => current || next[0]?.name || "");
+      update(setName, name, (current) => current || next[0]?.name || "");
       setError("");
     } catch (err) {
       setError(messageOf(err));
@@ -47,8 +49,9 @@ export function RunCommandDialog({ open, workspace, sessionID, title, onOpenChan
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setCommands([]);
@@ -60,12 +63,13 @@ export function RunCommandDialog({ open, workspace, sessionID, title, onOpenChan
       setNotice("");
       setBusy(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
   const run = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
-    const id = name.trim().replace(/^\//, "");
+    const id = name().trim().replace(/^\//, "");
     if (!id) {
       setError("Command name is required.");
       return;
@@ -74,9 +78,9 @@ export function RunCommandDialog({ open, workspace, sessionID, title, onOpenChan
     try {
       const input: CommandInput = {
         name: id,
-        arguments: argumentsValue.trim(),
-        text: text.trim(),
-        delivery,
+        arguments: argumentsValue().trim(),
+        text: text().trim(),
+        delivery: delivery(),
       };
       await api.runCommand(workspace, sessionID, input);
       setNotice(`Command /${id} sent`);
@@ -90,92 +94,98 @@ export function RunCommandDialog({ open, workspace, sessionID, title, onOpenChan
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Command className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <Command class="size-4 text-text-faint" />
               {tr("runCommandTitle")}
             </DialogTitle>
-            <DialogDescription className="truncate">
-              {title ? `${title} · ` : ""}
-              {commands.length} command{commands.length === 1 ? "" : "s"}
+            <DialogDescription class="truncate">
+              {props.title ? `${props.title} · ` : ""}
+              {commands().length} command{commands().length === 1 ? "" : "s"}
             </DialogDescription>
           </div>
-          <RefreshButton loading={loading} onRefresh={() => void load()} />
+          <RefreshButton loading={loading()} onRefresh={() => void load()} />
         </div>
 
-        <ErrorBanner error={error} />
-        <NoticeBanner notice={notice} shrink />
+        <ErrorBanner error={error()} />
+        <NoticeBanner notice={notice()} shrink />
 
-        <div className="mt-4 grid min-h-0 flex-1 gap-3 md:grid-cols-2">
-          <div className="min-h-0 overflow-auto rounded-md border border-border-base">
-            {commands.length === 0 ? (
-              <p className="p-3 text-meta text-text-faint">
-                {loading ? "Loading…" : "No commands available."}
-              </p>
-            ) : (
-              commands.map((command) => (
-                <button
-                  key={`${command.plugin}:${command.name}`}
-                  type="button"
-                  data-active={name === command.name ? "" : undefined}
-                  onClick={() => setName(command.name)}
-                  className="command-suggestion-row"
-                >
-                  <span className="command-suggestion-label">/{command.name}</span>
-                  <span className="command-suggestion-description">{command.description}</span>
-                </button>
-              ))
-            )}
+        <div class="mt-4 grid min-h-0 flex-1 gap-3 md:grid-cols-2">
+          <div class="min-h-0 overflow-auto rounded-md border border-border-base">
+            <Show
+              when={commands().length > 0}
+              fallback={
+                <p class="p-3 text-meta text-text-faint">
+                  {loading() ? "Loading…" : "No commands available."}
+                </p>
+              }
+            >
+              <For each={commands()}>
+                {(command) => (
+                  <button
+                    type="button"
+                    data-active={name() === command.name ? "" : undefined}
+                    onClick={() => setName(command.name)}
+                    class="command-suggestion-row"
+                  >
+                    <span class="command-suggestion-label">/{command.name}</span>
+                    <span class="command-suggestion-description">{command.description}</span>
+                  </button>
+                )}
+              </For>
+            </Show>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-2">
-            <label className="flex flex-col gap-1 text-caption text-text-faint">
+          <div class="flex min-h-0 min-w-0 flex-col gap-2">
+            <label class="flex flex-col gap-1 text-caption text-text-faint">
               {tr("runCommandCommandName")}
               <Input
-                value={name}
+                value={name()}
                 aria-label={tr("runCommandCommandName")}
                 placeholder={tr("dialogCommandExample")}
-                onChange={(event) => setName(event.target.value)}
-                className="select-text font-mono"
+                onInput={(event) => setName(event.currentTarget.value)}
+                class="select-text font-mono"
               />
             </label>
-            <label className="flex flex-col gap-1 text-caption text-text-faint">
+            <label class="flex flex-col gap-1 text-caption text-text-faint">
               Arguments (optional)
               <Input
-                value={argumentsValue}
+                value={argumentsValue()}
                 aria-label={tr("runCommandCommandArguments")}
                 placeholder={tr("runCommandArgumentsPassedToTheCommand")}
-                onChange={(event) => setArgumentsValue(event.target.value)}
-                className="select-text font-mono"
+                onInput={(event) => setArgumentsValue(event.currentTarget.value)}
+                class="select-text font-mono"
               />
             </label>
-            <label className="flex min-h-0 flex-1 flex-col gap-1 text-caption text-text-faint">
+            <label class="flex min-h-0 flex-1 flex-col gap-1 text-caption text-text-faint">
               Extra text (optional)
               <Textarea
-                value={text}
+                value={text()}
                 aria-label={tr("runCommandCommandExtraText")}
                 placeholder={tr("runCommandAppendedAfterTheExpandedCommandPrompt")}
-                onChange={(event) => setText(event.target.value)}
-                className="min-h-20 flex-1 select-text"
+                onInput={(event) => setText(event.currentTarget.value)}
+                class="min-h-20 flex-1 select-text"
               />
             </label>
-            <label className="flex items-center gap-2 text-caption text-text-faint">
+            <label class="flex items-center gap-2 text-caption text-text-faint">
               Delivery
               <select
-                value={delivery}
+                value={delivery()}
                 aria-label={tr("runCommandCommandDelivery")}
-                onChange={(event) => setDelivery(event.target.value === "queue" ? "queue" : "steer")}
-                className="h-control-md rounded-md border border-border-base bg-bg-base px-2 text-meta text-text-base outline-none"
+                onChange={(event) =>
+                  setDelivery(event.currentTarget.value === "queue" ? "queue" : "steer")
+                }
+                class="h-control-md rounded-md border border-border-base bg-bg-base px-2 text-meta text-text-base outline-none"
               >
                 <option value="steer">Steer</option>
                 <option value="queue">Queue</option>
               </select>
-              <Button type="button" size="sm" className="ml-auto" disabled={busy} onClick={() => void run()}>
+              <Button type="button" size="sm" class="ml-auto" disabled={busy()} onClick={() => void run()}>
                 <Play />
-                {busy ? "Sending…" : "Run"}
+                {busy() ? "Sending…" : "Run"}
               </Button>
             </label>
           </div>

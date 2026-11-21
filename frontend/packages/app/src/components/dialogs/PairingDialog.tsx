@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { Copy, QrCode, Save, X } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -21,20 +22,22 @@ interface Props {
 }
 
 /** Creates, lists, copies, revokes and redeems short-lived session codes. */
-export function PairingDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function PairingDialog(props: Props) {
   const tr = useT();
-  const [items, setItems] = useState<PairingCode[]>([]);
-  const [ttl, setTTL] = useState(60);
-  const [code, setCode] = useState("");
-  const [result, setResult] = useState<PairingResult>();
-  const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState("");
-  const [saving, setSaving] = useState("");
-  const [notice, setNotice] = useState("");
+  const [items, setItems] = createSignal<PairingCode[]>([]);
+  const [ttl, setTTL] = createSignal(60);
+  const [code, setCode] = createSignal("");
+  const [result, setResult] = createSignal<PairingResult>();
+  const [loading, setLoading] = createSignal(false);
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [copied, setCopied] = createSignal("");
+  const [saving, setSaving] = createSignal("");
+  const [notice, setNotice] = createSignal("");
 
   const load = async (quiet = false) => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     if (!quiet) setLoading(true);
     try {
@@ -48,8 +51,8 @@ export function PairingDialog({ open, workspace, sessionID, title, onOpenChange 
     }
   };
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!props.open) {
       setItems([]);
       setTTL(60);
       setCode("");
@@ -60,18 +63,22 @@ export function PairingDialog({ open, workspace, sessionID, title, onOpenChange 
       setNotice("");
       return;
     }
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
+    if (!workspace || !sessionID) return;
     void load();
     const timer = window.setInterval(() => void load(true), 10_000);
-    return () => window.clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace, sessionID]);
+    onCleanup(() => window.clearInterval(timer));
+  });
 
   const create = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     setBusy(true);
     try {
-      const created = await api.createPairing(workspace, sessionID, ttl);
-      setItems((current) => [...current, created]);
+      const created = await api.createPairing(workspace, sessionID, ttl());
+      update(setItems, items, (current) => [...current, created]);
       setError("");
     } catch (err) {
       setError(messageOf(err));
@@ -81,10 +88,12 @@ export function PairingDialog({ open, workspace, sessionID, title, onOpenChange 
   };
 
   const revoke = async (item: PairingCode) => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     try {
       await api.revokePairing(workspace, sessionID, item.code);
-      setItems((current) => current.filter((entry) => entry.code !== item.code));
+      update(setItems, items, (current) => current.filter((entry) => entry.code !== item.code));
       setError("");
     } catch (err) {
       setError(messageOf(err));
@@ -92,8 +101,10 @@ export function PairingDialog({ open, workspace, sessionID, title, onOpenChange 
   };
 
   const redeem = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
-    const value = code.trim();
+    const value = code().trim();
     if (!value) {
       setError("Pairing code is required.");
       return;
@@ -103,7 +114,7 @@ export function PairingDialog({ open, workspace, sessionID, title, onOpenChange 
       const paired = await api.redeemPairing(workspace, sessionID, value);
       setResult(paired);
       setCode("");
-      setItems((current) => current.filter((entry) => entry.code !== value.toLowerCase()));
+      update(setItems, items, (current) => current.filter((entry) => entry.code !== value.toLowerCase()));
       setError("");
     } catch (err) {
       setResult(undefined);
@@ -143,107 +154,111 @@ export function PairingDialog({ open, workspace, sessionID, title, onOpenChange 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
             <DialogTitle>Pairing</DialogTitle>
-            <DialogDescription className="truncate">
-              {title ? `${title} · ` : ""}
+            <DialogDescription class="truncate">
+              {props.title ? `${props.title} · ` : ""}
               {tr("dialogPairingHint")}
             </DialogDescription>
           </div>
-          <RefreshButton loading={loading} onRefresh={() => void load()} />
+          <RefreshButton loading={loading()} onRefresh={() => void load()} />
         </div>
 
-        <ErrorBanner error={error} className="mt-3" />
-        <NoticeBanner notice={notice} mono />
+        <ErrorBanner error={error()} class="mt-3" />
+        <NoticeBanner notice={notice()} mono />
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div class="mt-4 flex flex-wrap items-center gap-2">
           <select
-            value={ttl}
+            value={ttl()}
             aria-label={tr("pairingPairingLifetime")}
-            onChange={(event) => setTTL(Number(event.target.value))}
-            className="h-control-md rounded-md border border-border-base bg-bg-layer-01 px-2 text-body text-text-base outline-none"
+            onChange={(event) => setTTL(Number(event.currentTarget.value))}
+            class="h-control-md rounded-md border border-border-base bg-bg-layer-01 px-2 text-body text-text-base outline-none"
           >
             <option value={60}>60 seconds</option>
             <option value={120}>2 minutes</option>
             <option value={300}>5 minutes</option>
           </select>
-          <Button type="button" size="sm" disabled={busy} onClick={() => void create()}>
+          <Button type="button" size="sm" disabled={busy()} onClick={() => void create()}>
             <QrCode />
             {tr("dialogCreateCode")}
           </Button>
         </div>
 
-        <div className="mt-4 max-h-56 overflow-auto rounded-md border border-border-base">
-          {items.length === 0 ? (
-            <p className="p-3 text-meta text-text-faint">
-              {loading ? "Loading…" : "No active pairing codes."}
-            </p>
-          ) : (
-            items.map((item) => (
-              <div
-                key={item.code}
-                className="flex items-center gap-3 border-b border-border-base px-3 py-2 last:border-b-0"
-              >
-                <span className="font-mono text-reading tracking-widest text-text-base">{item.code}</span>
-                <span className="min-w-0 flex-1 text-caption text-text-faint">
-                  expires {formatTimeOfDay(item.expiresAt)} · {item.expiresIn}s
-                </span>
-                <Button type="button" variant="outline" size="xs" onClick={() => void copy(item)}>
-                  <Copy />
-                  {copied === item.code ? "Copied" : "Copy"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  disabled={saving === item.code}
-                  onClick={() => void savePairing(item)}
-                >
-                  <Save />
-                  {saving === item.code ? "Saving…" : "Save"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-xs"
-                  aria-label={`Revoke ${item.code}`}
-                  onClick={() => void revoke(item)}
-                >
-                  <X />
-                </Button>
-              </div>
-            ))
-          )}
+        <div class="mt-4 max-h-56 overflow-auto rounded-md border border-border-base">
+          <Show
+            when={items().length > 0}
+            fallback={
+              <p class="p-3 text-meta text-text-faint">
+                {loading() ? "Loading…" : "No active pairing codes."}
+              </p>
+            }
+          >
+            <For each={items()}>
+              {(item) => (
+                <div class="flex items-center gap-3 border-b border-border-base px-3 py-2 last:border-b-0">
+                  <span class="font-mono text-reading tracking-widest text-text-base">{item.code}</span>
+                  <span class="min-w-0 flex-1 text-caption text-text-faint">
+                    expires {formatTimeOfDay(item.expiresAt)} · {item.expiresIn}s
+                  </span>
+                  <Button type="button" variant="outline" size="xs" onClick={() => void copy(item)}>
+                    <Copy />
+                    {copied() === item.code ? "Copied" : "Copy"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    disabled={saving() === item.code}
+                    onClick={() => void savePairing(item)}
+                  >
+                    <Save />
+                    {saving() === item.code ? "Saving…" : "Save"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-xs"
+                    aria-label={`Revoke ${item.code}`}
+                    onClick={() => void revoke(item)}
+                  >
+                    <X />
+                  </Button>
+                </div>
+              )}
+            </For>
+          </Show>
         </div>
 
-        <div className="mt-4 rounded-md border border-border-base bg-bg-layer-01 p-3">
-          <p className="text-caption text-text-faint">Redeem a code</p>
-          <div className="mt-2 flex items-center gap-2">
+        <div class="mt-4 rounded-md border border-border-base bg-bg-layer-01 p-3">
+          <p class="text-caption text-text-faint">Redeem a code</p>
+          <div class="mt-2 flex items-center gap-2">
             <Input
-              value={code}
+              value={code()}
               placeholder={tr("dialogPairingCodePlaceholder")}
               aria-label={tr("pairingPairingCode")}
-              onChange={(event) => setCode(event.target.value)}
+              onInput={(event) => setCode(event.currentTarget.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
                   void redeem();
                 }
               }}
-              className="select-text font-mono tracking-widest"
+              class="select-text font-mono tracking-widest"
             />
-            <Button type="button" size="sm" disabled={busy} onClick={() => void redeem()}>
+            <Button type="button" size="sm" disabled={busy()} onClick={() => void redeem()}>
               Redeem
             </Button>
           </div>
-          {result && (
-            <p className="mt-2 text-meta text-state-fg-success select-text">
-              Paired at {formatTimeOfDay(result.pairedAt)} · {result.directory || "workspace"}
-            </p>
-          )}
+          <Show when={result()}>
+            {(paired) => (
+              <p class="mt-2 text-meta text-state-fg-success select-text">
+                Paired at {formatTimeOfDay(paired().pairedAt)} · {paired().directory || "workspace"}
+              </p>
+            )}
+          </Show>
         </div>
       </DialogContent>
     </Dialog>

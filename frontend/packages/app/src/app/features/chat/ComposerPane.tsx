@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Show, createMemo } from "solid-js";
 import { Composer } from "../../../components/session/Composer";
 import { useShell } from "../../ShellProvider";
 import { useActiveChat } from "../../hooks";
@@ -8,85 +8,83 @@ import { useRevert } from "../../useRevert";
 /** Composer with the goal pill and history recall. */
 export function ComposerPane() {
   const shell = useShell();
-  const { activeWorkspace, catalog, chatActions, agents, providers } = shell;
   const active = useActiveChat();
   const revert = useRevert({
-    workspace: activeWorkspace?.path,
-    sessionID: active?.id,
-    entryCount: active?.entries.length ?? 0,
+    workspace: () => shell.activeWorkspace?.path,
+    sessionID: () => active()?.id,
+    entryCount: () => active()?.entries.length ?? 0,
     restorePrompt: shell.restoreText,
   });
   const composerCommands = useComposerCommands({
-    commands: agents.commands,
-    agents: agents.agents,
-    defaultAgent: agents.defaultAgent,
-    homeAgent: agents.homeAgent,
-    setHomeAgent: agents.setHomeAgent,
+    commands: shell.agents.commands,
+    agents: shell.agents.agents,
+    defaultAgent: shell.agents.defaultAgent,
+    homeAgent: shell.agents.homeAgent,
+    setHomeAgent: shell.agents.setHomeAgent,
     active,
-    activeWorkspace,
-    homeWorkspace: shell.homeWorkspace,
+    activeWorkspace: () => shell.activeWorkspace,
+    homeWorkspace: () => shell.homeWorkspace,
     revertCan: revert.revertCan,
-    sessionsByWorkspace: shell.sessionsByWorkspace,
+    sessionsByWorkspace: () => shell.sessionsByWorkspace,
     openManageModels: shell.sessionActions.openManageModels,
     undoLatestTurn: revert.undoLatestTurn,
     redoLatestTurn: revert.redoLatestTurn,
     forkSession: shell.sessionActions.forkSession,
     compactSession: shell.sessionActions.compactSession,
-    reload: agents.reload,
+    reload: shell.agents.reload,
   });
 
   // History recall rebuilds two lists from the whole transcript. The composer
   // only needs them when the arrow keys ask, so they follow the entry list
   // rather than being rebuilt on every streamed token.
-  const entries = active?.entries;
-  const history = useMemo(
-    () =>
-      (entries ?? [])
-        .filter((entry) => entry.role === "user" && entry.text)
-        .map((entry) => entry.text!)
+  const entries = () => active()?.entries;
+  const history = createMemo(() =>
+    (entries() ?? [])
+      .filter((entry) => entry.role === "user" && entry.text)
+      .map((entry) => entry.text!)
+      .reverse(),
+  );
+  const shellHistory = createMemo(() => [
+    ...new Set(
+      (entries() ?? [])
+        .filter((entry) => entry.role === "shell" && entry.shell?.command)
+        .map((entry) => entry.shell!.command!)
         .reverse(),
-    [entries],
-  );
-  const shellHistory = useMemo(
-    () => [
-      ...new Set(
-        (entries ?? [])
-          .filter((entry) => entry.role === "shell" && entry.shell?.command)
-          .map((entry) => entry.shell!.command!)
-          .reverse(),
-      ),
-    ],
-    [entries],
-  );
-
-  if (!active) return null;
+    ),
+  ]);
 
   return (
-    <Composer
-      running={active.running}
-      disabled={!activeWorkspace?.connected}
-      providers={providers}
-      provider={active.provider ?? catalog?.provider ?? ""}
-      model={active.model ?? catalog?.model ?? ""}
-      commands={composerCommands}
-      agents={agents.agents}
-      agent={active.agent || agents.defaultAgent}
-      quote={shell.quote}
-      onQuoteConsumed={() => shell.clearQuote()}
-      restore={shell.restorePrompt}
-      history={history}
-      shellHistory={shellHistory}
-      workspace={activeWorkspace?.path}
-      borderUnderlay
-      onSelectAgent={(agentID) => void chatActions.selectAgent(agentID)}
-      onSelectModel={(providerID, modelID) => void chatActions.selectModel(providerID, modelID)}
-      onManageModels={() => shell.sessionActions.openManageModels(false)}
-      onAddProvider={() => shell.sessionActions.openManageModels(true)}
-      onSend={(text, delivery, attachments, references) =>
-        void chatActions.send(text, delivery, attachments, { references })
-      }
-      onStop={() => void chatActions.stop()}
-      onRunShell={(command) => void chatActions.runShell(command)}
-    />
+    <Show when={active()}>
+      {(chat) => (
+        <Composer
+          running={chat().running}
+          disabled={!shell.activeWorkspace?.connected}
+          providers={shell.providers}
+          provider={chat().provider ?? shell.catalog?.provider ?? ""}
+          model={chat().model ?? shell.catalog?.model ?? ""}
+          commands={composerCommands()}
+          agents={shell.agents.agents()}
+          agent={chat().agent || shell.agents.defaultAgent()}
+          quote={shell.quote}
+          onQuoteConsumed={() => shell.clearQuote()}
+          restore={shell.restorePrompt}
+          history={history()}
+          shellHistory={shellHistory()}
+          workspace={shell.activeWorkspace?.path}
+          borderUnderlay
+          onSelectAgent={(agentID) => void shell.chatActions.selectAgent(agentID)}
+          onSelectModel={(providerID, modelID) =>
+            void shell.chatActions.selectModel(providerID, modelID)
+          }
+          onManageModels={() => shell.sessionActions.openManageModels(false)}
+          onAddProvider={() => shell.sessionActions.openManageModels(true)}
+          onSend={(text, delivery, attachments, references) =>
+            void shell.chatActions.send(text, delivery, attachments, { references })
+          }
+          onStop={() => void shell.chatActions.stop()}
+          onRunShell={(command) => void shell.chatActions.runShell(command)}
+        />
+      )}
+    </Show>
   );
 }

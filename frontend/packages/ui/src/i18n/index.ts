@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { createSignal } from "solid-js";
 import { en } from "./en.ts";
 import { zh } from "./zh.ts";
 
@@ -7,7 +7,7 @@ export type Language = "en" | "zh";
 export type MessageKey = keyof typeof en;
 
 let language: Language = "en";
-const listeners = new Set<() => void>();
+const [languageSignal, setLanguageSignal] = createSignal<Language>(language);
 
 export function setLanguage(next: Language) {
   if (language === next) return;
@@ -15,33 +15,33 @@ export function setLanguage(next: Language) {
   // Screen readers and hyphenation follow the document language, so it tracks
   // the UI language instead of staying at the static value in index.html.
   if (typeof document !== "undefined") document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
-  for (const listener of listeners) listener();
+  setLanguageSignal(next);
 }
 
 export function currentLanguage(): Language {
-  return language;
+  return languageSignal();
 }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
+/** Accessor for the language; read it inside a memo or JSX to follow changes. */
+export function useLanguage(): () => Language {
+  return languageSignal;
+}
+
+/** Translator. Calling it inside a reactive scope subscribes to the language. */
+export function useT() {
+  return (key: MessageKey, vars?: Record<string, string | number>) => {
+    languageSignal();
+    return translate(language, key, vars);
   };
 }
 
-/** Subscribes a component so it re-renders when the language changes. */
-export function useLanguage(): Language {
-  return useSyncExternalStore(subscribe, currentLanguage, currentLanguage);
-}
-
-/** Translator that re-renders its component whenever the language changes. */
-export function useT() {
-  useLanguage();
-  return t;
-}
-
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {
-  let message = (language === "en" ? en[key] : zh[key]) ?? en[key];
+  languageSignal();
+  return translate(language, key, vars);
+}
+
+function translate(lang: Language, key: MessageKey, vars?: Record<string, string | number>): string {
+  let message = (lang === "en" ? en[key] : zh[key]) ?? en[key];
   if (!vars) return message;
   for (const [name, value] of Object.entries(vars)) {
     message = message.split(`{{${name}}}`).join(String(value));

@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { GitBranch, RefreshCw } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -21,23 +22,24 @@ interface Props {
  * Read-only source control view: current branch, working-tree status and the
  * per-file patch. Non-repository workspaces can be initialised in place.
  */
-export function SourceControlDialog({ open, workspace, name, onOpenChange }: Props) {
+export function SourceControlDialog(props: Props) {
   const tr = useT();
-  const [info, setInfo] = useState<VCSInfo>();
-  const [base, setBase] = useState<VCSBase | null>(null);
-  const [files, setFiles] = useState<VCSFileDiff[]>([]);
-  const [status, setStatus] = useState<VCSFileStatus[]>([]);
-  const [selected, setSelected] = useState<string>();
-  const [mode, setMode] = useState<DiffMode>("working");
-  const [branch, setBranch] = useState("");
-  const [branchSearch, setBranchSearch] = useState("");
-  const [branches, setBranches] = useState<string[]>([]);
-  const [branchesLoading, setBranchesLoading] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [initializing, setInitializing] = useState(false);
+  const [info, setInfo] = createSignal<VCSInfo>();
+  const [base, setBase] = createSignal<VCSBase | null>(null);
+  const [files, setFiles] = createSignal<VCSFileDiff[]>([]);
+  const [status, setStatus] = createSignal<VCSFileStatus[]>([]);
+  const [selected, setSelected] = createSignal<string>();
+  const [mode, setMode] = createSignal<DiffMode>("working");
+  const [branch, setBranch] = createSignal("");
+  const [branchSearch, setBranchSearch] = createSignal("");
+  const [branches, setBranches] = createSignal<string[]>([]);
+  const [branchesLoading, setBranchesLoading] = createSignal(false);
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [initializing, setInitializing] = createSignal(false);
 
-  const load = async (nextMode: DiffMode = mode, nextBranch: string = branch) => {
+  const load = async (nextMode: DiffMode = mode(), nextBranch: string = branch()) => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setLoading(true);
     setError("");
@@ -52,7 +54,7 @@ export function SourceControlDialog({ open, workspace, name, onOpenChange }: Pro
       setBase(nextBase);
       setFiles(diffs);
       setStatus(nextStatus);
-      setSelected((current) =>
+      update(setSelected, selected, (current) =>
         current && diffs.some((item) => item.file === current) ? current : diffs[0]?.file,
       );
     } catch (err) {
@@ -67,8 +69,9 @@ export function SourceControlDialog({ open, workspace, name, onOpenChange }: Pro
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setInfo(undefined);
@@ -82,10 +85,10 @@ export function SourceControlDialog({ open, workspace, name, onOpenChange }: Pro
       setBranches([]);
       setError("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
-  const loadBranches = async (search = branchSearch) => {
+  const loadBranches = async (search = branchSearch()) => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setBranchesLoading(true);
     try {
@@ -100,23 +103,23 @@ export function SourceControlDialog({ open, workspace, name, onOpenChange }: Pro
 
   const changeMode = (next: DiffMode) => {
     setMode(next);
-    if (next === "branch" && branches.length === 0) {
+    if (next === "branch" && branches().length === 0) {
       void loadBranches("");
     }
-    void load(next, branch);
+    void load(next, branch());
   };
 
-  const chooseBranch = (name: string) => {
-    setBranch(name);
+  const chooseBranch = (next: string) => {
+    setBranch(next);
     setMode("branch");
-    void load("branch", name);
+    void load("branch", next);
   };
 
   const initialize = async () => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     setInitializing(true);
     try {
-      await api.vcsInit(workspace);
+      await api.vcsInit(props.workspace);
       await load();
     } catch (err) {
       setError(messageOf(err));
@@ -125,185 +128,201 @@ export function SourceControlDialog({ open, workspace, name, onOpenChange }: Pro
     }
   };
 
-  const current = useMemo(() => files.find((item) => item.file === selected), [files, selected]);
-  const additions = files.reduce((sum, item) => sum + item.additions, 0);
-  const deletions = files.reduce((sum, item) => sum + item.deletions, 0);
+  const current = createMemo(() => files().find((item) => item.file === selected()));
+  const additions = () => files().reduce((sum, item) => sum + item.additions, 0);
+  const deletions = () => files().reduce((sum, item) => sum + item.deletions, 0);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
             <DialogTitle>Source control</DialogTitle>
-            <DialogDescription className="truncate">{name || workspace}</DialogDescription>
+            <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={loading}
+            disabled={loading()}
             onClick={() => void load()}
           >
-            <RefreshCw className={loading ? "motion-safe:animate-spin" : undefined} />
+            <RefreshCw class={loading() ? "motion-safe:animate-spin" : undefined} />
             Refresh
           </Button>
         </div>
 
-        {info && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-meta text-text-muted">
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-border-base px-2 py-1">
-              <GitBranch className="size-3.5" />
-              {info.branch.current || info.branch.default || "detached"}
-            </span>
-            {base && (
-              <span className="text-text-faint">
-                base {base.name} ({base.ref.slice(0, 8)})
+        <Show when={info()}>
+          {(currentInfo) => (
+            <div class="mt-4 flex flex-wrap items-center gap-3 text-meta text-text-muted">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-border-base px-2 py-1">
+                <GitBranch class="size-3.5" />
+                {currentInfo().branch.current || currentInfo().branch.default || "detached"}
               </span>
-            )}
-            <span className="text-text-faint">
-              {files.length} file{files.length === 1 ? "" : "s"}
-            </span>
-            {additions > 0 && <span className="text-state-fg-success">+{additions}</span>}
-            {deletions > 0 && <span className="text-state-fg-danger">-{deletions}</span>}
-            <span className="text-text-faint">
-              working tree {status.length} changed
-            </span>
-          </div>
-        )}
+              <Show when={base()}>
+                {(currentBase) => (
+                  <span class="text-text-faint">
+                    base {currentBase().name} ({currentBase().ref.slice(0, 8)})
+                  </span>
+                )}
+              </Show>
+              <span class="text-text-faint">
+                {files().length} file{files().length === 1 ? "" : "s"}
+              </span>
+              <Show when={additions() > 0}>
+                <span class="text-state-fg-success">+{additions()}</span>
+              </Show>
+              <Show when={deletions() > 0}>
+                <span class="text-state-fg-danger">-{deletions()}</span>
+              </Show>
+              <span class="text-text-faint">
+                working tree {status().length} changed
+              </span>
+            </div>
+          )}
+        </Show>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {(["working", "branch", "committed"] as const).map((item) => (
-            <Button
-              key={item}
-              type="button"
-              variant={mode === item ? "default" : "outline"}
-              size="xs"
-              onClick={() => changeMode(item)}
-            >
-              {item === "working" ? "Working tree" : item === "branch" ? "Against branch" : "Committed"}
-            </Button>
-          ))}
-          {mode === "branch" && (
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <For each={["working", "branch", "committed"] as const}>
+            {(item) => (
+              <Button
+                type="button"
+                variant={mode() === item ? "default" : "outline"}
+                size="xs"
+                onClick={() => changeMode(item)}
+              >
+                {item === "working" ? "Working tree" : item === "branch" ? "Against branch" : "Committed"}
+              </Button>
+            )}
+          </For>
+          <Show when={mode() === "branch"}>
             <>
               <Input
-                value={branchSearch}
+                value={branchSearch()}
                 aria-label={tr("sourceControlBranchSearch")}
                 placeholder={tr("sourceControlFilterBranches")}
-                onChange={(event) => setBranchSearch(event.target.value)}
+                onInput={(event) => setBranchSearch(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
                     void loadBranches();
                   }
                 }}
-                className="w-48 select-text font-mono"
+                class="w-48 select-text font-mono"
               />
               <Button
                 type="button"
                 variant="outline"
                 size="xs"
-                disabled={branchesLoading}
+                disabled={branchesLoading()}
                 onClick={() => void loadBranches()}
               >
-                {branchesLoading ? "Loading…" : "List branches"}
+                {branchesLoading() ? "Loading…" : "List branches"}
               </Button>
-              {branch && <span className="text-caption text-text-faint">base {branch}</span>}
+              <Show when={branch()}>
+                <span class="text-caption text-text-faint">base {branch()}</span>
+              </Show>
             </>
-          )}
+          </Show>
         </div>
 
-        {mode === "branch" && branches.length > 0 && (
-          <div className="mt-2 flex max-h-28 shrink-0 flex-wrap gap-1 overflow-auto rounded-md border border-border-base bg-bg-layer-01 p-1">
-            {branches.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => chooseBranch(name)}
-                className={`interactive rounded-md px-2 py-1 font-mono text-caption ${
-                  branch === name
-                    ? "bg-bg-layer-02 text-text-base"
-                    : "text-text-faint hover:text-text-base"
-                }`}
-              >
-                {name}
-              </button>
-            ))}
+        <Show when={mode() === "branch" && branches().length > 0}>
+          <div class="mt-2 flex max-h-28 shrink-0 flex-wrap gap-1 overflow-auto rounded-md border border-border-base bg-bg-layer-01 p-1">
+            <For each={branches()}>
+              {(name) => (
+                <button
+                  type="button"
+                  onClick={() => chooseBranch(name)}
+                  class={`interactive rounded-md px-2 py-1 font-mono text-caption ${
+                    branch() === name
+                      ? "bg-bg-layer-02 text-text-base"
+                      : "text-text-faint hover:text-text-base"
+                  }`}
+                >
+                  {name}
+                </button>
+              )}
+            </For>
           </div>
-        )}
+        </Show>
 
-        {error && (
-          <div className="mt-4 rounded-md border border-state-border-danger bg-state-bg-danger px-3 py-2 text-meta leading-5 text-state-fg-danger">
-            <p className="select-text">{error}</p>
+        <Show when={error()}>
+          <div class="mt-4 rounded-md border border-state-border-danger bg-state-bg-danger px-3 py-2 text-meta leading-5 text-state-fg-danger">
+            <p class="select-text">{error()}</p>
             <Button
               type="button"
               variant="outline"
               size="xs"
-              className="mt-2"
-              disabled={initializing}
+              class="mt-2"
+              disabled={initializing()}
               onClick={() => void initialize()}
             >
-              {initializing ? "Initializing…" : "Initialize repository"}
+              {initializing() ? "Initializing…" : "Initialize repository"}
             </Button>
           </div>
-        )}
+        </Show>
 
-        {!error && files.length === 0 && !loading && (
-          <p className="mt-4 text-meta text-text-faint">
-            {mode === "working" ? "Working tree is clean." : "No changes to show for this view."}
+        <Show when={!error() && files().length === 0 && !loading()}>
+          <p class="mt-4 text-meta text-text-faint">
+            {mode() === "working" ? "Working tree is clean." : "No changes to show for this view."}
           </p>
-        )}
+        </Show>
 
-        {files.length > 0 && (
-          <div className="mt-4 flex min-h-0 flex-1 gap-3">
-            <div className="w-64 shrink-0 overflow-y-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
-              {files.map((item) => {
-                const active = item.file === selected;
-                return (
-                  <button
-                    key={item.file}
-                    type="button"
-                    onClick={() => setSelected(item.file)}
-                    className={`interactive flex w-full items-center gap-2 px-2 py-1.5 text-left text-meta ${
-                      active ? "bg-bg-layer-02 text-text-base" : "text-text-muted hover:text-text-base"
-                    }`}
-                  >
-                    <span
-                      className={`shrink-0 font-mono text-caption ${
-                        item.status === "added"
-                          ? "text-state-fg-success"
-                          : item.status === "deleted"
-                            ? "text-state-fg-danger"
-                            : "text-state-fg-warning"
+        <Show when={files().length > 0}>
+          <div class="mt-4 flex min-h-0 flex-1 gap-3">
+            <div class="w-64 shrink-0 overflow-y-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
+              <For each={files()}>
+                {(item) => {
+                  const active = () => item.file === selected();
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setSelected(item.file)}
+                      class={`interactive flex w-full items-center gap-2 px-2 py-1.5 text-left text-meta ${
+                        active() ? "bg-bg-layer-02 text-text-base" : "text-text-muted hover:text-text-base"
                       }`}
                     >
-                      {item.status === "added" ? "A" : item.status === "deleted" ? "D" : "M"}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-mono" title={item.file}>
-                      {item.file}
-                    </span>
-                    <span className="shrink-0 font-mono text-caption tabular-nums text-text-faint">
-                      +{item.additions} -{item.deletions}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span
+                        class={`shrink-0 font-mono text-caption ${
+                          item.status === "added"
+                            ? "text-state-fg-success"
+                            : item.status === "deleted"
+                              ? "text-state-fg-danger"
+                              : "text-state-fg-warning"
+                        }`}
+                      >
+                        {item.status === "added" ? "A" : item.status === "deleted" ? "D" : "M"}
+                      </span>
+                      <span class="min-w-0 flex-1 truncate font-mono" title={item.file}>
+                        {item.file}
+                      </span>
+                      <span class="shrink-0 font-mono text-caption tabular-nums text-text-faint">
+                        +{item.additions} -{item.deletions}
+                      </span>
+                    </button>
+                  );
+                }}
+              </For>
             </div>
 
-            <div className="min-w-0 flex-1 overflow-auto rounded-md border border-border-base bg-bg-base">
-              {current ? (
-                <pre className="min-h-full p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
-                  {current.patch || "(no patch)"}
-                </pre>
-              ) : (
-                <p className="p-3 text-meta text-text-faint">Select a file to see its diff.</p>
-              )}
+            <div class="min-w-0 flex-1 overflow-auto rounded-md border border-border-base bg-bg-base">
+              <Show
+                when={current()}
+                fallback={<p class="p-3 text-meta text-text-faint">Select a file to see its diff.</p>}
+              >
+                {(item) => (
+                  <pre class="min-h-full p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
+                    {item().patch || "(no patch)"}
+                  </pre>
+                )}
+              </Show>
             </div>
           </div>
-        )}
+        </Show>
 
-        {loading && files.length === 0 && !error && (
-          <p className="mt-4 text-meta text-text-faint">Loading…</p>
-        )}
+        <Show when={loading() && files().length === 0 && !error()}>
+          <p class="mt-4 text-meta text-text-faint">Loading…</p>
+        </Show>
       </DialogContent>
     </Dialog>
   );

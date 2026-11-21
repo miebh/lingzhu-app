@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
@@ -26,7 +26,7 @@ describe("settings surfaces", () => {
     const reveal = vi.fn();
     const change = vi.fn();
     render(
-      <SettingsNav
+      () => <SettingsNav
         groups={[{ label: "Preferences", items: [{ id: "general", label: "General", icon: () => null }] }]}
         section="general"
         index={index}
@@ -44,7 +44,7 @@ describe("settings surfaces", () => {
   test("notifications page saves each switch", async () => {
     const save = vi.fn();
     render(
-      <NotificationsSection
+      () => <NotificationsSection
         preferences={{
           preferences: { ...defaultPreferences, notifications: { ...defaultPreferences.notifications } },
           save,
@@ -74,7 +74,7 @@ describe("settings surfaces", () => {
       ],
     };
     render(
-      <ModelsSection
+      () => <ModelsSection
         providers={[provider]}
         preferences={{ ...defaultPreferences, hiddenModels: [] }}
         onSavePreferences={save}
@@ -93,7 +93,7 @@ describe("settings surfaces", () => {
   test("project settings save a name and auto-approve", async () => {
     const save = vi.fn();
     render(
-      <ProjectsSection
+      () => <ProjectsSection
         projects={[{ path: "/w", name: "Project", addr: "", connected: true, error: "" }]}
         onAdd={() => undefined}
         onRemove={() => undefined}
@@ -126,7 +126,7 @@ describe("settings surfaces", () => {
     vi.mocked(api.removeWorktree).mockClear();
     vi.mocked(api.worktreeSessions).mockResolvedValue({ "/repo-feature": 5 });
     render(
-      <WorktreesSection
+      () => <WorktreesSection
         workspaces={[{ path: "/repo", name: "Repo", addr: "", connected: true, error: "" }]}
         sessionCounts={{ "/repo-feature": 3 }}
       />,
@@ -143,7 +143,7 @@ describe("settings surfaces", () => {
     const onRestart = vi.fn();
     const onRemove = vi.fn();
     render(
-      <ServersSection
+      () => <ServersSection
         workspaces={[{ path: ".", name: "Project", addr: "127.0.0.1:8787", connected: true, error: "" }]}
         onRestart={onRestart}
         onRemove={onRemove}
@@ -153,7 +153,7 @@ describe("settings surfaces", () => {
     expect(screen.getByLabelText("Connected")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Server actions" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Refresh" }));
-    await userEvent.click(screen.getByRole("button", { name: "Server actions" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Server actions" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
     expect(onRestart).toHaveBeenCalledWith(".");
     expect(onRemove).toHaveBeenCalledWith(".");
@@ -162,7 +162,7 @@ describe("settings surfaces", () => {
   test("experimental page changes sidebar organization", async () => {
     const save = vi.fn();
     render(
-      <ExperimentalSection
+      () => <ExperimentalSection
         preferences={{
           preferences: { ...defaultPreferences, appearance: { ...defaultPreferences.appearance } },
           save,
@@ -178,7 +178,7 @@ describe("settings surfaces", () => {
   test("general color scheme control saves light mode", async () => {
     const save = vi.fn();
     render(
-      <GeneralSection
+      () => <GeneralSection
         preferences={{
           preferences: { ...defaultPreferences, appearance: { ...defaultPreferences.appearance } },
           save,
@@ -194,7 +194,7 @@ describe("settings surfaces", () => {
   test("general settings localize to Chinese", () => {
     setLanguage("zh");
     render(
-      <GeneralSection
+      () => <GeneralSection
         preferences={{ preferences: { ...defaultPreferences }, save: vi.fn() }}
       />,
     );
@@ -206,7 +206,7 @@ describe("settings surfaces", () => {
 
   test("shortcuts page localizes to Chinese", () => {
     setLanguage("zh");
-    render(<ShortcutsSection preferences={{ preferences: { ...defaultPreferences }, save: vi.fn() }} />);
+    render(() => <ShortcutsSection preferences={{ preferences: { ...defaultPreferences }, save: vi.fn() }} />);
     expect(screen.getByText("通用")).toBeTruthy();
     expect(screen.getByText("新建会话")).toBeTruthy();
     setLanguage("en");
@@ -215,7 +215,7 @@ describe("settings surfaces", () => {
   test("general language control saves Chinese", async () => {
     const save = vi.fn();
     render(
-      <GeneralSection
+      () => <GeneralSection
         preferences={{
           preferences: { ...defaultPreferences, appearance: { ...defaultPreferences.appearance } },
           save,
@@ -230,7 +230,7 @@ describe("settings surfaces", () => {
 
   test("connect provider dialog uses the reference header and footer inset", async () => {
     render(
-      <ProviderDialog
+      () => <ProviderDialog
         open
         initial={{
           id: "custom",
@@ -260,7 +260,7 @@ describe("settings surfaces", () => {
 
   test("model catalog groups collapse from their header", async () => {
     render(
-      <ModelsSection
+      () => <ModelsSection
         providers={[
           {
             id: "p",

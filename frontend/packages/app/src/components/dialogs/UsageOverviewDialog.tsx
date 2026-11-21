@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import { Gauge } from "@lingzhu/ui/icons";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -21,18 +21,18 @@ function count(value: number): string {
 }
 
 /** Aggregated token usage across every session of one workspace. */
-export function UsageOverviewDialog({ open, workspace, name, onOpenChange, onOpenSession }: Props) {
+export function UsageOverviewDialog(props: Props) {
   const tr = useT();
-  const [usage, setUsage] = useState<WorkspaceUsage>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [usage, setUsage] = createSignal<WorkspaceUsage>();
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
 
   const load = async () => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     setLoading(true);
     setError("");
     try {
-      setUsage(await api.workspaceUsage(workspace));
+      setUsage(await api.workspaceUsage(props.workspace));
     } catch (err) {
       setUsage(undefined);
       setError(messageOf(err));
@@ -41,104 +41,116 @@ export function UsageOverviewDialog({ open, workspace, name, onOpenChange, onOpe
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setUsage(undefined);
       setError("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Gauge className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <Gauge class="size-4 text-text-faint" />
               {tr("paletteUsageOverview")}
             </DialogTitle>
-            <DialogDescription className="truncate">
-              {name ? `${name} · ` : ""}
-              {usage ? `${usage.sessions.length} session${usage.sessions.length === 1 ? "" : "s"}` : ""}
+            <DialogDescription class="truncate">
+              {props.name ? `${props.name} · ` : ""}
+              {usage()
+                ? `${usage()!.sessions.length} session${usage()!.sessions.length === 1 ? "" : "s"}`
+                : ""}
             </DialogDescription>
           </div>
-          <RefreshButton loading={loading} onRefresh={() => void load()} />
+          <RefreshButton loading={loading()} onRefresh={() => void load()} />
         </div>
 
-        <ErrorBanner error={error} />
+        <ErrorBanner error={error()} />
 
-        {usage && (
-          <div className="mt-4 grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-5">
-            {(
-              [
-                ["Calls", usage.calls],
-                ["Input", usage.input],
-                ["Output", usage.output],
-                ["Cache read", usage.cacheRead],
-                ["Total", usage.total],
-              ] as [string, number][]
-            ).map(([label, value]) => (
-              <div key={label} className="rounded-md border border-border-base bg-bg-layer-01 px-3 py-2">
-                <p className="text-caption text-text-faint">{label}</p>
-                <p className="mt-0.5 font-mono text-body tabular-nums text-text-base">{count(value)}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <Show when={usage()}>
+          {(current) => (
+            <div class="mt-4 grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-5">
+              <For
+                each={
+                  [
+                    ["Calls", current().calls],
+                    ["Input", current().input],
+                    ["Output", current().output],
+                    ["Cache read", current().cacheRead],
+                    ["Total", current().total],
+                  ] as [string, number][]
+                }
+              >
+                {([label, value]) => (
+                  <div class="rounded-md border border-border-base bg-bg-layer-01 px-3 py-2">
+                    <p class="text-caption text-text-faint">{label}</p>
+                    <p class="mt-0.5 font-mono text-body tabular-nums text-text-base">{count(value)}</p>
+                  </div>
+                )}
+              </For>
+            </div>
+          )}
+        </Show>
 
-        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
-          {!usage || usage.sessions.length === 0 ? (
-            <p className="p-3 text-meta text-text-faint">
-              {loading ? "Loading…" : "No usage recorded yet."}
-            </p>
-          ) : (
-            <table className="w-full text-meta">
-              <thead className="sticky top-0 bg-bg-layer-01 text-caption text-text-faint">
+        <div class="mt-3 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
+          <Show
+            when={usage() && usage()!.sessions.length > 0}
+            fallback={
+              <p class="p-3 text-meta text-text-faint">
+                {loading() ? "Loading…" : "No usage recorded yet."}
+              </p>
+            }
+          >
+            <table class="w-full text-meta">
+              <thead class="sticky top-0 bg-bg-layer-01 text-caption text-text-faint">
                 <tr>
-                  <th className="px-3 py-1.5 text-left font-normal">Session</th>
-                  <th className="px-2 py-1.5 text-right font-normal">Calls</th>
-                  <th className="px-2 py-1.5 text-right font-normal">Input</th>
-                  <th className="px-2 py-1.5 text-right font-normal">Output</th>
-                  <th className="px-2 py-1.5 text-right font-normal">Cache</th>
-                  <th className="px-3 py-1.5 text-right font-normal">Total</th>
+                  <th class="px-3 py-1.5 text-left font-normal">Session</th>
+                  <th class="px-2 py-1.5 text-right font-normal">Calls</th>
+                  <th class="px-2 py-1.5 text-right font-normal">Input</th>
+                  <th class="px-2 py-1.5 text-right font-normal">Output</th>
+                  <th class="px-2 py-1.5 text-right font-normal">Cache</th>
+                  <th class="px-3 py-1.5 text-right font-normal">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {usage.sessions.map((session) => (
-                  <tr
-                    key={session.sessionId}
-                    onClick={() => onOpenSession?.(session.sessionId)}
-                    className="interactive cursor-pointer border-t border-border-base hover:bg-bg-layer-01"
-                  >
-                    <td className="max-w-72 truncate px-3 py-1.5 text-text-base">
-                      {session.title || session.sessionId}
-                    </td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
-                      {count(session.calls)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
-                      {count(session.input)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
-                      {count(session.output)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
-                      {count(session.cacheRead + session.cacheWrite)}
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono tabular-nums text-text-base">
-                      {count(session.total)}
-                    </td>
-                  </tr>
-                ))}
+                <For each={usage()?.sessions ?? []}>
+                  {(session) => (
+                    <tr
+                      onClick={() => props.onOpenSession?.(session.sessionId)}
+                      class="interactive cursor-pointer border-t border-border-base hover:bg-bg-layer-01"
+                    >
+                      <td class="max-w-72 truncate px-3 py-1.5 text-text-base">
+                        {session.title || session.sessionId}
+                      </td>
+                      <td class="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
+                        {count(session.calls)}
+                      </td>
+                      <td class="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
+                        {count(session.input)}
+                      </td>
+                      <td class="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
+                        {count(session.output)}
+                      </td>
+                      <td class="px-2 py-1.5 text-right font-mono tabular-nums text-text-muted">
+                        {count(session.cacheRead + session.cacheWrite)}
+                      </td>
+                      <td class="px-3 py-1.5 text-right font-mono tabular-nums text-text-base">
+                        {count(session.total)}
+                      </td>
+                    </tr>
+                  )}
+                </For>
               </tbody>
             </table>
-          )}
+          </Show>
         </div>
 
-        <p className="mt-2 text-caption text-text-faint">
+        <p class="mt-2 text-caption text-text-faint">
           Totals aggregate provider usage events from every session; click a row to open that session.
         </p>
       </DialogContent>

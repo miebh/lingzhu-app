@@ -1,5 +1,5 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { layoutPropsEqual } from "@/lib/layoutMemo";
+﻿import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import {
   Activity,
   Boxes,
@@ -147,104 +147,41 @@ interface SearchHit {
   draft?: boolean;
 }
 
-function SidebarView({
-  workspaces,
-  activePath,
-  sessionsByWorkspace,
-  openSessionKeys = [],
-  chats,
-  activeId,
-  onSelectWorkspace,
-  onLoadSessions,
-  onAddWorkspace,
-  onRemoveWorkspace,
-  onWorktree,
-  onSourceControl,
-  onFiles,
-  onArtifacts,
-  onProject,
-  onImport,
-  onServices,
-  onCore,
-  onCoreModels,
-  onMCP,
-  onPlugins,
-  onSearch,
-  onLiveEvents,
-  onSchedulesOverview,
-  onJobsOverview,
-  onUsageOverview,
-  onWebSearch,
-  onImageGen,
-  onFormatters,
-  onOAuth,
-  onWorktreesManage,
-  onNew,
-  onOpen,
-  onRename,
-  onFork,
-  onSchedules,
-  onPairing,
-  onMedia,
-  onUsage,
-  onContext,
-  onReferences,
-  onLog,
-  onInbox,
-  onForms,
-  onJobs,
-  onSkills,
-  onSynthetic,
-  onRunCommand,
-  onPromptOnce,
-  onWait,
-  onRevert,
-  onReview,
-  onCompact,
-  onExport,
-  onEnvironment,
-  onDelete,
-  onShare,
-  onMove,
-  onDeleteSelected,
-  onMoveSelected,
-  onExportSelected,
-  selectionReset,
-  embedded,
-  unreadKeys,
-}: Props) {
+export function Sidebar(props: Props) {
   const tr = useT();
-  const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [visible, setVisible] = useState<Record<string, number>>({});
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [projectsHidden, setProjectsHidden] = useState(false);
-  const [showAllProjects, setShowAllProjects] = useState(false);
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [query, setQuery] = createSignal("");
+  const [searchOpen, setSearchOpen] = createSignal(false);
+  const [visible, setVisible] = createSignal<Record<string, number>>({});
+  const [collapsed, setCollapsed] = createSignal<Record<string, boolean>>({});
+  const [projectsHidden, setProjectsHidden] = createSignal(false);
+  const [showAllProjects, setShowAllProjects] = createSignal(false);
+  const [selecting, setSelecting] = createSignal(false);
+  const [selected, setSelected] = createSignal<Set<string>>(new Set());
+  const openSessionKeys = () => props.openSessionKeys ?? [];
+  const embedded = () => props.embedded ?? false;
   // The reference Projects tree starts fully collapsed; the active project
   // does not spring open until its row is clicked.
   const isWorkspaceCollapsed = (path: string, isActive: boolean) =>
-    collapsed[path] ?? (embedded ? true : !isActive);
+    collapsed()[path] ?? (embedded() ? true : !isActive);
   // Drag selection is a range anchored on the row where the press started:
   // sweeping away grows the range, sweeping back shrinks it (or reveals rows
   // that were selected before the gesture).
-  const gesture = useRef<{
+  let gesture: {
     anchor: string;
     base: Set<string>;
     mode: "select" | "deselect";
-  } | null>(null);
+  } | null = null;
 
-  const allKeys = useMemo(() => {
+  const allKeys = createMemo(() => {
     const keys: string[] = [];
-    for (const [path, list] of Object.entries(sessionsByWorkspace)) {
+    for (const [path, list] of Object.entries(props.sessionsByWorkspace)) {
       for (const session of list ?? []) keys.push(chatKey(path, session.id));
     }
     return keys;
-  }, [sessionsByWorkspace]);
+  });
 
   const applySelection = (key: string, select: boolean) => {
-    setSelected((previous) => {
+    update(setSelected, selected, (previous) => {
       if (previous.has(key) === select) return previous;
       const next = new Set(previous);
       if (select) next.add(key);
@@ -255,57 +192,58 @@ function SidebarView({
 
   const exitSelection = () => {
     setSelecting(false);
-    setSelected(new Set());
-    gesture.current = null;
+    setSelected(new Set<string>());
+    gesture = null;
   };
 
   const requestDelete = () => {
-    const items = selectionItems(selected);
-    if (items.length > 0) onDeleteSelected(items);
+    const items = selectionItems(selected());
+    if (items.length > 0) props.onDeleteSelected(items);
   };
 
   const requestMove = () => {
-    const items = selectionItems(selected);
-    if (items.length > 0) onMoveSelected(items);
+    const items = selectionItems(selected());
+    if (items.length > 0) props.onMoveSelected(items);
   };
 
   const requestExport = () => {
-    const items = selectionItems(selected);
-    if (items.length > 0) onExportSelected(items);
+    const items = selectionItems(selected());
+    if (items.length > 0) props.onExportSelected(items);
   };
 
   /** Rebuilds the selection as the inclusive range from anchor to `key`. */
   const applyRange = (key: string) => {
-    const current = gesture.current;
+    const current = gesture;
     if (!current) return;
-    const from = visibleKeys.indexOf(current.anchor);
-    const to = visibleKeys.indexOf(key);
+    const keys = visibleKeys();
+    const from = keys.indexOf(current.anchor);
+    const to = keys.indexOf(key);
     if (from === -1 || to === -1) return;
     const next = new Set(current.base);
     for (let index = Math.min(from, to); index <= Math.max(from, to); index++) {
-      if (current.mode === "select") next.add(visibleKeys[index]);
-      else next.delete(visibleKeys[index]);
+      if (current.mode === "select") next.add(keys[index]);
+      else next.delete(keys[index]);
     }
     setSelected(next);
   };
 
-  const startPointer = (key: string, event: React.PointerEvent) => {
-    // Row menus are portaled, so their React events still bubble through the
-    // row; ignore anything that is not physically inside this row.
+  const startPointer = (key: string, event: PointerEvent) => {
+    // Row menus are portaled, so their events still bubble through the row;
+    // ignore anything that is not physically inside this row.
     if (!containsTarget(event)) return;
     if (event.button !== 0) return;
-    const mode = selecting && selected.has(key) ? "deselect" : "select";
-    gesture.current = { anchor: key, base: new Set(selected), mode };
+    const mode = selecting() && selected().has(key) ? "deselect" : "select";
+    gesture = { anchor: key, base: new Set(selected()), mode };
     // Pressing a row in selection mode toggles it right away; a later drag
     // extends the range that was implied by that press.
-    if (selecting) applyRange(key);
+    if (selecting()) applyRange(key);
   };
 
-  const enterRow = (key: string, event: React.PointerEvent) => {
+  const enterRow = (key: string, event: PointerEvent) => {
     if (!containsTarget(event)) return;
-    const current = gesture.current;
+    const current = gesture;
     if (!current || event.buttons !== 1) return;
-    if (!selecting) {
+    if (!selecting()) {
       // A press only becomes a drag once it reaches another row.
       if (key === current.anchor) return;
       setSelecting(true);
@@ -320,75 +258,81 @@ function SidebarView({
 
   const startWorkspaceSelection = (path: string) => {
     setSelecting(true);
-    setSelected(new Set());
-    setCollapsed((previous) => ({ ...previous, [path]: false }));
-    onLoadSessions(path);
+    setSelected(new Set<string>());
+    update(setCollapsed, collapsed, (previous) => ({ ...previous, [path]: false }));
+    props.onLoadSessions(path);
   };
 
   const selectAll = () => {
-    setSelected((previous) => (previous.size === allKeys.length ? new Set() : new Set(allKeys)));
+    update(setSelected, selected, (previous) =>
+      previous.size === allKeys().length ? new Set<string>() : new Set(allKeys()),
+    );
   };
 
-  useEffect(() => {
+  onMount(() => {
     const end = () => {
-      gesture.current = null;
+      gesture = null;
     };
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
-    return () => {
+    onCleanup(() => {
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
-    };
-  }, []);
+    });
+  });
 
   // Drop keys whose session disappeared (deleted elsewhere or a refreshed list).
-  useEffect(() => {
-    setSelected((previous) => {
+  createEffect(() => {
+    const alive = new Set(allKeys());
+    update(setSelected, selected, (previous) => {
       if (previous.size === 0) return previous;
-      const alive = new Set(allKeys);
       const next = new Set([...previous].filter((key) => alive.has(key)));
       return next.size === previous.size ? previous : next;
     });
-  }, [allKeys]);
+  });
 
-  useEffect(() => {
-    if (selectionReset === 0) return;
+  createEffect(() => {
+    if (props.selectionReset === 0) return;
+    props.selectionReset;
     setSelecting(false);
-    setSelected(new Set());
-    gesture.current = null;
-  }, [selectionReset]);
+    setSelected(new Set<string>());
+    gesture = null;
+  });
 
-  useEffect(() => {
-    if (!selecting) return;
+  createEffect(() => {
+    if (!selecting()) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         setSelecting(false);
-        setSelected(new Set());
-        gesture.current = null;
-      } else if ((event.key === "Delete" || event.key === "Backspace") && selected.size > 0) {
+        setSelected(new Set<string>());
+        gesture = null;
+      } else if ((event.key === "Delete" || event.key === "Backspace") && selected().size > 0) {
         event.preventDefault();
-        const items = selectionItems(selected);
-        if (items.length > 0) onDeleteSelected(items);
+        const items = selectionItems(selected());
+        if (items.length > 0) props.onDeleteSelected(items);
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selecting, selected, onDeleteSelected]);
+    onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+  });
 
   // The standalone sidebar always reveals the active workspace; the embedded
   // Projects tree follows the reference and stays collapsed until clicked.
-  useEffect(() => {
-    if (!activePath) return;
-    onLoadSessions(activePath);
-    if (!embedded) {
-      setCollapsed((prev) => (prev[activePath] === false ? prev : { ...prev, [activePath]: false }));
-    }
-  }, [activePath, onLoadSessions, embedded]);
+  createEffect(() => {
+    const path = props.activePath;
+    if (!path) return;
+    untrack(() => {
+      props.onLoadSessions(path);
+      if (!embedded()) {
+        update(setCollapsed, collapsed, (prev) => (prev[path] === false ? prev : { ...prev, [path]: false }));
+      }
+    });
+  });
 
-  const draftsByWorkspace = useMemo(() => {
+  const draftsByWorkspace = createMemo(() => {
     const map = new Map<string, ChatState[]>();
-    for (const [key, chat] of Object.entries(chats)) {
+    for (const [key, chat] of Object.entries(props.chats)) {
       if (!chat.draft) continue;
       const separator = key.indexOf("\u0000");
       const workspace = separator === -1 ? "" : key.slice(0, separator);
@@ -397,25 +341,25 @@ function SidebarView({
       map.set(workspace, list);
     }
     return map;
-  }, [chats]);
+  });
 
-  const sortedSessions = useMemo(() => {
+  const sortedSessions = createMemo(() => {
     const map: Record<string, SessionInfo[]> = {};
-    for (const [path, list] of Object.entries(sessionsByWorkspace)) {
+    for (const [path, list] of Object.entries(props.sessionsByWorkspace)) {
       map[path] = [...(list ?? [])].sort((a, b) => updatedAt(b) - updatedAt(a));
     }
     return map;
-  }, [sessionsByWorkspace]);
+  });
 
-  const searching = query.trim() !== "";
-  const results = useMemo<SearchHit[]>(() => {
-    if (!searching) return [];
-    const needle = query.trim().toLowerCase();
+  const searching = createMemo(() => query().trim() !== "");
+  const results = createMemo<SearchHit[]>(() => {
+    if (!searching()) return [];
+    const needle = query().trim().toLowerCase();
     const hits: SearchHit[] = [];
-    for (const workspace of workspaces) {
-      const durable = sortedSessions[workspace.path] ?? [];
+    for (const workspace of props.workspaces) {
+      const durable = sortedSessions()[workspace.path] ?? [];
       const durableIDs = new Set(durable.map((session) => session.id));
-      for (const chat of draftsByWorkspace.get(workspace.path) ?? []) {
+      for (const chat of draftsByWorkspace().get(workspace.path) ?? []) {
         if (durableIDs.has(chat.id)) continue;
         if (!"new session".includes(needle)) continue;
         hits.push({
@@ -427,27 +371,27 @@ function SidebarView({
       }
       for (const session of durable) {
         if ((session.title || session.id).toLowerCase().includes(needle)) {
-          hits.push({ workspace, session, chat: chats[chatKey(workspace.path, session.id)] });
+          hits.push({ workspace, session, chat: props.chats[chatKey(workspace.path, session.id)] });
         }
       }
     }
     return hits;
-  }, [searching, query, workspaces, sortedSessions, draftsByWorkspace, chats]);
+  });
 
   // Ordered keys of the rows rendered in the tree; drag selection maps the
   // pointer to a contiguous range of this list.
-  const visibleKeys = useMemo(() => {
-    if (searching) return [];
+  const visibleKeys = createMemo(() => {
+    if (searching()) return [];
     const keys: string[] = [];
-    for (const workspace of workspaces) {
-      if (isWorkspaceCollapsed(workspace.path, workspace.path === activePath)) continue;
-      const limit = visible[workspace.path] ?? PAGE_SIZE;
-      for (const session of (sortedSessions[workspace.path] ?? []).slice(0, limit)) {
+    for (const workspace of props.workspaces) {
+      if (isWorkspaceCollapsed(workspace.path, workspace.path === props.activePath)) continue;
+      const limit = visible()[workspace.path] ?? PAGE_SIZE;
+      for (const session of (sortedSessions()[workspace.path] ?? []).slice(0, limit)) {
         keys.push(chatKey(workspace.path, session.id));
       }
     }
     return keys;
-  }, [searching, workspaces, collapsed, activePath, sortedSessions, visible, embedded]);
+  });
 
   const closeSearch = () => {
     setSearchOpen(false);
@@ -457,434 +401,464 @@ function SidebarView({
   const startSearch = () => {
     exitSelection();
     setSearchOpen(true);
-    for (const workspace of workspaces) {
-      if (workspace.connected) onLoadSessions(workspace.path);
+    for (const workspace of props.workspaces) {
+      if (workspace.connected) props.onLoadSessions(workspace.path);
     }
   };
 
   const toggleWorkspace = (path: string) => {
-    const isActive = path === activePath;
+    const isActive = path === props.activePath;
     const isCollapsed = isWorkspaceCollapsed(path, isActive);
     if (!isActive) {
-      onSelectWorkspace(path);
-      onLoadSessions(path);
-      setCollapsed((prev) => ({ ...prev, [path]: false }));
+      props.onSelectWorkspace(path);
+      props.onLoadSessions(path);
+      update(setCollapsed, collapsed, (prev) => ({ ...prev, [path]: false }));
       return;
     }
-    if (isCollapsed) onLoadSessions(path);
-    setCollapsed((prev) => ({ ...prev, [path]: !isCollapsed }));
+    if (isCollapsed) props.onLoadSessions(path);
+    update(setCollapsed, collapsed, (prev) => ({ ...prev, [path]: !isCollapsed }));
   };
 
   const openHit = (hit: SearchHit) => {
-    onOpen(hit.workspace.path, hit.session.id);
+    props.onOpen(hit.workspace.path, hit.session.id);
     closeSearch();
   };
 
   const newSession = () => {
-    const path = activePath ?? workspaces.find((workspace) => workspace.connected)?.path;
-    if (path) onNew(path);
+    const path = props.activePath ?? props.workspaces.find((workspace) => workspace.connected)?.path;
+    if (path) props.onNew(path);
   };
 
   return (
     <aside
-      aria-label={embedded ? tr("projects") : tr("workspaces")}
-      data-projects-collapsed={embedded && projectsHidden ? "true" : undefined}
-      className={
-        embedded
+      aria-label={embedded() ? tr("projects") : tr("workspaces")}
+      data-projects-collapsed={embedded() && projectsHidden() ? "true" : undefined}
+      class={
+        embedded()
           ? "flex min-h-0 w-full flex-1 select-none flex-col bg-bg-deep"
           : "flex h-full w-sidebar shrink-0 select-none flex-col border-r border-border-base bg-bg-deep"
       }
     >
-      {!embedded && (
-      <div className="px-2 pt-2 pb-1">
-        <button
-          type="button"
-          onClick={newSession}
-          disabled={selecting || (!activePath && !workspaces.some((workspace) => workspace.connected))}
-          className="group/new interactive flex h-7 w-full items-center gap-2 rounded-[6px] px-2 text-left text-[13px] leading-4 text-text-faint hover:text-text-base disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Pencil className="size-4 shrink-0" />
-          <span className="min-w-0 truncate">{tr("newSession")}</span>
-          <span className="ms-auto hidden shrink-0 group-hover/new:block">
-            <Keybind keys={(formatKeybind("mod+t") ?? "Ctrl+T").split("+")} />
-          </span>
-        </button>
-      </div>
-      )}
-
-      <div className={`flex h-6 items-center gap-1 ${embedded && !searching && !selecting ? "" : "px-2"}`}>
-        {selecting ? (
-          <>
-            <span className="sr-only" aria-live="polite">
-              {selected.size} selected
-            </span>
-            <span className="flex-1 truncate text-body leading-4 font-medium text-text-muted">{embedded ? tr("projects") : tr("workspaces")}</span>
-            <button
-              type="button"
-              onClick={selectAll}
-              disabled={allKeys.length === 0}
-              className="interactive h-control-xs shrink-0 rounded-xs px-2 text-caption text-text-faint hover:text-text-base disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {selected.size === allKeys.length && allKeys.length > 0 ? tr("clear") : tr("selectAllAction")}
-            </button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={tr("deleteSelected")}
-                  disabled={selected.size === 0}
-                  onClick={requestDelete}
-                  className="text-state-fg-danger"
-                >
-                  <Trash2 />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{tr("deleteSelected")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={tr("moveSelected")}
-                  disabled={selected.size === 0}
-                  onClick={requestMove}
-                  className="text-text-muted"
-                >
-                  <FolderInput />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{tr("moveSelected")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={tr("exportSelected")}
-                  disabled={selected.size === 0}
-                  onClick={requestExport}
-                  className="text-text-muted"
-                >
-                  <Download />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{tr("exportSelected")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={tr("cancelSelection")}
-                  onClick={exitSelection}
-                  className="text-text-faint hover:text-text-base"
-                >
-                  <X />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{tr("cancel")}</TooltipContent>
-            </Tooltip>
-          </>
-        ) : searchOpen ? (
-          <>
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-2 size-3 -translate-y-1/2 text-text-faint" />
-              <Input
-                autoFocus
-                size="sm"
-                value={query}
-                aria-label={tr("searchSessions")}
-                placeholder={tr("searchSessions")}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") closeSearch();
-                }}
-                className="pl-6 text-meta"
-              />
-            </div>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={tr("closeSearch")}
-              onClick={closeSearch}
-              className="text-text-faint hover:text-text-base"
-            >
-              <X />
-            </Button>
-          </>
-        ) : (
-          <>
-            {embedded ? (
-              <button
-                type="button"
-                aria-expanded={!projectsHidden}
-                onClick={() => setProjectsHidden((value) => !value)}
-                className="flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-body leading-4 font-medium text-text-muted hover:text-text-base focus-visible:bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))] focus-visible:outline-none"
-              >
-                <span className="min-w-0 truncate">{tr("projects")}</span>
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  width="14"
-                  height="14"
-                  className={`shrink-0 text-icon-muted transition-transform ${projectsHidden ? "-rotate-90" : ""}`}
-                >
-                  <path
-                    d="M5.37624 6.75194C5.18184 6.41861 5.42224 6 5.80814 6H10.1921C10.578 6 10.8184 6.41861 10.624 6.75194L8.43203 10.5096C8.23909 10.8404 7.76119 10.8404 7.56825 10.5096L5.37624 6.75194Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </button>
-            ) : (
-              <span className="flex-1 text-body leading-4 font-medium text-text-muted">{tr("workspaces")}</span>
-            )}
-            {!embedded && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={tr("searchSessions")}
-                      onClick={startSearch}
-                      className="text-text-faint hover:text-text-base"
-                    >
-                      <Search />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{tr("searchSessions")}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={tr("addWorkspace")}
-                      onClick={onAddWorkspace}
-                      className="text-text-faint hover:text-text-base"
-                    >
-                      <Plus />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">{tr("addWorkspace")}</TooltipContent>
-                </Tooltip>
-              </>
-            )}
-          </>
-        )}
-      </div>
-
-      {!(embedded && projectsHidden && !searching && !selecting) && (
-      <div
-        role="tree"
-        aria-label={tr("sessions")}
-        className={embedded ? "mt-2 flex flex-col gap-1" : "scroll-stable flex-1 overflow-y-auto px-2 pb-3"}
-      >
-        {searching ? (
-          <div role="group" className="pt-1">
-            <div className="flex h-6 items-center px-2 text-caption text-text-faint">
-              {tr(results.length === 1 ? "resultsCountOne" : "resultsCountMany", { count: results.length })}
-            </div>
-            {results.map((hit) => (
-              <SessionRow
-                key={`${hit.workspace.path}:${hit.session.id}`}
-                session={hit.session}
-                workspaceName={hit.workspace.name}
-                active={hit.workspace.path === activePath && hit.session.id === activeId}
-                chat={hit.chat}
-                draft={hit.draft}
-                unread={unreadKeys?.has(chatKey(hit.workspace.path, hit.session.id))}
-                variant="search"
-                onClick={() => openHit(hit)}
-                onRename={hit.draft ? undefined : () => onRename(hit.workspace.path, hit.session)}
-                onFork={hit.draft ? undefined : () => onFork(hit.workspace.path, hit.session)}
-                onSchedules={hit.draft ? undefined : () => onSchedules(hit.workspace.path, hit.session)}
-                onPairing={hit.draft ? undefined : () => onPairing(hit.workspace.path, hit.session)}
-                onMedia={hit.draft ? undefined : () => onMedia(hit.workspace.path, hit.session)}
-                onUsage={hit.draft ? undefined : () => onUsage(hit.workspace.path, hit.session)}
-          onContext={hit.draft ? undefined : () => onContext(hit.workspace.path, hit.session)}
-                onReferences={hit.draft ? undefined : () => onReferences(hit.workspace.path, hit.session)}
-                onLog={hit.draft ? undefined : () => onLog(hit.workspace.path, hit.session)}
-                onInbox={hit.draft ? undefined : () => onInbox(hit.workspace.path, hit.session)}
-                onForms={hit.draft ? undefined : () => onForms(hit.workspace.path, hit.session)}
-                onJobs={hit.draft ? undefined : () => onJobs(hit.workspace.path, hit.session)}
-                onSkills={hit.draft ? undefined : () => onSkills(hit.workspace.path, hit.session)}
-                onSynthetic={hit.draft ? undefined : () => onSynthetic(hit.workspace.path, hit.session)}
-                onRunCommand={hit.draft ? undefined : () => onRunCommand(hit.workspace.path, hit.session)}
-                onPromptOnce={hit.draft ? undefined : () => onPromptOnce(hit.workspace.path, hit.session)}
-                onWait={hit.draft ? undefined : () => onWait(hit.workspace.path, hit.session)}
-                onRevert={hit.draft ? undefined : () => onRevert(hit.workspace.path, hit.session)}
-                onReview={hit.draft ? undefined : () => onReview(hit.workspace.path, hit.session)}
-                onCompact={hit.draft ? undefined : () => onCompact(hit.workspace.path, hit.session)}
-                onExport={hit.draft ? undefined : () => onExport(hit.workspace.path, hit.session)}
-                onEnvironment={hit.draft ? undefined : () => onEnvironment(hit.workspace.path, hit.session)}
-                onDelete={hit.draft ? undefined : () => onDelete(hit.workspace.path, hit.session)}
-                onShare={hit.draft ? undefined : () => onShare(hit.workspace.path, hit.session)}
-                onMove={hit.draft ? undefined : () => onMove(hit.workspace.path, hit.session)}
-              />
-            ))}
-            {results.length === 0 && (
-              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center text-text-faint">
-                <Search className="size-6" />
-                <p className="text-meta">{tr("noMatches")}</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          (embedded && !showAllProjects ? workspaces.slice(0, 7) : workspaces).map((workspace) => {
-            const isActive = workspace.path === activePath;
-            const isCollapsed = isWorkspaceCollapsed(workspace.path, isActive);
-            const durable = sortedSessions[workspace.path] ?? [];
-            const loadingSessions = !sessionsByWorkspace[workspace.path];
-            const draftRows = (draftsByWorkspace.get(workspace.path) ?? []).filter(
-              (chat) => !durable.some((session) => session.id === chat.id),
-            );
-            const limit = visible[workspace.path] ?? PAGE_SIZE;
-            const hidden = Math.max(0, durable.length - limit);
-            return (
-              <div key={workspace.path} className={embedded ? "" : "pb-1"}>
-                <WorkspaceRow
-                  workspace={workspace}
-                  active={isActive}
-                  expanded={!isCollapsed}
-                  onToggle={() => toggleWorkspace(workspace.path)}
-                  onNew={() => onNew(workspace.path)}
-                  onSelectSessions={() => startWorkspaceSelection(workspace.path)}
-                  onRemove={() => onRemoveWorkspace(workspace.path)}
-                  onWorktree={() => onWorktree(workspace.path)}
-                  onSourceControl={() => onSourceControl(workspace.path)}
-                  onFiles={() => onFiles(workspace.path)}
-                  onArtifacts={() => onArtifacts(workspace.path)}
-                  onProject={() => onProject(workspace.path)}
-                  onImport={() => onImport(workspace.path)}
-                  onServices={() => onServices(workspace.path)}
-                  onCore={() => onCore(workspace.path)}
-                  onCoreModels={() => onCoreModels(workspace.path)}
-                  onMCP={() => onMCP(workspace.path)}
-                  onPlugins={() => onPlugins(workspace.path)}
-                  onSearch={() => onSearch(workspace.path)}
-                  onLiveEvents={() => onLiveEvents(workspace.path)}
-                  onSchedulesOverview={() => onSchedulesOverview(workspace.path)}
-                  onJobsOverview={() => onJobsOverview(workspace.path)}
-                  onUsageOverview={() => onUsageOverview(workspace.path)}
-                  onWebSearch={() => onWebSearch(workspace.path)}
-                  onImageGen={() => onImageGen(workspace.path)}
-                  onFormatters={() => onFormatters(workspace.path)}
-                  onOAuth={() => onOAuth(workspace.path)}
-                  onWorktreesManage={() => onWorktreesManage(workspace.path)}
-                />
-
-                {!isCollapsed && (
-                  <div role="group" className="flex flex-col gap-[3px] pb-1">
-                    {loadingSessions && <SkeletonSessions />}
-                    {!selecting &&
-                      draftRows.map((chat) => (
-                        <SessionRow
-                          key={chat.id}
-                          session={{ id: chat.id, title: "New Session", updated: "" }}
-                          active={isActive && chat.id === activeId}
-                          chat={chat}
-                          draft
-                          onClick={() => onOpen(workspace.path, chat.id)}
-                        />
-                      ))}
-                    {durable.slice(0, limit).map((session) => {
-                      const key = chatKey(workspace.path, session.id);
-                      return (
-                        <SessionRow
-                          key={session.id}
-                          session={session}
-                          active={isActive && session.id === activeId}
-                          chat={chats[key]}
-                          selecting={selecting}
-                          selected={selected.has(key)}
-                          onClick={() => {
-                            if (!selecting) onOpen(workspace.path, session.id);
-                          }}
-                          onPointerDown={(event) => startPointer(key, event)}
-                          onPointerEnter={(event) => enterRow(key, event)}
-                          onToggle={() => applySelection(key, !selected.has(key))}
-                          openTab={openSessionKeys.includes(chatKey(workspace.path, session.id))}
-                          unread={unreadKeys?.has(key)}
-                          onRename={() => onRename(workspace.path, session)}
-                          onFork={() => onFork(workspace.path, session)}
-                          onSchedules={() => onSchedules(workspace.path, session)}
-                          onPairing={() => onPairing(workspace.path, session)}
-                          onMedia={() => onMedia(workspace.path, session)}
-                          onUsage={() => onUsage(workspace.path, session)}
-                          onContext={() => onContext(workspace.path, session)}
-                          onReferences={() => onReferences(workspace.path, session)}
-                          onLog={() => onLog(workspace.path, session)}
-                          onInbox={() => onInbox(workspace.path, session)}
-                          onForms={() => onForms(workspace.path, session)}
-                          onJobs={() => onJobs(workspace.path, session)}
-                          onSkills={() => onSkills(workspace.path, session)}
-                          onSynthetic={() => onSynthetic(workspace.path, session)}
-                          onRunCommand={() => onRunCommand(workspace.path, session)}
-                          onPromptOnce={() => onPromptOnce(workspace.path, session)}
-                          onWait={() => onWait(workspace.path, session)}
-                          onRevert={() => onRevert(workspace.path, session)}
-                          onReview={() => onReview(workspace.path, session)}
-                          onCompact={() => onCompact(workspace.path, session)}
-                          onExport={() => onExport(workspace.path, session)}
-                          onEnvironment={() => onEnvironment(workspace.path, session)}
-                          onDelete={() => onDelete(workspace.path, session)}
-                          onShare={() => onShare(workspace.path, session)}
-                          onMove={() => onMove(workspace.path, session)}
-                          onSelect={() => selectSession(key)}
-                        />
-                      );
-                    })}
-                    {hidden > 0 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setVisible((prev) => ({ ...prev, [workspace.path]: limit + PAGE_SIZE }))
-                        }
-                        className="interactive ms-[23px] flex h-6 self-start items-center rounded-xs px-2 text-body leading-4 font-[440] text-text-muted"
-                      >
-                        {tr("showMore")}
-                      </button>
-                    )}
-                    {!loadingSessions && draftRows.length === 0 && durable.length === 0 &&
-                      (embedded ? (
-                        <div className="ps-8 pe-2 py-2 text-meta text-text-faint">{tr("noSessions")}</div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 px-4 py-4 text-center text-text-faint">
-                          <MessageSquarePlus className="size-5" />
-                          <p className="text-meta">{tr("noSessions")}</p>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
-
-        {embedded && workspaces.length > 7 && !searching && !selecting && (
+      <Show when={!embedded()}>
+        <div class="px-2 pt-2 pb-1">
           <button
             type="button"
-            onClick={() => setShowAllProjects((value) => !value)}
-            className="interactive ms-[23px] flex h-6 self-start items-center rounded-xs px-2 text-body leading-4 font-[440] text-text-muted"
+            onClick={newSession}
+            disabled={selecting() || (!props.activePath && !props.workspaces.some((workspace) => workspace.connected))}
+            class="group/new interactive flex h-7 w-full items-center gap-2 rounded-[6px] px-2 text-left text-[13px] leading-4 text-text-faint hover:text-text-base disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {showAllProjects ? tr("showLess") : tr("showMore")}
+            <Pencil class="size-4 shrink-0" />
+            <span class="min-w-0 truncate">{tr("newSession")}</span>
+            <span class="ms-auto hidden shrink-0 group-hover/new:block">
+              <Keybind keys={(formatKeybind("mod+t") ?? "Ctrl+T").split("+")} />
+            </span>
           </button>
-        )}
+        </div>
+      </Show>
 
-        {workspaces.length === 0 && !searching && !embedded && (
-          <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text-faint">
-            <FolderClosed className="size-6" />
-            <p className="text-meta">{tr("noWorkspaces")}</p>
-            <Button variant="outline" size="sm" onClick={onAddWorkspace}>
-              {tr("addWorkspace")}
-            </Button>
-          </div>
-        )}
+      <div class={`flex h-6 items-center gap-1 ${embedded() && !searching() && !selecting() ? "" : "px-2"}`}>
+        <Show
+          when={selecting()}
+          fallback={
+            <Show
+              when={searchOpen()}
+              fallback={
+                <>
+                  <Show
+                    when={embedded()}
+                    fallback={
+                      <span class="flex-1 text-body leading-4 font-medium text-text-muted">{tr("workspaces")}</span>
+                    }
+                  >
+                    <button
+                      type="button"
+                      aria-expanded={!projectsHidden()}
+                      onClick={() => update(setProjectsHidden, projectsHidden, (value) => !value)}
+                      class="flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-body leading-4 font-medium text-text-muted hover:text-text-base focus-visible:bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))] focus-visible:outline-none"
+                    >
+                      <span class="min-w-0 truncate">{tr("projects")}</span>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 16 16"
+                        width="14"
+                        height="14"
+                        class={`shrink-0 text-icon-muted transition-transform ${projectsHidden() ? "-rotate-90" : ""}`}
+                      >
+                        <path
+                          d="M5.37624 6.75194C5.18184 6.41861 5.42224 6 5.80814 6H10.1921C10.578 6 10.8184 6.41861 10.624 6.75194L8.43203 10.5096C8.23909 10.8404 7.76119 10.8404 7.56825 10.5096L5.37624 6.75194Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </button>
+                  </Show>
+                  <Show when={!embedded()}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={tr("searchSessions")}
+                        onClick={startSearch}
+                        class="text-text-faint hover:text-text-base"
+                        as={Button}
+                      >
+                        <Search />
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">{tr("searchSessions")}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={tr("addWorkspace")}
+                        onClick={() => props.onAddWorkspace()}
+                        class="text-text-faint hover:text-text-base"
+                        as={Button}
+                      >
+                        <Plus />
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">{tr("addWorkspace")}</TooltipContent>
+                    </Tooltip>
+                  </Show>
+                </>
+              }
+            >
+              <div class="relative min-w-0 flex-1">
+                <Search class="pointer-events-none absolute top-1/2 left-2 size-3 -translate-y-1/2 text-text-faint" />
+                <Input
+                  autofocus
+                  size="sm"
+                  value={query()}
+                  aria-label={tr("searchSessions")}
+                  placeholder={tr("searchSessions")}
+                  onInput={(event) => setQuery(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") closeSearch();
+                  }}
+                  class="pl-6 text-meta"
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={tr("closeSearch")}
+                onClick={closeSearch}
+                class="text-text-faint hover:text-text-base"
+              >
+                <X />
+              </Button>
+            </Show>
+          }
+        >
+          <span class="sr-only" aria-live="polite">
+            {selected().size} selected
+          </span>
+          <span class="flex-1 truncate text-body leading-4 font-medium text-text-muted">
+            {embedded() ? tr("projects") : tr("workspaces")}
+          </span>
+          <button
+            type="button"
+            onClick={selectAll}
+            disabled={allKeys().length === 0}
+            class="interactive h-control-xs shrink-0 rounded-xs px-2 text-caption text-text-faint hover:text-text-base disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {selected().size === allKeys().length && allKeys().length > 0
+              ? tr("clear")
+              : tr("selectAllAction")}
+          </button>
+          <Tooltip>
+            <TooltipTrigger
+              variant="ghost"
+              size="icon-xs"
+              aria-label={tr("deleteSelected")}
+              disabled={selected().size === 0}
+              onClick={requestDelete}
+              class="text-state-fg-danger"
+              as={Button}
+            >
+              <Trash2 />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{tr("deleteSelected")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              variant="ghost"
+              size="icon-xs"
+              aria-label={tr("moveSelected")}
+              disabled={selected().size === 0}
+              onClick={requestMove}
+              class="text-text-muted"
+              as={Button}
+            >
+              <FolderInput />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{tr("moveSelected")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              variant="ghost"
+              size="icon-xs"
+              aria-label={tr("exportSelected")}
+              disabled={selected().size === 0}
+              onClick={requestExport}
+              class="text-text-muted"
+              as={Button}
+            >
+              <Download />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{tr("exportSelected")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              variant="ghost"
+              size="icon-xs"
+              aria-label={tr("cancelSelection")}
+              onClick={exitSelection}
+              class="text-text-faint hover:text-text-base"
+              as={Button}
+            >
+              <X />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{tr("cancel")}</TooltipContent>
+          </Tooltip>
+        </Show>
       </div>
-      )}
+
+      <Show when={!(embedded() && projectsHidden() && !searching() && !selecting())}>
+        <div
+          role="tree"
+          aria-label={tr("sessions")}
+          class={embedded() ? "mt-2 flex flex-col gap-1" : "scroll-stable flex-1 overflow-y-auto px-2 pb-3"}
+        >
+          <Show
+            when={searching()}
+            fallback={
+              <>
+                <For
+                  each={
+                    embedded() && !showAllProjects() ? props.workspaces.slice(0, 7) : props.workspaces
+                  }
+                >
+                  {(workspace) => {
+                    const isActive = () => workspace.path === props.activePath;
+                    const isCollapsed = () => isWorkspaceCollapsed(workspace.path, isActive());
+                    const durable = () => sortedSessions()[workspace.path] ?? [];
+                    const loadingSessions = () => !props.sessionsByWorkspace[workspace.path];
+                    const draftRows = () =>
+                      (draftsByWorkspace().get(workspace.path) ?? []).filter(
+                        (chat) => !durable().some((session) => session.id === chat.id),
+                      );
+                    const limit = () => visible()[workspace.path] ?? PAGE_SIZE;
+                    const hidden = () => Math.max(0, durable().length - limit());
+                    return (
+                      <div class={embedded() ? "" : "pb-1"}>
+                        <WorkspaceRow
+                          workspace={workspace}
+                          active={isActive()}
+                          expanded={!isCollapsed()}
+                          onToggle={() => toggleWorkspace(workspace.path)}
+                          onNew={() => props.onNew(workspace.path)}
+                          onSelectSessions={() => startWorkspaceSelection(workspace.path)}
+                          onRemove={() => props.onRemoveWorkspace(workspace.path)}
+                          onWorktree={() => props.onWorktree(workspace.path)}
+                          onSourceControl={() => props.onSourceControl(workspace.path)}
+                          onFiles={() => props.onFiles(workspace.path)}
+                          onArtifacts={() => props.onArtifacts(workspace.path)}
+                          onProject={() => props.onProject(workspace.path)}
+                          onImport={() => props.onImport(workspace.path)}
+                          onServices={() => props.onServices(workspace.path)}
+                          onCore={() => props.onCore(workspace.path)}
+                          onCoreModels={() => props.onCoreModels(workspace.path)}
+                          onMCP={() => props.onMCP(workspace.path)}
+                          onPlugins={() => props.onPlugins(workspace.path)}
+                          onSearch={() => props.onSearch(workspace.path)}
+                          onLiveEvents={() => props.onLiveEvents(workspace.path)}
+                          onSchedulesOverview={() => props.onSchedulesOverview(workspace.path)}
+                          onJobsOverview={() => props.onJobsOverview(workspace.path)}
+                          onUsageOverview={() => props.onUsageOverview(workspace.path)}
+                          onWebSearch={() => props.onWebSearch(workspace.path)}
+                          onImageGen={() => props.onImageGen(workspace.path)}
+                          onFormatters={() => props.onFormatters(workspace.path)}
+                          onOAuth={() => props.onOAuth(workspace.path)}
+                          onWorktreesManage={() => props.onWorktreesManage(workspace.path)}
+                        />
+
+                        <Show when={!isCollapsed()}>
+                          <div role="group" class="flex flex-col gap-[3px] pb-1">
+                            <Show when={loadingSessions()}>
+                              <SkeletonSessions />
+                            </Show>
+                            <Show when={!selecting()}>
+                              <For each={draftRows()}>
+                                {(chat) => (
+                                  <SessionRow
+                                    session={{ id: chat.id, title: "New Session", updated: "" }}
+                                    active={isActive() && chat.id === props.activeId}
+                                    chat={chat}
+                                    draft
+                                    onClick={() => props.onOpen(workspace.path, chat.id)}
+                                  />
+                                )}
+                              </For>
+                            </Show>
+                            <For each={durable().slice(0, limit())}>
+                              {(session) => {
+                                const key = chatKey(workspace.path, session.id);
+                                return (
+                                  <SessionRow
+                                    session={session}
+                                    active={isActive() && session.id === props.activeId}
+                                    chat={props.chats[key]}
+                                    selecting={selecting()}
+                                    selected={selected().has(key)}
+                                    onClick={() => {
+                                      if (!selecting()) props.onOpen(workspace.path, session.id);
+                                    }}
+                                    onPointerDown={(event) => startPointer(key, event)}
+                                    onPointerEnter={(event) => enterRow(key, event)}
+                                    onToggle={() => applySelection(key, !selected().has(key))}
+                                    openTab={openSessionKeys().includes(chatKey(workspace.path, session.id))}
+                                    unread={props.unreadKeys?.has(key)}
+                                    onRename={() => props.onRename(workspace.path, session)}
+                                    onFork={() => props.onFork(workspace.path, session)}
+                                    onSchedules={() => props.onSchedules(workspace.path, session)}
+                                    onPairing={() => props.onPairing(workspace.path, session)}
+                                    onMedia={() => props.onMedia(workspace.path, session)}
+                                    onUsage={() => props.onUsage(workspace.path, session)}
+                                    onContext={() => props.onContext(workspace.path, session)}
+                                    onReferences={() => props.onReferences(workspace.path, session)}
+                                    onLog={() => props.onLog(workspace.path, session)}
+                                    onInbox={() => props.onInbox(workspace.path, session)}
+                                    onForms={() => props.onForms(workspace.path, session)}
+                                    onJobs={() => props.onJobs(workspace.path, session)}
+                                    onSkills={() => props.onSkills(workspace.path, session)}
+                                    onSynthetic={() => props.onSynthetic(workspace.path, session)}
+                                    onRunCommand={() => props.onRunCommand(workspace.path, session)}
+                                    onPromptOnce={() => props.onPromptOnce(workspace.path, session)}
+                                    onWait={() => props.onWait(workspace.path, session)}
+                                    onRevert={() => props.onRevert(workspace.path, session)}
+                                    onReview={() => props.onReview(workspace.path, session)}
+                                    onCompact={() => props.onCompact(workspace.path, session)}
+                                    onExport={() => props.onExport(workspace.path, session)}
+                                    onEnvironment={() => props.onEnvironment(workspace.path, session)}
+                                    onDelete={() => props.onDelete(workspace.path, session)}
+                                    onShare={() => props.onShare(workspace.path, session)}
+                                    onMove={() => props.onMove(workspace.path, session)}
+                                    onSelect={() => selectSession(key)}
+                                  />
+                                );
+                              }}
+                            </For>
+                            <Show when={hidden() > 0}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  update(setVisible, visible, (prev) => ({
+                                    ...prev,
+                                    [workspace.path]: limit() + PAGE_SIZE,
+                                  }))
+                                }
+                                class="interactive ms-[23px] flex h-6 self-start items-center rounded-xs px-2 text-body leading-4 font-[440] text-text-muted"
+                              >
+                                {tr("showMore")}
+                              </button>
+                            </Show>
+                            <Show when={!loadingSessions() && draftRows().length === 0 && durable().length === 0}>
+                              <Show
+                                when={embedded()}
+                                fallback={
+                                  <div class="flex flex-col items-center gap-2 px-4 py-4 text-center text-text-faint">
+                                    <MessageSquarePlus class="size-5" />
+                                    <p class="text-meta">{tr("noSessions")}</p>
+                                  </div>
+                                }
+                              >
+                                <div class="ps-8 pe-2 py-2 text-meta text-text-faint">{tr("noSessions")}</div>
+                              </Show>
+                            </Show>
+                          </div>
+                        </Show>
+                      </div>
+                    );
+                  }}
+                </For>
+              </>
+            }
+          >
+            <div role="group" class="pt-1">
+              <div class="flex h-6 items-center px-2 text-caption text-text-faint">
+                {tr(results().length === 1 ? "resultsCountOne" : "resultsCountMany", {
+                  count: results().length,
+                })}
+              </div>
+              <For each={results()}>
+                {(hit) => (
+                  <SessionRow
+                    session={hit.session}
+                    workspaceName={hit.workspace.name}
+                    active={hit.workspace.path === props.activePath && hit.session.id === props.activeId}
+                    chat={hit.chat}
+                    draft={hit.draft}
+                    unread={props.unreadKeys?.has(chatKey(hit.workspace.path, hit.session.id))}
+                    variant="search"
+                    onClick={() => openHit(hit)}
+                    onRename={hit.draft ? undefined : () => props.onRename(hit.workspace.path, hit.session)}
+                    onFork={hit.draft ? undefined : () => props.onFork(hit.workspace.path, hit.session)}
+                    onSchedules={hit.draft ? undefined : () => props.onSchedules(hit.workspace.path, hit.session)}
+                    onPairing={hit.draft ? undefined : () => props.onPairing(hit.workspace.path, hit.session)}
+                    onMedia={hit.draft ? undefined : () => props.onMedia(hit.workspace.path, hit.session)}
+                    onUsage={hit.draft ? undefined : () => props.onUsage(hit.workspace.path, hit.session)}
+                    onContext={hit.draft ? undefined : () => props.onContext(hit.workspace.path, hit.session)}
+                    onReferences={hit.draft ? undefined : () => props.onReferences(hit.workspace.path, hit.session)}
+                    onLog={hit.draft ? undefined : () => props.onLog(hit.workspace.path, hit.session)}
+                    onInbox={hit.draft ? undefined : () => props.onInbox(hit.workspace.path, hit.session)}
+                    onForms={hit.draft ? undefined : () => props.onForms(hit.workspace.path, hit.session)}
+                    onJobs={hit.draft ? undefined : () => props.onJobs(hit.workspace.path, hit.session)}
+                    onSkills={hit.draft ? undefined : () => props.onSkills(hit.workspace.path, hit.session)}
+                    onSynthetic={hit.draft ? undefined : () => props.onSynthetic(hit.workspace.path, hit.session)}
+                    onRunCommand={hit.draft ? undefined : () => props.onRunCommand(hit.workspace.path, hit.session)}
+                    onPromptOnce={hit.draft ? undefined : () => props.onPromptOnce(hit.workspace.path, hit.session)}
+                    onWait={hit.draft ? undefined : () => props.onWait(hit.workspace.path, hit.session)}
+                    onRevert={hit.draft ? undefined : () => props.onRevert(hit.workspace.path, hit.session)}
+                    onReview={hit.draft ? undefined : () => props.onReview(hit.workspace.path, hit.session)}
+                    onCompact={hit.draft ? undefined : () => props.onCompact(hit.workspace.path, hit.session)}
+                    onExport={hit.draft ? undefined : () => props.onExport(hit.workspace.path, hit.session)}
+                    onEnvironment={hit.draft ? undefined : () => props.onEnvironment(hit.workspace.path, hit.session)}
+                    onDelete={hit.draft ? undefined : () => props.onDelete(hit.workspace.path, hit.session)}
+                    onShare={hit.draft ? undefined : () => props.onShare(hit.workspace.path, hit.session)}
+                    onMove={hit.draft ? undefined : () => props.onMove(hit.workspace.path, hit.session)}
+                  />
+                )}
+              </For>
+              <Show when={results().length === 0}>
+                <div class="flex flex-col items-center gap-2 px-4 py-8 text-center text-text-faint">
+                  <Search class="size-6" />
+                  <p class="text-meta">{tr("noMatches")}</p>
+                </div>
+              </Show>
+            </div>
+          </Show>
+
+          <Show when={embedded() && props.workspaces.length > 7 && !searching() && !selecting()}>
+            <button
+              type="button"
+              onClick={() => update(setShowAllProjects, showAllProjects, (value) => !value)}
+              class="interactive ms-[23px] flex h-6 self-start items-center rounded-xs px-2 text-body leading-4 font-[440] text-text-muted"
+            >
+              {showAllProjects() ? tr("showLess") : tr("showMore")}
+            </button>
+          </Show>
+
+          <Show when={props.workspaces.length === 0 && !searching() && !embedded()}>
+            <div class="flex flex-col items-center gap-3 px-4 py-8 text-center text-text-faint">
+              <FolderClosed class="size-6" />
+              <p class="text-meta">{tr("noWorkspaces")}</p>
+              <Button variant="outline" size="sm" onClick={() => props.onAddWorkspace()}>
+                {tr("addWorkspace")}
+              </Button>
+            </div>
+          </Show>
+        </div>
+      </Show>
     </aside>
   );
 }
@@ -901,8 +875,8 @@ interface RowProps {
   selected?: boolean;
   onClick: () => void;
   onToggle?: () => void;
-  onPointerDown?: (event: React.PointerEvent) => void;
-  onPointerEnter?: (event: React.PointerEvent) => void;
+  onPointerDown?: (event: PointerEvent) => void;
+  onPointerEnter?: (event: PointerEvent) => void;
   onSelect?: () => void;
   /** The session has an open tab elsewhere in the rail. */
   openTab?: boolean;
@@ -935,82 +909,42 @@ interface RowProps {
   onMove?: () => void;
 }
 
-function SessionRow({
-  session,
-  active,
-  chat,
-  draft,
-  openTab = false,
-  unread = false,
-  workspaceName,
-  variant = "default",
-  selecting = false,
-  selected = false,
-  onClick,
-  onToggle,
-  onPointerDown,
-  onPointerEnter,
-  onSelect,
-  onRename,
-  onFork,
-  onSchedules,
-  onPairing,
-  onMedia,
-  onUsage,
-  onContext,
-  onReferences,
-  onLog,
-  onInbox,
-  onForms,
-  onJobs,
-  onSkills,
-  onSynthetic,
-  onRunCommand,
-  onPromptOnce,
-  onWait,
-  onRevert,
-  onReview,
-  onCompact,
-  onExport,
-  onEnvironment,
-  onDelete,
-  onShare,
-  onMove,
-}: RowProps) {
+function SessionRow(props: RowProps) {
   const tr = useT();
   // A recovered run exists before its chat has been opened, so the session
   // list carries the running flag as a fallback.
-  const running = chat?.running || session.running;
-  const attention = (chat?.pending.length ?? 0) > 0 || (chat?.questions.length ?? 0) > 0;
-  const status = attention
-    ? "warning"
-    : running
-      ? "ongoing"
-      : chat?.lastRunStatus === "failed"
-        ? "error"
-        : chat?.lastRunStatus === "completed"
-          ? "done"
-          : "idle";
-  const title = draft ? tr("paletteNewSession") : session.title || session.id;
-  const search = variant === "search";
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number }>();
+  const running = () => props.chat?.running || props.session.running;
+  const attention = () => (props.chat?.pending.length ?? 0) > 0 || (props.chat?.questions.length ?? 0) > 0;
+  const status = () =>
+    attention()
+      ? "warning"
+      : running()
+        ? "ongoing"
+        : props.chat?.lastRunStatus === "failed"
+          ? "error"
+          : props.chat?.lastRunStatus === "completed"
+            ? "done"
+            : "idle";
+  const title = () => (props.draft ? tr("paletteNewSession") : props.session.title || props.session.id);
+  const search = () => (props.variant ?? "default") === "search";
+  const [menuAt, setMenuAt] = createSignal<{ x: number; y: number }>();
 
   return (
     <div
       role="treeitem"
       tabIndex={0}
-      aria-selected={selecting ? selected : active}
-      data-selected={selecting ? selected : undefined}
-      data-selecting={selecting ? "true" : undefined}
-      data-state={active && !selecting ? "pressed" : undefined}
+      aria-selected={props.selecting ? props.selected : props.active}
+      data-selected={props.selecting ? props.selected : undefined}
+      data-selecting={props.selecting ? "true" : undefined}
+      data-state={props.active && !props.selecting ? "pressed" : undefined}
       onClick={(event) => {
         if (!containsTarget(event)) return;
-        onClick();
+        props.onClick();
       }}
-      onPointerDown={onPointerDown}
-      onPointerEnter={onPointerEnter}
+      onPointerDown={(event) => props.onPointerDown?.(event)}
+      onPointerEnter={(event) => props.onPointerEnter?.(event)}
       onContextMenu={(event) => {
-        if (!(onSelect || onRename || onDelete)) return;
+        if (!(props.onSelect || props.onRename || props.onDelete)) return;
         event.preventDefault();
         setMenuAt({ x: event.clientX, y: event.clientY });
       }}
@@ -1018,237 +952,294 @@ function SessionRow({
         if (event.target !== event.currentTarget) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          if (selecting) onToggle?.();
-          else onClick();
+          if (props.selecting) props.onToggle?.();
+          else props.onClick();
         }
       }}
-      className={`side-rail-row interactive group/session relative flex cursor-default items-center gap-2 rounded-md pe-2 text-[13px] leading-4 font-medium ${
-        search ? "min-h-12 py-1 ps-2" : "h-7 ps-8"
-      } ${active || selected ? "text-text-base" : selecting ? "text-text-muted" : "text-text-faint"}`}
+      class={`side-rail-row interactive group/session relative flex cursor-default items-center gap-2 rounded-md pe-2 text-[13px] leading-4 font-medium ${
+        search() ? "min-h-12 py-1 ps-2" : "h-7 ps-8"
+      } ${props.active || props.selected ? "text-text-base" : props.selecting ? "text-text-muted" : "text-text-faint"}`}
     >
-      {selecting ? (
+      <Show
+        when={props.selecting}
+        fallback={
+          <Show when={props.openTab}>
+            <span aria-hidden class="absolute start-2 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center">
+              <span class="size-1 rounded-full bg-icon-faint" />
+            </span>
+          </Show>
+        }
+      >
         <span
           aria-hidden
-          className={`absolute start-2 top-1/2 grid size-3 -translate-y-1/2 place-items-center rounded-xs border transition-colors ${
-            selected
+          class={`absolute start-2 top-1/2 grid size-3 -translate-y-1/2 place-items-center rounded-xs border transition-colors ${
+            props.selected
               ? "border-transparent bg-bg-layer-03 text-text-base"
               : "border-border-base text-transparent"
           }`}
         >
-          <Check className="size-2" strokeWidth={3} />
+          <Check class="size-2" stroke-width={3} />
         </span>
-      ) : openTab ? (
-        <span
-          aria-hidden
-          className="absolute start-2 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center"
-        >
-          <span className="size-1 rounded-full bg-icon-faint" />
-        </span>
-      ) : null}
+      </Show>
 
-      {search ? (
-        <span className="flex min-w-0 flex-1 flex-col justify-center">
-          <span className="flex min-w-0 items-center gap-1">
-            <span className="min-w-0 flex-1 truncate">{title}</span>
+      <Show
+        when={search()}
+        fallback={<span class="min-w-0 flex-1 truncate">{title()}</span>}
+      >
+        <span class="flex min-w-0 flex-1 flex-col justify-center">
+          <span class="flex min-w-0 items-center gap-1">
+            <span class="min-w-0 flex-1 truncate">{title()}</span>
           </span>
-          {workspaceName && <span className="truncate text-meta text-text-faint">{workspaceName}</span>}
+          <Show when={props.workspaceName}>
+            {(workspaceName) => <span class="truncate text-meta text-text-faint">{workspaceName()}</span>}
+          </Show>
         </span>
-      ) : (
-        <span className="min-w-0 flex-1 truncate">{title}</span>
-      )}
+      </Show>
 
-      {!draft && (
-        <span className="relative flex size-4 shrink-0 items-center justify-center">
-          <span className="flex items-center justify-center">
-            {running ? (
+      <Show when={!props.draft}>
+        <span class="relative flex size-4 shrink-0 items-center justify-center">
+          <span class="flex items-center justify-center">
+            <Show when={running()}>
               <ActivityRing size={14} />
-            ) : !active && (attention || status === "error" || unread) ? (
-              <span className="size-1.5 rounded-full bg-text-base" />
-            ) : null}
+            </Show>
+            <Show when={!running() && !props.active && (attention() || status() === "error" || props.unread)}>
+              <span class="size-1.5 rounded-full bg-text-base" />
+            </Show>
           </span>
 
-          {(onSelect || onRename || onDelete) && (
-            <DropdownMenu
-              open={menuAt !== undefined}
-              onOpenChange={closeTarget(setMenuAt)}
-            >
-              <DropdownMenuTrigger asChild>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "fixed",
-                    left: menuAt?.x ?? 0,
-                    top: menuAt?.y ?? 0,
-                    width: 0,
-                    height: 0,
-                  }}
-                />
-              </DropdownMenuTrigger>
-                <DropdownMenuContent side="bottom" align="start" sideOffset={2}>
-                  {onSelect && (
-                    <DropdownMenuItem onSelect={onSelect}>
+          <Show when={props.onSelect || props.onRename || props.onDelete}>
+            <DropdownMenu open={menuAt() !== undefined} onOpenChange={closeTarget(setMenuAt)}>
+              <DropdownMenuTrigger
+                type="button"
+                aria-hidden="true"
+                tabIndex={-1}
+                style={{
+                  position: "fixed",
+                  left: `${menuAt()?.x ?? 0}px`,
+                  top: `${menuAt()?.y ?? 0}px`,
+                  width: "0px",
+                  height: "0px",
+                }}
+              />
+              <DropdownMenuContent side="bottom" align="start" sideOffset={2}>
+                <Show when={props.onSelect}>
+                  {(onSelect) => (
+                    <DropdownMenuItem onSelect={() => props.onSelect?.()}>
                       <ListChecks />
                       {tr("selectSessionAction")}
                     </DropdownMenuItem>
                   )}
-                  {onRename && (
-                    <DropdownMenuItem onSelect={onRename}>
+                </Show>
+                <Show when={props.onRename}>
+                  {(onRename) => (
+                    <DropdownMenuItem onSelect={() => props.onRename?.()}>
                       <Pencil />
                       {tr("renamePlain")}
                     </DropdownMenuItem>
                   )}
-                  {onFork && (
-                    <DropdownMenuItem onSelect={onFork}>
+                </Show>
+                <Show when={props.onFork}>
+                  {(onFork) => (
+                    <DropdownMenuItem onSelect={() => props.onFork?.()}>
                       <GitFork />
                       {tr("paletteForkSession")}
                     </DropdownMenuItem>
                   )}
-                  {onSchedules && (
-                    <DropdownMenuItem onSelect={onSchedules}>
+                </Show>
+                <Show when={props.onSchedules}>
+                  {(onSchedules) => (
+                    <DropdownMenuItem onSelect={() => props.onSchedules?.()}>
                       <Clock />
                       {tr("schedules")}
                     </DropdownMenuItem>
                   )}
-                  {onPairing && (
-                    <DropdownMenuItem onSelect={onPairing}>
+                </Show>
+                <Show when={props.onPairing}>
+                  {(onPairing) => (
+                    <DropdownMenuItem onSelect={() => props.onPairing?.()}>
                       <QrCode />
                       {tr("pairingTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onMedia && (
-                    <DropdownMenuItem onSelect={onMedia}>
+                </Show>
+                <Show when={props.onMedia}>
+                  {(onMedia) => (
+                    <DropdownMenuItem onSelect={() => props.onMedia?.()}>
                       <Images />
                       {tr("mediaTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onUsage && (
-                    <DropdownMenuItem onSelect={onUsage}>
+                </Show>
+                <Show when={props.onUsage}>
+                  {(onUsage) => (
+                    <DropdownMenuItem onSelect={() => props.onUsage?.()}>
                       <Gauge />
                       {tr("usage")}
                     </DropdownMenuItem>
                   )}
-                  {onContext && (
-                    <DropdownMenuItem onSelect={onContext}>
+                </Show>
+                <Show when={props.onContext}>
+                  {(onContext) => (
+                    <DropdownMenuItem onSelect={() => props.onContext?.()}>
                       <Layers />
                       {tr("context")}
                     </DropdownMenuItem>
                   )}
-                  {onReferences && (
-                    <DropdownMenuItem onSelect={onReferences}>
+                </Show>
+                <Show when={props.onReferences}>
+                  {(onReferences) => (
+                    <DropdownMenuItem onSelect={() => props.onReferences?.()}>
                       <FileSearch />
                       {tr("referencesTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onLog && (
-                    <DropdownMenuItem onSelect={onLog}>
+                </Show>
+                <Show when={props.onLog}>
+                  {(onLog) => (
+                    <DropdownMenuItem onSelect={() => props.onLog?.()}>
                       <ScrollText />
                       {tr("logTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onInbox && (
-                    <DropdownMenuItem onSelect={onInbox}>
+                </Show>
+                <Show when={props.onInbox}>
+                  {(onInbox) => (
+                    <DropdownMenuItem onSelect={() => props.onInbox?.()}>
                       <Inbox />
                       {tr("inboxTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onCompact && (
-                    <DropdownMenuItem onSelect={onCompact}>
+                </Show>
+                <Show when={props.onCompact}>
+                  {(onCompact) => (
+                    <DropdownMenuItem onSelect={() => props.onCompact?.()}>
                       <Minimize2 />
                       {tr("compactTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onExport && (
-                    <DropdownMenuItem onSelect={onExport}>
+                </Show>
+                <Show when={props.onExport}>
+                  {(onExport) => (
+                    <DropdownMenuItem onSelect={() => props.onExport?.()}>
                       <Download />
                       {tr("export")}
                     </DropdownMenuItem>
                   )}
-                  {onEnvironment && (
-                    <DropdownMenuItem onSelect={onEnvironment}>
+                </Show>
+                <Show when={props.onEnvironment}>
+                  {(onEnvironment) => (
+                    <DropdownMenuItem onSelect={() => props.onEnvironment?.()}>
                       <Cpu />
                       {tr("environmentTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onForms && (
-                    <DropdownMenuItem onSelect={onForms}>
+                </Show>
+                <Show when={props.onForms}>
+                  {(onForms) => (
+                    <DropdownMenuItem onSelect={() => props.onForms?.()}>
                       <ClipboardList />
                       {tr("formsTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onJobs && (
-                    <DropdownMenuItem onSelect={onJobs}>
+                </Show>
+                <Show when={props.onJobs}>
+                  {(onJobs) => (
+                    <DropdownMenuItem onSelect={() => props.onJobs?.()}>
                       <ListTodo />
                       {tr("backgroundJobs")}
                     </DropdownMenuItem>
                   )}
-                  {onSkills && (
-                    <DropdownMenuItem onSelect={onSkills}>
+                </Show>
+                <Show when={props.onSkills}>
+                  {(onSkills) => (
+                    <DropdownMenuItem onSelect={() => props.onSkills?.()}>
                       <Sparkles />
                       {tr("skills")}
                     </DropdownMenuItem>
                   )}
-                  {onSynthetic && (
-                    <DropdownMenuItem onSelect={onSynthetic}>
+                </Show>
+                <Show when={props.onSynthetic}>
+                  {(onSynthetic) => (
+                    <DropdownMenuItem onSelect={() => props.onSynthetic?.()}>
                       <Send />
                       {tr("paletteSynthetic")}
                     </DropdownMenuItem>
                   )}
-                  {onRunCommand && (
-                    <DropdownMenuItem onSelect={onRunCommand}>
+                </Show>
+                <Show when={props.onRunCommand}>
+                  {(onRunCommand) => (
+                    <DropdownMenuItem onSelect={() => props.onRunCommand?.()}>
                       <Command />
                       {tr("runCommandTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onPromptOnce && (
-                    <DropdownMenuItem onSelect={onPromptOnce}>
+                </Show>
+                <Show when={props.onPromptOnce}>
+                  {(onPromptOnce) => (
+                    <DropdownMenuItem onSelect={() => props.onPromptOnce?.()}>
                       <Send />
                       {tr("palettePromptOnce")}
                     </DropdownMenuItem>
                   )}
-                  {onWait && (
-                    <DropdownMenuItem onSelect={onWait}>
+                </Show>
+                <Show when={props.onWait}>
+                  {(onWait) => (
+                    <DropdownMenuItem onSelect={() => props.onWait?.()}>
                       <Clock />
                       {tr("paletteWait")}
                     </DropdownMenuItem>
                   )}
-                  {onRevert && (
-                    <DropdownMenuItem onSelect={onRevert}>
+                </Show>
+                <Show when={props.onRevert}>
+                  {(onRevert) => (
+                    <DropdownMenuItem onSelect={() => props.onRevert?.()}>
                       <History />
                       {tr("revertTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onReview && (
-                    <DropdownMenuItem onSelect={onReview}>
+                </Show>
+                <Show when={props.onReview}>
+                  {(onReview) => (
+                    <DropdownMenuItem onSelect={() => props.onReview?.()}>
                       <GitCompare />
                       {tr("paletteReviewChanges")}
                     </DropdownMenuItem>
                   )}
-                                    {onShare && (
-                    <DropdownMenuItem onSelect={onShare}>
+                </Show>
+                <Show when={props.onShare}>
+                  {(onShare) => (
+                    <DropdownMenuItem onSelect={() => props.onShare?.()}>
                       <Share2 />
                       {tr("shareTitle")}
                     </DropdownMenuItem>
                   )}
-                  {onMove && (
-                    <DropdownMenuItem onSelect={onMove}>
+                </Show>
+                <Show when={props.onMove}>
+                  {(onMove) => (
+                    <DropdownMenuItem onSelect={() => props.onMove?.()}>
                       <FolderInput />
                       {tr("moveToWorkspace")}
                     </DropdownMenuItem>
                   )}
-                  {onDelete && (
+                </Show>
+                <Show when={props.onDelete}>
+                  {(onDelete) => (
                     <>
-                      {(onSelect || onRename || onShare || onMove) && <DropdownMenuSeparator />}
-                      <DropdownMenuItem destructive onSelect={onDelete}>
+                      <Show when={props.onSelect || props.onRename || props.onShare || props.onMove}>
+                        <DropdownMenuSeparator />
+                      </Show>
+                      <DropdownMenuItem destructive onSelect={() => props.onDelete?.()}>
                         <Trash2 />
                         {tr("removeAction")}
                       </DropdownMenuItem>
                     </>
                   )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-          )}
+                </Show>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </Show>
         </span>
-      )}
+      </Show>
     </div>
   );
 }
@@ -1259,8 +1250,12 @@ function updatedAt(session: SessionInfo): number {
 }
 
 /** True when the event came from inside the element that owns the handler. */
-function containsTarget(event: React.SyntheticEvent): boolean {
-  return event.target instanceof Node && event.currentTarget.contains(event.target);
+function containsTarget(event: Event): boolean {
+  return (
+    event.target instanceof Node &&
+    event.currentTarget instanceof Node &&
+    event.currentTarget.contains(event.target)
+  );
 }
 
 /** Splits chat keys back into workspace/session pairs for bulk actions. */
@@ -1307,154 +1302,157 @@ interface WorkspaceRowProps {
 
 /**
  * One workspace tree row. The action strip is hover/focus-revealed, so it must
- * stay visible while its menu is open: an open Radix menu suppresses pointer
+ * stay visible while its menu is open: an open menu suppresses pointer
  * hit-testing on the anchor, which would otherwise collapse the strip and
  * unmount the trigger under its own open menu.
  */
-function WorkspaceRow({ workspace, active, expanded, onToggle, onNew, onSelectSessions, onRemove, onWorktree, onSourceControl, onFiles, onArtifacts, onProject, onImport, onServices, onCore, onCoreModels, onMCP, onPlugins, onSearch, onLiveEvents, onSchedulesOverview, onJobsOverview, onUsageOverview, onWebSearch, onImageGen, onFormatters, onOAuth, onWorktreesManage }: WorkspaceRowProps) {
+function WorkspaceRow(props: WorkspaceRowProps) {
   const tr = useT();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = createSignal(false);
 
   return (
     <div
       role="treeitem"
       tabIndex={0}
-      aria-expanded={expanded}
-      aria-current={active ? "true" : undefined}
-      data-open={menuOpen ? "true" : undefined}
-      title={workspace.error || workspace.path}
+      aria-expanded={props.expanded}
+      aria-current={props.active ? "true" : undefined}
+      data-open={menuOpen() ? "true" : undefined}
+      title={props.workspace.error || props.workspace.path}
       onClick={(event) => {
         if (!containsTarget(event)) return;
-        onToggle();
+        props.onToggle();
       }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onToggle();
+          props.onToggle();
         }
       }}
-      className="side-rail-row interactive group/ws flex h-7 cursor-default items-center gap-2 rounded-md ps-2 pe-1 text-[13px] leading-4"
+      class="side-rail-row interactive group/ws flex h-7 cursor-default items-center gap-2 rounded-md ps-2 pe-1 text-[13px] leading-4"
     >
-      <ProjectAvatar name={workspace.name} icon={workspace.icon} color={workspace.color} />
-      <span className="min-w-0 flex-1 truncate font-[440] text-text-muted transition-colors group-hover/ws:text-text-base group-focus-visible/ws:text-text-base">
-        {workspace.name}
+      <ProjectAvatar name={props.workspace.name} icon={props.workspace.icon} color={props.workspace.color} />
+      <span class="min-w-0 flex-1 truncate font-[440] text-text-muted transition-colors group-hover/ws:text-text-base group-focus-visible/ws:text-text-base">
+        {props.workspace.name}
       </span>
-      {workspace.starting ? (
-        <span className="shrink-0 text-caption text-text-muted">{tr("starting")}</span>
-      ) : !workspace.connected ? (
-        <span className="shrink-0 text-caption text-state-fg-danger">{tr("offline")}</span>
-      ) : null}
-      <span
-        data-open={menuOpen ? "true" : undefined}
-        className="pointer-events-none flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-focus-within/ws:pointer-events-auto group-focus-within/ws:opacity-100 group-hover/ws:pointer-events-auto group-hover/ws:opacity-100 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100"
+      <Show
+        when={props.workspace.starting}
+        fallback={
+          <Show when={!props.workspace.connected}>
+            <span class="shrink-0 text-caption text-state-fg-danger">{tr("offline")}</span>
+          </Show>
+        }
       >
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={tr("moreActionsFor", { name: workspace.name })}
-              onClick={(event) => event.stopPropagation()}
-              className="interactive grid size-5 shrink-0 place-items-center rounded-xs text-icon-muted active:text-icon-base"
-            >
-              <Ellipsis className="size-4" />
-            </button>
+        <span class="shrink-0 text-caption text-text-muted">{tr("starting")}</span>
+      </Show>
+      <span
+        data-open={menuOpen() ? "true" : undefined}
+        class="pointer-events-none flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-focus-within/ws:pointer-events-auto group-focus-within/ws:opacity-100 group-hover/ws:pointer-events-auto group-hover/ws:opacity-100 data-[open=true]:pointer-events-auto data-[open=true]:opacity-100"
+      >
+        <DropdownMenu open={menuOpen()} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger
+            type="button"
+            aria-label={tr("moreActionsFor", { name: props.workspace.name })}
+            onClick={(event) => event.stopPropagation()}
+            class="interactive grid size-5 shrink-0 place-items-center rounded-xs text-icon-muted active:text-icon-base"
+          >
+            <Ellipsis class="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="bottom" align="end">
-            <DropdownMenuItem onSelect={onNew}>
+            <DropdownMenuItem onSelect={() => props.onNew()}>
               <MessageSquarePlus />
               {tr("paletteNewSession")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onImport}>
+            <DropdownMenuItem onSelect={() => props.onImport()}>
               <Upload />
               {tr("importSession")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onSelectSessions}>
+            <DropdownMenuItem onSelect={() => props.onSelectSessions()}>
               <ListChecks />
               {tr("selectSessions")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onProject}>
+            <DropdownMenuItem onSelect={() => props.onProject()}>
               <FolderCog />
               {tr("paletteProject")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onServices}>
+            <DropdownMenuItem onSelect={() => props.onServices()}>
               <Server />
               {tr("servicesTitle")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onCore}>
+            <DropdownMenuItem onSelect={() => props.onCore()}>
               <Boxes />
               {tr("coreTitle")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onCoreModels}>
+            <DropdownMenuItem onSelect={() => props.onCoreModels()}>
               <Gauge />
               {tr("paletteCoreModels")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onMCP}>
+            <DropdownMenuItem onSelect={() => props.onMCP()}>
               <Plug />
               {tr("mcpServers")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onPlugins}>
+            <DropdownMenuItem onSelect={() => props.onPlugins()}>
               <Puzzle />
               {tr("plugins")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onSearch}>
+            <DropdownMenuItem onSelect={() => props.onSearch()}>
               <Search />
               {tr("searchEvents")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onLiveEvents}>
+            <DropdownMenuItem onSelect={() => props.onLiveEvents()}>
               <Activity />
               {tr("paletteLiveEvents")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onSchedulesOverview}>
+            <DropdownMenuItem onSelect={() => props.onSchedulesOverview()}>
               <Clock />
               {tr("schedules")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onJobsOverview}>
+            <DropdownMenuItem onSelect={() => props.onJobsOverview()}>
               <ListTodo />
               {tr("backgroundJobs")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onUsageOverview}>
+            <DropdownMenuItem onSelect={() => props.onUsageOverview()}>
               <Gauge />
               {tr("paletteUsageOverview")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onWebSearch}>
+            <DropdownMenuItem onSelect={() => props.onWebSearch()}>
               <Globe />
               {tr("paletteWebSearch")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onImageGen}>
+            <DropdownMenuItem onSelect={() => props.onImageGen()}>
               <ImagePlus />
               {tr("imageGenerate")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onFormatters}>
+            <DropdownMenuItem onSelect={() => props.onFormatters()}>
               <Wand2 />
               {tr("formattersTitle")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onOAuth}>
+            <DropdownMenuItem onSelect={() => props.onOAuth()}>
               <KeyRound />
               {tr("oauthTitle")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onFiles}>
+            <DropdownMenuItem onSelect={() => props.onFiles()}>
               <FolderTree />
               {tr("files")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onArtifacts}>
+            <DropdownMenuItem onSelect={() => props.onArtifacts()}>
               <Package />
               {tr("artifactsTitle")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onSourceControl}>
+            <DropdownMenuItem onSelect={() => props.onSourceControl()}>
               <GitCompare />
               {tr("sourceControl")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onWorktree}>
+            <DropdownMenuItem onSelect={() => props.onWorktree()}>
               <GitBranch />
               {tr("newWorktree")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onWorktreesManage}>
+            <DropdownMenuItem onSelect={() => props.onWorktreesManage()}>
               <GitBranch />
               {tr("worktrees")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem destructive onSelect={onRemove}>
+            <DropdownMenuItem destructive onSelect={() => props.onRemove()}>
               <Trash2 />
               {tr("removeWorkspace")}
             </DropdownMenuItem>
@@ -1462,14 +1460,14 @@ function WorkspaceRow({ workspace, active, expanded, onToggle, onNew, onSelectSe
         </DropdownMenu>
         <button
           type="button"
-          aria-label={tr("newSessionIn", { name: workspace.name })}
+          aria-label={tr("newSessionIn", { name: props.workspace.name })}
           onClick={(event) => {
             event.stopPropagation();
-            onNew();
+            props.onNew();
           }}
-          className="interactive grid size-5 shrink-0 place-items-center rounded-xs text-icon-muted active:text-icon-base"
+          class="interactive grid size-5 shrink-0 place-items-center rounded-xs text-icon-muted active:text-icon-base"
         >
-          <Pencil className="size-4" />
+          <Pencil class="size-4" />
         </button>
       </span>
     </div>
@@ -1480,22 +1478,21 @@ function WorkspaceRow({ workspace, active, expanded, onToggle, onNew, onSelectSe
 function SkeletonSessions() {
   const tr = useT();
   return (
-    <div role="status" aria-label={tr("loadingSessions")} className="pt-1">
-      {[0, 1].map((index) => (
-        <div key={index} aria-hidden className="flex h-control-md items-center gap-2 pr-1 pl-2">
-          <span className="grid size-4 place-items-center">
-            <span className="size-2 rounded-full bg-bg-layer-03" />
-          </span>
-          <span
-            className={`h-2 rounded-xs bg-bg-layer-03 motion-safe:animate-pulse ${
-              index === 0 ? "w-32" : "w-24"
-            }`}
-          />
-        </div>
-      ))}
+    <div role="status" aria-label={tr("loadingSessions")} class="pt-1">
+      <For each={[0, 1]}>
+        {(index) => (
+          <div aria-hidden class="flex h-control-md items-center gap-2 pr-1 pl-2">
+            <span class="grid size-4 place-items-center">
+              <span class="size-2 rounded-full bg-bg-layer-03" />
+            </span>
+            <span
+              class={`h-2 rounded-xs bg-bg-layer-03 motion-safe:animate-pulse ${
+                index === 0 ? "w-32" : "w-24"
+              }`}
+            />
+          </div>
+        )}
+      </For>
     </div>
   );
 }
-
-
-export const Sidebar = memo(SidebarView, layoutPropsEqual);

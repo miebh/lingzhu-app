@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { Search, X } from "@lingzhu/ui/icons";
 import { t } from "@lingzhu/ui/i18n";
 import type { HomeSessionRow as HomeSessionRowData } from "@lingzhu/ui/types";
@@ -22,60 +23,61 @@ interface RowProps {
 }
 
 /** One suggestion in the home session search panel. */
-function HomeSessionSearchRow({ row, index, active, hideProjectName, onHover, onSelect }: RowProps) {
+function HomeSessionSearchRow(props: RowProps) {
   return (
     <button
-      id={`home-session-search-option-${index}`}
+      id={`home-session-search-option-${props.index}`}
       type="button"
       role="option"
-      aria-selected={active}
-      data-active={active ? "" : undefined}
+      aria-selected={props.active}
+      data-active={props.active ? "" : undefined}
       data-component="home-session-search-row"
-      onMouseEnter={onHover}
-      onClick={onSelect}
-      className={`flex h-10 w-full shrink-0 items-center gap-1.5 py-3 pl-[18px] pr-6 text-left ${
-        active ? "bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))]" : ""
+      onMouseEnter={() => props.onHover()}
+      onClick={() => props.onSelect()}
+      class={`flex h-10 w-full shrink-0 items-center gap-1.5 py-3 pl-[18px] pr-6 text-left ${
+        props.active ? "bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))]" : ""
       }`}
     >
-      <ProjectAvatar name={row.workspaceName} icon={row.icon} color={row.color} />
+      <ProjectAvatar name={props.row.workspaceName} icon={props.row.icon} color={props.row.color} />
       <span
         data-component="home-session-title"
-        className="min-w-0 truncate text-body leading-4 font-[530] tracking-[-0.04px] text-text-base"
+        class="min-w-0 truncate text-body leading-4 font-[530] tracking-[-0.04px] text-text-base"
       >
-        {row.title}
+        {props.row.title}
       </span>
-      {!hideProjectName && (
+      <Show when={!props.hideProjectName}>
         <span
           data-component="home-session-project-name"
-          className="min-w-0 shrink-0 truncate text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted"
+          class="min-w-0 shrink-0 truncate text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted"
         >
-          {row.workspaceName}
+          {props.row.workspaceName}
         </span>
-      )}
+      </Show>
     </button>
   );
 }
 
 /** The home session search box and its suggestion panel. */
-export function HomeSessionSearch({ rows, query, onQueryChange, hideProjectName, onOpenSession }: Props) {
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const searchRoot = useRef<HTMLDivElement>(null);
-  const searchInput = useRef<HTMLInputElement>(null);
+export function HomeSessionSearch(props: Props) {
+  const [open, setOpen] = createSignal(false);
+  const [active, setActive] = createSignal(0);
+  let searchRoot: HTMLDivElement | undefined;
+  let searchInput: HTMLInputElement | undefined;
 
-  const results = useMemo(() => {
-    const term = query.trim().toLowerCase();
+  const results = createMemo(() => {
+    const term = props.query.trim().toLowerCase();
     const list = term
-      ? rows.filter((row) => `${row.title} ${row.workspaceName}`.toLowerCase().includes(term))
-      : rows;
+      ? props.rows.filter((row) => `${row.title} ${row.workspaceName}`.toLowerCase().includes(term))
+      : props.rows;
     return list.slice(0, 10);
-  }, [rows, query]);
+  });
 
-  useEffect(() => {
+  createEffect(() => {
+    props.query;
     setActive(0);
-  }, [query]);
+  });
 
-  const panelOpen = open && query.trim() !== "";
+  const panelOpen = createMemo(() => open() && props.query.trim() !== "");
 
   const closeSearch = () => {
     setOpen(false);
@@ -84,118 +86,128 @@ export function HomeSessionSearch({ rows, query, onQueryChange, hideProjectName,
 
   return (
     <div
-      ref={searchRoot}
+      ref={(element) => {
+        searchRoot = element;
+      }}
       data-component="home-session-search"
-      className="relative z-30 w-full"
+      class="relative z-30 w-full"
       onBlur={(event) => {
-        if (event.relatedTarget instanceof Node && searchRoot.current?.contains(event.relatedTarget)) return;
+        if (event.relatedTarget instanceof Node && searchRoot?.contains(event.relatedTarget)) return;
         closeSearch();
       }}
     >
-      {panelOpen && (
+      <Show when={panelOpen()}>
         <div
           data-component="home-session-search-panel"
           onMouseDown={(event) => event.preventDefault()}
-          className="absolute z-10 flex flex-col overflow-hidden rounded-xl bg-bg-base elevation-floating"
-          style={{ top: -6, insetInlineStart: -6, width: "calc(100% + 12px)" }}
+          class="absolute z-10 flex flex-col overflow-hidden rounded-xl bg-bg-base elevation-floating"
+          style={{ top: "-6px", "inset-inline-start": "-6px", width: "calc(100% + 12px)" }}
         >
-          <div className="flex flex-col pt-9">
+          <div class="flex flex-col pt-9">
             <div
               id="home-session-search-results"
               role="listbox"
               aria-label={t("sessionSearchResults")}
-              className="flex flex-col gap-4 pt-4"
+              class="flex flex-col gap-4 pt-4"
             >
-              {results.length === 0 ? (
-                <p className="my-1.5 px-4 pb-2 text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted">
-                  {t("noSessionsFound", { query: query.trim() })}
-                </p>
-              ) : (
-                <div className="flex flex-col">
-                  <p className="my-1.5 pl-[18px] pr-6 text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted">
+              <Show
+                when={results().length > 0}
+                fallback={
+                  <p class="my-1.5 px-4 pb-2 text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted">
+                    {t("noSessionsFound", { query: props.query.trim() })}
+                  </p>
+                }
+              >
+                <div class="flex flex-col">
+                  <p class="my-1.5 pl-[18px] pr-6 text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted">
                     {t("sessions")}
                   </p>
-                  <div className="flex flex-col gap-px pb-2">
-                    {results.map((row, index) => (
-                      <HomeSessionSearchRow
-                        key={row.key}
-                        row={row}
-                        index={index}
-                        active={index === active}
-                        hideProjectName={hideProjectName}
-                        onHover={() => setActive(index)}
-                        onSelect={() => {
-                          onOpenSession(row.path, row.sessionID);
-                          closeSearch();
-                        }}
-                      />
-                    ))}
+                  <div class="flex flex-col gap-px pb-2">
+                    <For each={results()}>
+                      {(row, index) => (
+                        <HomeSessionSearchRow
+                          row={row}
+                          index={index()}
+                          active={index() === active()}
+                          hideProjectName={props.hideProjectName}
+                          onHover={() => setActive(index())}
+                          onSelect={() => {
+                            props.onOpenSession(row.path, row.sessionID);
+                            closeSearch();
+                          }}
+                        />
+                      )}
+                    </For>
                   </div>
                 </div>
-              )}
+              </Show>
             </div>
           </div>
         </div>
-      )}
-      <label className="relative z-20 flex h-9 w-full items-center gap-2 rounded-[6px] bg-bg-layer-02/60 py-1 ps-3 pe-2 text-icon-faint transition-[background-color,box-shadow] duration-[120ms] ease-in-out hover:bg-bg-layer-02 focus-within:bg-bg-layer-02">
-        <Search className="size-4 shrink-0" />
+      </Show>
+      <label class="relative z-20 flex h-9 w-full items-center gap-2 rounded-[6px] bg-bg-layer-02/60 py-1 ps-3 pe-2 text-icon-faint transition-[background-color,box-shadow] duration-[120ms] ease-in-out hover:bg-bg-layer-02 focus-within:bg-bg-layer-02">
+        <Search class="size-4 shrink-0" />
         <input
-          ref={searchInput}
-          value={query}
+          ref={(element) => {
+            searchInput = element;
+          }}
+          value={props.query}
           aria-label={t("searchSessions")}
           placeholder={t("searchSessions")}
-          spellCheck={false}
-          autoComplete="off"
-          aria-expanded={panelOpen}
+          spellcheck={false}
+          autocomplete="off"
+          aria-expanded={panelOpen()}
           aria-autocomplete="list"
-          aria-controls={panelOpen ? "home-session-search-results" : undefined}
+          aria-controls={panelOpen() ? "home-session-search-results" : undefined}
           aria-activedescendant={
-            panelOpen && results[active] ? `home-session-search-option-${active}` : undefined
+            panelOpen() && results()[active()] ? `home-session-search-option-${active()}` : undefined
           }
           onFocus={() => setOpen(true)}
-          onChange={(event) => {
-            onQueryChange(event.target.value);
+          onInput={(event) => {
+            props.onQueryChange(event.currentTarget.value);
             setOpen(true);
           }}
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.preventDefault();
-              onQueryChange("");
+              props.onQueryChange("");
               closeSearch();
               event.currentTarget.blur();
               return;
             }
-            if (!panelOpen) return;
+            if (!panelOpen()) return;
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
               const step = event.key === "ArrowDown" ? 1 : -1;
-              setActive((current) => Math.min(Math.max(current + step, 0), Math.max(results.length - 1, 0)));
+              update(setActive, active, (current) =>
+                Math.min(Math.max(current + step, 0), Math.max(results().length - 1, 0)),
+              );
               return;
             }
             if (event.key === "Enter") {
-              const row = results[active];
+              const row = results()[active()];
               if (!row) return;
               event.preventDefault();
-              onOpenSession(row.path, row.sessionID);
+              props.onOpenSession(row.path, row.sessionID);
               closeSearch();
             }
           }}
-          className="relative z-20 min-w-0 flex-1 border-0 bg-transparent text-body font-[440] text-text-base outline-none placeholder:text-text-faint"
+          class="relative z-20 min-w-0 flex-1 border-0 bg-transparent text-body font-[440] text-text-base outline-none placeholder:text-text-faint"
         />
-        {query && (
+        <Show when={props.query}>
           <button
             type="button"
             aria-label={t("clearSearch")}
             onClick={(event) => {
               event.preventDefault();
-              onQueryChange("");
-              searchInput.current?.focus();
+              props.onQueryChange("");
+              searchInput?.focus();
             }}
-            className="interactive relative z-20 grid size-5 shrink-0 place-items-center rounded-xs text-text-faint hover:text-text-base"
+            class="interactive relative z-20 grid size-5 shrink-0 place-items-center rounded-xs text-text-faint hover:text-text-base"
           >
-            <X className="size-4" />
+            <X class="size-4" />
           </button>
-        )}
+        </Show>
       </label>
     </div>
   );

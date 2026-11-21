@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+﻿import { render, screen, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { SessionSummaryMenu } from "@/components/session/SessionSummaryMenu";
@@ -29,7 +29,7 @@ describe("session summary", () => {
     const onOpenExtensions = vi.fn();
     const onOpenSkill = vi.fn();
     render(
-      <SessionSummaryMenu
+      () => <SessionSummaryMenu
         workspace="/w"
         onOpenMCP={onOpenMCP}
         onOpenExtensions={onOpenExtensions}
@@ -37,7 +37,7 @@ describe("session summary", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
     expect(await screen.findByText("MCP")).toBeTruthy();
 
     const mcpRow = screen.getByText("MCP").closest('[role="menuitem"]');
@@ -57,7 +57,7 @@ describe("session summary", () => {
     expect(onOpenMCP).toHaveBeenCalledTimes(1);
     expect(onOpenExtensions).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
     await userEvent.click(await screen.findByText("Skills"));
     await userEvent.click(await screen.findByText("Skill"));
     expect(onOpenSkill).toHaveBeenCalledWith("skill");
@@ -71,8 +71,8 @@ describe("session summary", () => {
     vi.mocked(api.skills).mockResolvedValue([]);
     vi.mocked(api.skillErrors).mockResolvedValue([]);
 
-    render(<SessionSummaryMenu workspace="/w" mobile />);
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    render(() => <SessionSummaryMenu workspace="/w" mobile />);
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
 
     expect(await screen.findByRole("dialog", { name: "Session details" })).toBeTruthy();
     expect(await screen.findByText("a")).toBeTruthy();
@@ -86,8 +86,8 @@ describe("session summary", () => {
     vi.mocked(api.skills).mockResolvedValue([]);
     vi.mocked(api.skillErrors).mockResolvedValue([]);
 
-    render(<SessionSummaryMenu workspace="/w" />);
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    render(() => <SessionSummaryMenu workspace="/w" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
     await userEvent.hover(screen.getByText("MCP"));
 
     expect(await screen.findByText("a")).toBeTruthy();
@@ -104,14 +104,14 @@ describe("session summary", () => {
     const onOpenSkill = vi.fn();
     const onOpenSkillFile = vi.fn();
     render(
-      <SessionSummaryMenu
+      () => <SessionSummaryMenu
         workspace="/w"
         onOpenSkill={onOpenSkill}
         onOpenSkillFile={onOpenSkillFile}
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
     await userEvent.click(await screen.findByText("Skills"));
     await userEvent.click(await screen.findByText("Project skill"));
 
@@ -127,8 +127,8 @@ describe("session summary", () => {
     vi.mocked(api.skills).mockResolvedValue([]);
     vi.mocked(api.skillErrors).mockResolvedValue([]);
 
-    render(<SessionSummaryMenu workspace="/w" />);
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    render(() => <SessionSummaryMenu workspace="/w" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
     await userEvent.click(await screen.findByText("MCP"));
     await userEvent.click(await screen.findByRole("switch", { name: /a:/ }));
 
@@ -141,7 +141,7 @@ describe("session summary", () => {
     vi.mocked(api.skills).mockResolvedValue([]);
     vi.mocked(api.skillErrors).mockResolvedValue([]);
 
-    render(<SessionSummaryMenu workspace="/w" />);
+    render(() => <SessionSummaryMenu workspace="/w" />);
     window.dispatchEvent(new Event(SESSION_SUMMARY_EVENT));
 
     expect(await screen.findByText("MCP")).toBeTruthy();
@@ -156,8 +156,8 @@ describe("session summary", () => {
     vi.mocked(api.skills).mockResolvedValue([]);
     vi.mocked(api.skillErrors).mockResolvedValue([]);
 
-    render(<SessionSummaryMenu workspace="/w" />);
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    render(() => <SessionSummaryMenu workspace="/w" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
     await userEvent.click(await screen.findByText("MCP"));
     await userEvent.click(await screen.findByRole("button", { name: "Sign in" }));
 
@@ -165,7 +165,7 @@ describe("session summary", () => {
     expect(api.startMCPAuth).toHaveBeenCalledWith("/w", "auth");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Session details" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Session details" }));
     await userEvent.click(await screen.findByText("MCP"));
     await userEvent.click(await screen.findByText("broken"));
     expect(await screen.findByText("boom")).toBeTruthy();

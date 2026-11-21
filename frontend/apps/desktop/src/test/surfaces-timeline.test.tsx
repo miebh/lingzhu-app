@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { TextShimmer } from "@lingzhu/ui/TextShimmer";
@@ -11,14 +11,14 @@ import { chat } from "./support/chat";
 
 describe("timeline surfaces", () => {
   test("pending labels use the per-character shimmer with readable text", () => {
-    const { container } = render(<TextShimmer active text="Thinking" />);
+    const { container } = render(() => <TextShimmer active text="Thinking" />);
     expect(screen.getByText("Thinking")).toBeTruthy();
     expect(container.querySelectorAll('[data-slot="text-shimmer-char"]').length).toBe(8);
   });
 
   test("timeline renders tool groups and the turn diff summary", async () => {
     render(
-      <Messages
+      () => <Messages
         chat={chat([
           { key: "u1", role: "user", text: "fix it" },
           {
@@ -44,7 +44,7 @@ describe("timeline surfaces", () => {
 
   test("apply_patch renders the file accordion instead of a generic row", async () => {
     render(
-      <Messages
+      () => <Messages
         chat={chat([
           {
             key: "p1",
@@ -68,7 +68,7 @@ describe("timeline surfaces", () => {
   });
 
   test("timeline shows Thinking for live reasoning", async () => {
-    render(<Messages chat={chat([{ key: "r2", role: "reasoning", text: "working", live: true }])} />);
+    render(() => <Messages chat={chat([{ key: "r2", role: "reasoning", text: "working", live: true }])} />);
     await waitFor(() => expect(screen.getByText("Thinking")).toBeTruthy());
   });
 
@@ -78,7 +78,7 @@ describe("timeline surfaces", () => {
     running.runStartedAt = Date.now() - 125_000;
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={running} />
       </TooltipProvider>,
     );
@@ -95,7 +95,7 @@ describe("timeline surfaces", () => {
     running.running = true;
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={running} />
       </TooltipProvider>,
     );
@@ -109,7 +109,7 @@ describe("timeline surfaces", () => {
     done.lastRunStatus = "completed";
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={done} />
       </TooltipProvider>,
     );
@@ -119,7 +119,7 @@ describe("timeline surfaces", () => {
 
   test("the transcript has no message-level Quote action", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([{ key: "a", role: "assistant", text: "Quoted answer" }])} onQuote={vi.fn()} />
       </TooltipProvider>,
     );
@@ -130,7 +130,7 @@ describe("timeline surfaces", () => {
   test("selecting transcript text exposes the quote toolbar", async () => {
     const onQuote = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([{ key: "a", role: "assistant", text: "Quoted answer" }])} onQuote={onQuote} />
       </TooltipProvider>,
     );
@@ -152,7 +152,7 @@ describe("timeline surfaces", () => {
     setLanguage("en");
     const created = new Date().toISOString();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             {
@@ -177,7 +177,7 @@ describe("timeline surfaces", () => {
 
   test("showing agents restores the agent label", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           showAgent
           chat={chat([
@@ -191,7 +191,7 @@ describe("timeline surfaces", () => {
 
   test("a message without metadata keeps the footer free of the current agent", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           showAgent
           chat={{ ...chat([{ key: "u1", role: "user", text: "hello", model: "gpt-5" }]), agent: "build" }}
@@ -204,7 +204,7 @@ describe("timeline surfaces", () => {
 
   test("an interrupted turn names the interruption", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={{
             ...chat([{ key: "a1", role: "assistant", text: "done", model: "gpt-5" }]),
@@ -219,7 +219,7 @@ describe("timeline surfaces", () => {
 
   test("each finished turn footer keeps its own duration and throughput", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "first", turn: { durationMs: 4200, tokensPerSecond: 12.3 } },
@@ -238,7 +238,7 @@ describe("timeline surfaces", () => {
 
   test("a turn without recorded step timing hides the throughput", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "hello" },
@@ -252,7 +252,7 @@ describe("timeline surfaces", () => {
 
   test("only the final assistant text offers copy", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "hello" },
@@ -270,7 +270,7 @@ describe("timeline surfaces", () => {
 
   test("a running turn hides the copy footer", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={{ ...chat([{ key: "a1", role: "assistant", text: "streaming" }]), running: true }}
         />
@@ -284,7 +284,7 @@ describe("timeline surfaces", () => {
     const onRevert = vi.fn();
     const onFork = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "first" },
@@ -316,7 +316,7 @@ describe("timeline surfaces", () => {
   test("the user message menu follows the selected language", async () => {
     setLanguage("zh");
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "first" },
@@ -347,7 +347,7 @@ describe("timeline surfaces", () => {
 
   test("the timeline has no visible user-message navigator", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "first" },
@@ -364,7 +364,7 @@ describe("timeline surfaces", () => {
 
   test("timeline renders websearch result links", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             {
@@ -389,7 +389,7 @@ describe("timeline surfaces", () => {
 
   test("the everything timeline separates reasoning and tools", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "r", role: "reasoning", text: "first line\nsecond line", live: false },
@@ -407,7 +407,7 @@ describe("timeline surfaces", () => {
 
   test("tool group expands from its Used summary", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "t1", role: "tool", tool: { id: "1", name: "read", arguments: "a", done: true } },
@@ -424,7 +424,7 @@ describe("timeline surfaces", () => {
   test("the header context ring reports usage and opens the details pane", async () => {
     const onOpenDetails = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <SessionHeader
           workspace="lingzhu"
           title="Session one"
@@ -455,7 +455,7 @@ describe("timeline surfaces", () => {
   test("session header menu runs an action", async () => {
     const onSelect = vi.fn();
     render(
-      <SessionHeader
+      () => <SessionHeader
         workspace="Project"
         title="Session one"
         actions={[{ id: "rename", label: "Rename…", onSelect }]}
@@ -469,7 +469,7 @@ describe("timeline surfaces", () => {
 
   test("user image attachments render a thumbnail while their bytes are known", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             {
@@ -489,7 +489,7 @@ describe("timeline surfaces", () => {
 
   test("file attachments render a two-line 160px card with a type label", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             {
@@ -514,7 +514,7 @@ describe("timeline surfaces", () => {
 
   test("a pending prompt keeps its menu and shows the Pending meta", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             {
@@ -537,7 +537,7 @@ describe("timeline surfaces", () => {
 
   test("adjacent prompts only join a run when agent and model match", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "one", agent: "build", model: "m1" },
@@ -562,7 +562,7 @@ describe("timeline surfaces", () => {
       text: `reply ${index}`,
     }));
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat(entries)} bottomInset={100} />
       </TooltipProvider>,
     );
@@ -576,7 +576,7 @@ describe("timeline surfaces", () => {
 
   test("prompt rows expose a message anchor for hash navigation", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([{ key: "u1", role: "user", text: "anchor me" }])} />
       </TooltipProvider>,
     );
@@ -598,7 +598,7 @@ describe("timeline surfaces", () => {
     (globalThis as { Highlight?: unknown }).Highlight = class { size = 1; add() {} };
     try {
       render(
-        <TooltipProvider>
+        () => <TooltipProvider>
           <Messages
             chat={chat([
               { key: "a1", role: "assistant", text: "needle here and needle again" },
@@ -609,7 +609,7 @@ describe("timeline surfaces", () => {
       );
       fireEvent.keyDown(window, { key: "f", ctrlKey: true });
       const field = await screen.findByLabelText("Search transcript");
-      fireEvent.change(field, { target: { value: "needle" } });
+      fireEvent.input(field, { target: { value: "needle" } });
       await waitFor(() => expect(added).toContain("timeline-search"));
       expect(added).toContain("timeline-search-active");
       expect(screen.getByText("1/3")).toBeTruthy();
@@ -628,7 +628,7 @@ describe("timeline surfaces", () => {
     }));
     const base = chat(entries);
     const { rerender } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={{ ...base, historyLimit: 20 }} onLoadOlder={onLoadOlder} />
       </TooltipProvider>,
     );
@@ -650,7 +650,7 @@ describe("timeline surfaces", () => {
 
   test("a retryable provider failure shows a retry card", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={{
             ...chat([{ key: "u1", role: "user", text: "first" }]),
@@ -666,7 +666,7 @@ describe("timeline surfaces", () => {
 
   test("a failed run shows the error card inside the timeline", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={{
             ...chat([{ key: "u1", role: "user", text: "first" }]),
@@ -681,7 +681,7 @@ describe("timeline surfaces", () => {
 
   test("long user messages fold with a read-more toggle", async () => {    const text = Array.from({ length: 14 }, (_, index) => `line ${index + 1}`).join("\n");
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([{ key: "u1", role: "user", text }])} />
       </TooltipProvider>,
     );
@@ -694,7 +694,7 @@ describe("timeline surfaces", () => {
   test("a subagent tool renders the task card and opens its child session", async () => {
     const onOpenSession = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           onOpenSession={onOpenSession}
           chat={chat([
@@ -727,7 +727,7 @@ describe("timeline surfaces", () => {
 
   test("a shell entry shows its command and output", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -746,7 +746,7 @@ describe("timeline surfaces", () => {
 
   test("reasoning shows its duration once finished", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             {
@@ -767,7 +767,7 @@ describe("timeline surfaces", () => {
 
   test("live reasoning shows its latest heading", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             {
@@ -799,7 +799,7 @@ describe("timeline surfaces", () => {
     running.running = true;
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={running} detail="compact" />
       </TooltipProvider>,
     );
@@ -810,7 +810,7 @@ describe("timeline surfaces", () => {
 
   test("reasoning body renders markdown", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -830,7 +830,7 @@ describe("timeline surfaces", () => {
 
   test("a failed shell entry names the exit code", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -848,7 +848,7 @@ describe("timeline surfaces", () => {
 
   test("timeline renders reasoning rows with Thought/Thinking labels", async () => {
     render(
-      <Messages
+      () => <Messages
         chat={chat([
           {
             key: "r1",

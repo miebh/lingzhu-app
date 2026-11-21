@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
 import type { AppSettings, SettingsInput } from "@lingzhu/ui/types";
@@ -11,11 +12,11 @@ interface Options {
 }
 
 export interface CoreConfig {
-  draft?: CoreDraft;
-  configPath: string;
-  settingsError?: string;
-  saveState: SaveState;
-  saveError?: string;
+  draft: Accessor<CoreDraft | undefined>;
+  configPath: Accessor<string>;
+  settingsError: Accessor<string | undefined>;
+  saveState: Accessor<SaveState>;
+  saveError: Accessor<string | undefined>;
   reload: () => void;
   dismissSaveError: () => void;
   update: (patch: Partial<CoreDraft>) => void;
@@ -28,22 +29,23 @@ export interface CoreConfig {
  * models dialog each mount their own copy; writes are queued so rapid edits
  * reach the host in order.
  */
-export function useCoreConfig({ onSaved }: Options): CoreConfig {
-  const [draft, setDraft] = useState<CoreDraft>();
-  const [configPath, setConfigPath] = useState("");
-  const [settingsError, setSettingsError] = useState<string>();
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [saveError, setSaveError] = useState<string>();
-  const [reloadKey, setReloadKey] = useState(0);
+export function useCoreConfig(options: Options): CoreConfig {
+  const [draft, setDraft] = createSignal<CoreDraft>();
+  const [configPath, setConfigPath] = createSignal("");
+  const [settingsError, setSettingsError] = createSignal<string>();
+  const [saveState, setSaveState] = createSignal<SaveState>("idle");
+  const [saveError, setSaveError] = createSignal<string>();
+  const [reloadKey, setReloadKey] = createSignal(0);
 
-  const draftRef = useRef<CoreDraft | undefined>(undefined);
-  const savedKey = useRef("");
-  const lastKey = useRef("");
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const onSavedRef = useRef(onSaved);
-  onSavedRef.current = onSaved;
+  const draftRef: { current: CoreDraft | undefined } = { current: undefined };
+  const savedKey = { current: "" };
+  const lastKey = { current: "" };
+  const queue = { current: Promise.resolve() as Promise<void> };
+  const onSavedRef = { current: options.onSaved };
+  onSavedRef.current = options.onSaved;
 
-  useEffect(() => {
+  createEffect(() => {
+    reloadKey();
     let alive = true;
     setDraft(undefined);
     setSettingsError(undefined);
@@ -63,19 +65,19 @@ export function useCoreConfig({ onSaved }: Options): CoreConfig {
         if (alive) setSettingsError(messageOf(cause));
       });
 
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [reloadKey]);
+    });
+  });
 
   // A successful save is acknowledged briefly instead of by a toast per field.
-  useEffect(() => {
-    if (saveState !== "saved") return;
+  createEffect(() => {
+    if (saveState() !== "saved") return;
     const timer = window.setTimeout(() => setSaveState("idle"), 2000);
-    return () => window.clearTimeout(timer);
-  }, [saveState]);
+    onCleanup(() => window.clearTimeout(timer));
+  });
 
-  const queueSave = useCallback((next: CoreDraft) => {
+  const queueSave = (next: CoreDraft) => {
     const result = toPayload(next);
     if (result.error) {
       lastKey.current = savedKey.current;
@@ -140,35 +142,32 @@ export function useCoreConfig({ onSaved }: Options): CoreConfig {
         setSaveError(messageOf(cause));
       }
     });
-  }, []);
+  };
 
-  const update = useCallback((patch: Partial<CoreDraft>) => {
+  const updateDraft = (patch: Partial<CoreDraft>) => {
     const current = draftRef.current;
     if (!current) return;
     const next = { ...current, ...patch };
     draftRef.current = next;
     setDraft(next);
-  }, []);
+  };
 
-  const commit = useCallback(() => {
+  const commit = () => {
     const current = draftRef.current;
     if (current) queueSave(current);
-  }, [queueSave]);
+  };
 
-  const updateAndCommit = useCallback(
-    (patch: Partial<CoreDraft>) => {
-      const current = draftRef.current;
-      if (!current) return;
-      const next = { ...current, ...patch };
-      draftRef.current = next;
-      setDraft(next);
-      queueSave(next);
-    },
-    [queueSave],
-  );
+  const updateAndCommit = (patch: Partial<CoreDraft>) => {
+    const current = draftRef.current;
+    if (!current) return;
+    const next = { ...current, ...patch };
+    draftRef.current = next;
+    setDraft(next);
+    queueSave(next);
+  };
 
-  const reload = useCallback(() => setReloadKey((value) => value + 1), []);
-  const dismissSaveError = useCallback(() => setSaveError(undefined), []);
+  const reload = () => update(setReloadKey, reloadKey, (value) => value + 1);
+  const dismissSaveError = () => setSaveError(undefined);
 
   return {
     draft,
@@ -178,7 +177,7 @@ export function useCoreConfig({ onSaved }: Options): CoreConfig {
     saveError,
     reload,
     dismissSaveError,
-    update,
+    update: updateDraft,
     commit,
     updateAndCommit,
   };
@@ -352,7 +351,10 @@ function optionalNumber(text: string | undefined, label: string, integer = false
   return value;
 }
 
-function costFromDraft(entry: { inputCost?: string; outputCost?: string; cacheReadCost?: string; cacheWriteCost?: string }, modelID: string) {
+function costFromDraft(
+  entry: { inputCost?: string; outputCost?: string; cacheReadCost?: string; cacheWriteCost?: string },
+  modelID: string,
+) {
   const input = optionalNumber(entry.inputCost, `Model ${modelID} input cost`);
   const output = optionalNumber(entry.outputCost, `Model ${modelID} output cost`);
   const cacheRead = optionalNumber(entry.cacheReadCost, `Model ${modelID} cache read cost`);

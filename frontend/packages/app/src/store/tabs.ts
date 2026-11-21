@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createStore } from "./create";
 import type { ClosedSideTab, SideTab } from "../lib/sessionTabs";
 import { workspaceName } from "../lib/history";
 import { planTabDelete, removeTabsForSessions } from "../lib/sessionTabs";
@@ -52,7 +52,7 @@ interface TabsStore {
   markSeen: (seen: Record<string, string>) => void;
 }
 
-export const useTabsStore = create<TabsStore>((set, get) => ({
+export const useTabsStore = createStore<TabsStore>((set, get) => ({
   tabs: readTabs(),
   closed: [],
   seen: {},

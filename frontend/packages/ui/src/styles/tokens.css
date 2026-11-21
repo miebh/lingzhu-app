@@ -132,7 +132,7 @@
   --color-state-fg-info: var(--state-fg-info);
   --color-state-border-info: var(--state-border-info);
 
-  /* Aliases used by shadcn/ui primitives, mapped onto the same slots. */
+  /* Base-layer aliases, mapped onto the same slots. */
   --color-background: var(--bg-base);
   --color-foreground: var(--fg-base);
 }

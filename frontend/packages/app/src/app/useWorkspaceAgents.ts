@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { api } from "../lib/api";
 import type { AgentProfile, SlashCommand, WorkspaceInfo } from "@lingzhu/ui/types";
 import { useWorkspaceStore } from "../store/workspaces";
@@ -8,20 +8,24 @@ import { useWorkspaceStore } from "../store/workspaces";
  * the life of the core, so it reloads only when the workspace changes or the
  * composer's Reload action asks for it.
  */
-export function useWorkspaceAgents(workspace?: WorkspaceInfo) {
-  const [commands, setCommands] = useState<SlashCommand[]>([]);
-  const [agents, setAgents] = useState<AgentProfile[]>([]);
-  const [defaultAgent, setDefaultAgent] = useState("");
-  const [homeAgent, setHomeAgent] = useState("");
+export function useWorkspaceAgents(workspace: Accessor<WorkspaceInfo | undefined>) {
+  const [commands, setCommands] = createSignal<SlashCommand[]>([]);
+  const [agents, setAgents] = createSignal<AgentProfile[]>([]);
+  const [defaultAgent, setDefaultAgent] = createSignal("");
+  const [homeAgent, setHomeAgent] = createSignal("");
 
-  useEffect(() => {
-    const path = workspace?.path;
-    if (!path || !workspace?.connected) {
+  createEffect(() => {
+    const current = workspace();
+    const path = current?.path;
+    if (!path || !current?.connected) {
       setCommands([]);
       setAgents([]);
       return;
     }
     let cancelled = false;
+    onCleanup(() => {
+      cancelled = true;
+    });
     api
       .commands(path)
       .then((items) => {
@@ -45,14 +49,11 @@ export function useWorkspaceAgents(workspace?: WorkspaceInfo) {
         if (cancelled) return;
         setAgents([]);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [workspace?.path, workspace?.connected]);
+  });
 
   /** Re-reads plugins and agents, then refreshes the workspace session list. */
   const reload = async () => {
-    const path = workspace?.path;
+    const path = workspace()?.path;
     if (!path) return;
     const [commandList, catalog] = await Promise.all([api.commands(path), api.agents(path)]);
     setCommands(commandList ?? []);

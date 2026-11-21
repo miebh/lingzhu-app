@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Clipboard, Download, FolderOpen, Save, Upload } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -28,19 +28,19 @@ function unwrap(text: string): SessionBundle {
 }
 
 /** Exports one session's bundle/Markdown and imports pasted bundles. */
-export function TransferDialog({ open, workspace, sessionID, title, onOpenChange, onImported }: Props) {
+export function TransferDialog(props: Props) {
   const tr = useT();
-  const [bundle, setBundle] = useState<SessionBundle>();
-  const [exportText, setExportText] = useState("");
-  const [importText, setImportText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [copied, setCopied] = useState("");
+  const [bundle, setBundle] = createSignal<SessionBundle>();
+  const [exportText, setExportText] = createSignal("");
+  const [importText, setImportText] = createSignal("");
+  const [loading, setLoading] = createSignal(false);
+  const [importing, setImporting] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
+  const [copied, setCopied] = createSignal("");
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!props.open) {
       setBundle(undefined);
       setExportText("");
       setImportText("");
@@ -49,6 +49,8 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
       setCopied("");
       return;
     }
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     let alive = true;
     setLoading(true);
@@ -66,10 +68,10 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
       .finally(() => {
         if (alive) setLoading(false);
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [open, workspace, sessionID]);
+    });
+  });
 
   const copy = async (kind: string, value: string) => {
     try {
@@ -82,6 +84,8 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
   };
 
   const copyMarkdown = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     try {
       const markdown = await api.exportMarkdown(workspace, sessionID);
@@ -92,14 +96,14 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
   };
 
   const fileName = (extension: string) => {
-    const base = (title || sessionID || "session").replace(/[\\/:*?"<>|]+/g, "-").trim();
+    const base = (props.title || props.sessionID || "session").replace(/[\\/:*?"<>|]+/g, "-").trim();
     return `${base || "session"}.${extension}`;
   };
 
   const saveBundle = async () => {
-    if (!exportText) return;
+    if (!exportText()) return;
     try {
-      const path = await api.saveTextFile(fileName("json"), exportText);
+      const path = await api.saveTextFile(fileName("json"), exportText());
       if (path) setNotice(`Saved ${path}`);
     } catch (err) {
       setError(messageOf(err));
@@ -107,6 +111,8 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
   };
 
   const saveMarkdown = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     try {
       const markdown = await api.exportMarkdown(workspace, sessionID);
@@ -131,18 +137,18 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
   };
 
   const runImport = async () => {
-    if (!workspace) return;
-    if (!importText.trim()) {
+    if (!props.workspace) return;
+    if (!importText().trim()) {
       setError("Paste a session bundle first.");
       return;
     }
     setImporting(true);
     try {
-      const info = await api.importBundle(workspace, unwrap(importText));
+      const info = await api.importBundle(props.workspace, unwrap(importText()));
       setImportText("");
       setError("");
       setNotice(`Imported ${info.title || info.id}`);
-      onImported?.(info);
+      props.onImported?.(info);
     } catch (err) {
       setNotice("");
       setError(messageOf(err));
@@ -152,46 +158,46 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
         <div>
-          <DialogTitle className="flex items-center gap-2">
-            <Download className="size-4 text-text-faint" />
+          <DialogTitle class="flex items-center gap-2">
+            <Download class="size-4 text-text-faint" />
             {tr("dialogSessionTransfer")}
           </DialogTitle>
-          <DialogDescription className="truncate">
-            {sessionID ? `${title || sessionID} · ` : ""}
+          <DialogDescription class="truncate">
+            {props.sessionID ? `${props.title || props.sessionID} · ` : ""}
             Save or copy a session bundle out, load a file, or paste one in
           </DialogDescription>
         </div>
 
-        <ErrorBanner error={error} />
-        <NoticeBanner notice={notice} shrink />
+        <ErrorBanner error={error()} />
+        <NoticeBanner notice={notice()} shrink />
 
-        <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
-          {sessionID && (
-            <section className="flex min-h-0 flex-col">
-              <div className="flex shrink-0 items-center gap-2">
-                <p className="text-body text-text-base">Export</p>
-                <span className="text-caption text-text-faint">
-                  {bundle ? `${bundle.events.length} events` : loading ? "loading…" : ""}
+        <div class="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
+          <Show when={props.sessionID}>
+            <section class="flex min-h-0 flex-col">
+              <div class="flex shrink-0 items-center gap-2">
+                <p class="text-body text-text-base">Export</p>
+                <span class="text-caption text-text-faint">
+                  {bundle() ? `${bundle()!.events.length} events` : loading() ? "loading…" : ""}
                 </span>
-                <span className="ml-auto flex items-center gap-2">
+                <span class="ml-auto flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="xs"
-                    disabled={!exportText}
-                    onClick={() => void copy("json", exportText)}
+                    disabled={!exportText()}
+                    onClick={() => void copy("json", exportText())}
                   >
                     <Clipboard />
-                    {copied === "json" ? "Copied" : "Copy JSON"}
+                    {copied() === "json" ? "Copied" : "Copy JSON"}
                   </Button>
                   <Button type="button" variant="outline" size="xs" onClick={() => void copyMarkdown()}>
                     <Download />
-                    {copied === "markdown" ? "Copied" : "Copy Markdown"}
+                    {copied() === "markdown" ? "Copied" : "Copy Markdown"}
                   </Button>
-                  <Button type="button" variant="outline" size="xs" disabled={!exportText} onClick={() => void saveBundle()}>
+                  <Button type="button" variant="outline" size="xs" disabled={!exportText()} onClick={() => void saveBundle()}>
                     <Save />
                     {tr("dialogSaveJson")}
                   </Button>
@@ -203,35 +209,35 @@ export function TransferDialog({ open, workspace, sessionID, title, onOpenChange
               </div>
               <textarea
                 readOnly
-                value={exportText}
+                value={exportText()}
                 aria-label={tr("transferSessionBundleJSON")}
-                placeholder={loading ? "Loading bundle…" : "Open a session to export"}
-                className="mt-2 min-h-40 resize-y rounded-md border border-border-base bg-bg-layer-01 p-2 font-mono text-caption leading-5 text-text-muted outline-none select-text"
+                placeholder={loading() ? "Loading bundle…" : "Open a session to export"}
+                class="mt-2 min-h-40 resize-y rounded-md border border-border-base bg-bg-layer-01 p-2 font-mono text-caption leading-5 text-text-muted outline-none select-text"
               />
             </section>
-          )}
+          </Show>
 
-          <section className="flex min-h-0 flex-col">
-            <div className="flex shrink-0 items-center gap-2">
-              <p className="text-body text-text-base">Import</p>
-              <span className="text-caption text-text-faint">Load a bundle JSON or paste one</span>
-              <span className="ml-auto flex items-center gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={importing} onClick={() => void loadBundle()}>
+          <section class="flex min-h-0 flex-col">
+            <div class="flex shrink-0 items-center gap-2">
+              <p class="text-body text-text-base">Import</p>
+              <span class="text-caption text-text-faint">Load a bundle JSON or paste one</span>
+              <span class="ml-auto flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={importing()} onClick={() => void loadBundle()}>
                   <FolderOpen />
                   {tr("dialogLoadFile")}
                 </Button>
-                <Button type="button" size="sm" disabled={importing} onClick={() => void runImport()}>
+                <Button type="button" size="sm" disabled={importing()} onClick={() => void runImport()}>
                   <Upload />
-                  {importing ? "Importing…" : "Import session"}
+                  {importing() ? "Importing…" : "Import session"}
                 </Button>
               </span>
             </div>
             <textarea
-              value={importText}
+              value={importText()}
               aria-label={tr("transferImportBundleJSON")}
-              onChange={(event) => setImportText(event.target.value)}
+              onInput={(event) => setImportText(event.currentTarget.value)}
               placeholder='{"id":"s-...","title":"...","events":[...]}'
-              className="mt-2 min-h-40 flex-1 resize-y rounded-md border border-border-base bg-bg-base p-2 font-mono text-caption leading-5 text-text-base outline-none select-text"
+              class="mt-2 min-h-40 flex-1 resize-y rounded-md border border-border-base bg-bg-base p-2 font-mono text-caption leading-5 text-text-base outline-none select-text"
             />
           </section>
         </div>

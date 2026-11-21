@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
@@ -34,7 +34,7 @@ describe("jobs and activity surfaces", () => {
     });
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <SessionActivityChips workspace="/w" sessionID="s1" onOpenSubagent={() => undefined} />
       </TooltipProvider>,
     );
@@ -83,7 +83,7 @@ describe("jobs and activity surfaces", () => {
     });
 
     render(
-      <JobsDialog open workspace="/w" sessionID="s1" title="Session one" onOpenChange={() => undefined} />,
+      () => <JobsDialog open workspace="/w" sessionID="s1" title="Session one" onOpenChange={() => undefined} />,
     );
 
     const commands = await screen.findAllByText(/^npm (run dev|test)$/);
@@ -106,7 +106,7 @@ describe("jobs and activity surfaces", () => {
     ]);
     const onOpenSubagent = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <SessionActivityChips
           workspace="/w"
           sessionID="s1"

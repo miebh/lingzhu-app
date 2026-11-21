@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { createEffect, createMemo, createSignal, createUniqueId, For, Match, onCleanup, Show, splitProps, Switch, type Accessor, type JSX } from "solid-js";
 import {
   Code,
   ChevronsUpDown,
@@ -48,7 +48,7 @@ interface ToolSpec {
   file?: boolean;
   subtitle?: (tool: ToolRun, args: Args) => string;
   args?: (tool: ToolRun, args: Args) => string[];
-  render?: (tool: ToolRun, context: ToolRenderContext) => ReactNode;
+  render?: (tool: Accessor<ToolRun>, context: ToolRenderContext) => JSX.Element;
 }
 
 interface ToolRenderContext {
@@ -217,14 +217,14 @@ function matchCount(tool: ToolRun, output: string): number | undefined {
 interface BasicToolProps {
   id?: string;
   title?: string;
-  titleNode?: ReactNode;
-  trigger?: ReactNode | ((open: boolean) => ReactNode);
+  titleNode?: JSX.Element;
+  trigger?: JSX.Element | ((open: boolean) => JSX.Element);
   subtitle?: string;
-  subtitleNode?: ReactNode;
+  subtitleNode?: JSX.Element;
   subtitleClass?: string;
   args?: string[];
-  trailing?: ReactNode;
-  action?: ReactNode;
+  trailing?: JSX.Element;
+  action?: JSX.Element;
   status?: string;
   pending?: boolean;
   allowOpenWhilePending?: boolean;
@@ -244,12 +244,13 @@ interface BasicToolProps {
   onTriggerClick?: () => void;
   /** A locked row shows its content without offering a collapse affordance. */
   locked?: boolean;
-  children?: ReactNode;
+  children?: JSX.Element;
 }
 
-function TriangleDown({ className, ...rest }: React.SVGProps<SVGSVGElement>) {
+function TriangleDown(props: JSX.SvgSVGAttributes<SVGSVGElement>) {
+  const [local, rest] = splitProps(props, ["class", "children"]);
   return (
-    <svg viewBox="0 0 16 16" aria-hidden="true" className={className} {...rest}>
+    <svg viewBox="0 0 16 16" aria-hidden="true" class={local.class} {...rest}>
       <path d="M4 6.25 8 10l4-3.75H4Z" fill="currentColor" />
     </svg>
   );
@@ -264,52 +265,59 @@ function ToolArrow() {
 }
 
 export function BasicTool(props: BasicToolProps) {
-  const generatedID = useId();
+  const generatedID = createUniqueId();
   const key = props.id ?? generatedID;
   const [storedOpen, setStoredOpen] = useDisclosure(key, props.defaultOpen ?? false);
-  const pending = props.pending ?? (props.status === "streaming" || props.status === "running");
-  const view = disclosureView({
-    stored: storedOpen,
-    open: props.open,
-    forceOpen: props.forceOpen,
-    hasContent: props.hasContent,
-    hasChildren: Boolean(props.children),
-    locked: props.locked,
-    pending,
-    allowOpenWhilePending: props.allowOpenWhilePending,
-  });
-  const { open, expandable, canToggle } = view;
+  const pending = createMemo(() => props.pending ?? (props.status === "streaming" || props.status === "running"));
+  const view = createMemo(() =>
+    disclosureView({
+      stored: storedOpen(),
+      open: props.open,
+      forceOpen: props.forceOpen,
+      hasContent: props.hasContent,
+      hasChildren: Boolean(props.children),
+      locked: props.locked,
+      pending: pending(),
+      allowOpenWhilePending: props.allowOpenWhilePending,
+    }),
+  );
+  const open = () => view().open;
+  const expandable = () => view().expandable;
+  const canToggle = () => view().canToggle;
   // A mounted body keeps its diff scroll, image state and disclosure children
   // alive when the row collapses, as the reference Collapsible does.
-  const [mounted, setMounted] = useState(open);
+  const [mounted, setMounted] = createSignal(open());
 
-  useEffect(() => {
-    if (open) setMounted(true);
-  }, [open]);
+  createEffect(() => {
+    if (open()) setMounted(true);
+  });
 
   const toggle = () => {
-    if (!canToggle) return;
-    const next = !open;
+    if (!canToggle()) return;
+    const next = !open();
     setStoredOpen(next);
     props.onOpenChange?.(next);
   };
 
-  const interactiveButton = !props.locked && (props.clickable || expandable);
+  const interactiveButton = () => !props.locked && Boolean(props.clickable || expandable());
 
   const trigger = (
     <div
       data-slot="collapsible-trigger"
       data-locked={props.locked ? "true" : undefined}
       data-hide-details={props.hideDetails ? "true" : undefined}
-      aria-expanded={expandable ? open : undefined}
+      aria-expanded={expandable() ? open() : undefined}
       aria-label={props.ariaLabel}
-      role={interactiveButton ? "button" : undefined}
-      tabIndex={interactiveButton ? 0 : undefined}
-      onClick={props.locked ? undefined : (props.onTriggerClick ?? toggle)}
+      role={interactiveButton() ? "button" : undefined}
+      tabIndex={interactiveButton() ? 0 : undefined}
+      onClick={() => {
+        if (props.locked) return;
+        (props.onTriggerClick ?? toggle)();
+      }}
       onKeyDown={(event) => {
         if (props.locked) return;
         if (event.key !== "Enter" && event.key !== " ") return;
-        if (!expandable) {
+        if (!expandable()) {
           if (!props.onTriggerClick) return;
           event.preventDefault();
           props.onTriggerClick();
@@ -323,23 +331,22 @@ export function BasicTool(props: BasicToolProps) {
         <div data-slot="basic-tool-tool-trigger-content">
           <div data-slot="basic-tool-tool-info">
             {props.trigger ? (
-              typeof props.trigger === "function" ? props.trigger(open) : props.trigger
+              typeof props.trigger === "function" ? props.trigger(open()) : props.trigger
             ) : (
               <div data-slot="basic-tool-tool-info-structured">
                 <div data-slot="basic-tool-tool-info-main">
                   {props.titleNode ?? (
                     <span data-slot="basic-tool-tool-title">
-                      <TextShimmer text={props.title ?? ""} active={pending} />
+                      <TextShimmer text={props.title ?? ""} active={pending()} />
                     </span>
                   )}
                   {props.subtitleNode ? (
-                    !(props.hideSubtitleWhenOpen && open) && props.subtitleNode
+                    <Show when={!(props.hideSubtitleWhenOpen && open())}>{props.subtitleNode}</Show>
                   ) : (
-                    props.subtitle &&
-                    !(props.hideSubtitleWhenOpen && open) && (
+                    <Show when={props.subtitle && !(props.hideSubtitleWhenOpen && open())}>
                       <span
                         data-slot="basic-tool-tool-subtitle"
-                        className={cn(props.subtitleClass, props.onSubtitleClick && "clickable")}
+                        class={cn(props.subtitleClass, props.onSubtitleClick && "clickable")}
                         onClick={(event) => {
                           if (!props.onSubtitleClick) return;
                           event.stopPropagation();
@@ -348,20 +355,20 @@ export function BasicTool(props: BasicToolProps) {
                       >
                         {props.subtitle}
                       </span>
-                    )
+                    </Show>
                   )}
-                  {props.args?.map((arg) => (
-                    <span key={arg} data-slot="basic-tool-tool-arg">
-                      {arg}
-                    </span>
-                  ))}
+                  <For each={props.args ?? []}>
+                    {(arg) => <span data-slot="basic-tool-tool-arg">{arg}</span>}
+                  </For>
                   {props.trailing}
                 </div>
               </div>
             )}
           </div>
         </div>
-        {expandable && !props.hideDetails && !props.locked && <ToolArrow />}
+        <Show when={expandable() && !props.hideDetails && !props.locked}>
+          <ToolArrow />
+        </Show>
       </div>
     </div>
   );
@@ -374,54 +381,56 @@ export function BasicTool(props: BasicToolProps) {
       data-rail={props.rail === false ? "false" : undefined}
       data-has-action={props.action ? "true" : undefined}
       data-locked={props.locked ? "true" : undefined}
-      className="tool-collapsible"
+      class="tool-collapsible"
     >
-      {props.triggerAsLink ? (
-        <a
-          data-slot="collapsible-trigger"
-          href={props.triggerAsLink}
-          onClick={(event) => {
-            if (!props.onTriggerClick) return;
-            event.preventDefault();
-            props.onTriggerClick();
-          }}
-        >
-          {trigger}
-        </a>
-      ) : (
-        trigger
-      )}
-      {props.action && <span data-slot="basic-tool-action">{props.action}</span>}
-      {expandable && !props.hideDetails && mounted && (
-        <div data-slot="collapsible-content" data-expanded={open ? "true" : undefined} hidden={!open}>
+      <Show when={props.triggerAsLink} fallback={trigger}>
+        {(href) => (
+          <a
+            data-slot="collapsible-trigger"
+            href={href()}
+            onClick={(event) => {
+              if (!props.onTriggerClick) return;
+              event.preventDefault();
+              props.onTriggerClick();
+            }}
+          >
+            {trigger}
+          </a>
+        )}
+      </Show>
+      <Show when={props.action}>
+        <span data-slot="basic-tool-action">{props.action}</span>
+      </Show>
+      <Show when={expandable() && !props.hideDetails && mounted()}>
+        <div data-slot="collapsible-content" data-expanded={open() ? "true" : undefined} hidden={!open()}>
           {props.children}
         </div>
-      )}
+      </Show>
     </div>
   );
 }
 
-function AnimatedNumber({ value }: { value: number }) {
-  const [shown, setShown] = useState(value);
-  const from = useRef(value);
-  const frame = useRef<number | undefined>(undefined);
+function AnimatedNumber(props: { value: number }) {
+  const [shown, setShown] = createSignal(props.value);
+  let from = props.value;
 
-  useEffect(() => {
+  createEffect(() => {
+    const target = props.value;
     const start = performance.now();
-    const initial = from.current;
-    const target = value;
+    const initial = from;
+    let frame = 0;
     const step = (now: number) => {
       const progress = Math.min(1, (now - start) / 180);
       setShown(Math.round(initial + (target - initial) * progress));
-      if (progress < 1) frame.current = requestAnimationFrame(step);
-      else from.current = target;
+      if (progress < 1) frame = requestAnimationFrame(step);
+      else from = target;
     };
-    cancelAnimationFrame(frame.current ?? 0);
-    frame.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame.current ?? 0);
-  }, [value]);
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(step);
+    onCleanup(() => cancelAnimationFrame(frame));
+  });
 
-  return <span data-slot="context-tool-group-count">{shown}</span>;
+  return <span data-slot="context-tool-group-count">{shown()}</span>;
 }
 
 interface DiffRow {
@@ -596,84 +605,78 @@ function filesOf(tools: ToolRun[]): FileDiff[] {
 
 /**
  * One diff or source line. Tokenizing is the expensive part of a diff row and
- * a line's text never changes, so the component memoizes on its two props;
+ * a line's text never changes, so the output is memoized on its two props;
  * without that, scrolling a long patch re-tokenizes every mounted line.
  */
-const SyntaxText = memo(function SyntaxText({ text, language }: { text: string; language: string }) {
+function SyntaxText(props: { text: string; language: string }) {
   return (
-    <>
-      {tokenize(text, language).map((token, index) =>
+    <For each={tokenize(props.text, props.language)}>
+      {(token) =>
         token.kind ? (
-          <span key={index} className={`tok-${token.kind}`}>
-            {token.text}
-          </span>
+          <span class={`tok-${token.kind}`}>{token.text}</span>
         ) : (
-          <span key={index}>{token.text}</span>
-        ),
-      )}
-    </>
+          <span>{token.text}</span>
+        )
+      }
+    </For>
   );
-});
+}
 
 /**
  * A source block with one shared number gutter. Code and output sit in
  * sections of the same width, so their content starts on the same column.
  */
-function NumberedSource({
-  text,
-  language,
-  digits,
-  slot,
-}: {
-  text: string;
-  language: string;
-  digits: number;
-  slot: string;
-}) {
-  const lines = text.split("\n");
+function NumberedSource(props: { text: string; language: string; digits: number; slot: string }) {
+  const lines = () => props.text.split("\n");
   return (
-    <pre data-slot={slot} data-numbered="true">
+    <pre data-slot={props.slot} data-numbered="true">
       <code>
-        {lines.map((line, index) => (
-          <span key={index} data-slot="source-line">
-            <span data-slot="source-number" style={{ width: `${digits}ch` }}>
-              {index + 1}
+        <For each={lines()}>
+          {(line, index) => (
+            <span data-slot="source-line">
+              <span data-slot="source-number" style={{ width: `${props.digits}ch` }}>
+                {index() + 1}
+              </span>
+              <span data-slot="source-text">
+                <SyntaxText text={line || " "} language={props.language} />
+              </span>
             </span>
-            <span data-slot="source-text">
-              <SyntaxText text={line || " "} language={language} />
-            </span>
-          </span>
-        ))}
+          )}
+        </For>
       </code>
     </pre>
   );
 }
 
-function DiffLine({ row, language }: { row: DiffRow; language: string }) {
-  if (row.kind === "hunk") {
-    return (
-      <div data-slot="diff-hunk">
-        <span className="w-10 shrink-0" />
-        <span className="w-3 shrink-0" />
-        <span className="whitespace-pre">{row.text}</span>
-      </div>
-    );
-  }
-
-  const added = row.kind === "add";
-  const removed = row.kind === "remove";
-
+function DiffLine(props: { row: DiffRow; language: string }) {
   return (
-    <div data-slot="diff-line" data-kind={row.kind}>
-      <span className="w-10 shrink-0 text-right tabular-nums select-none">{added ? row.next : row.old ?? ""}</span>
-      <span className="diff-marker">
-        {added && <span data-kind="add" />}
-        {removed && <span data-kind="remove" />}
-      </span>
-      <span className="min-w-0 flex-1 select-text">
-        <SyntaxText text={row.text || " "} language={language} />
-      </span>
-    </div>
+    <Show
+      when={props.row.kind !== "hunk"}
+      fallback={
+        <div data-slot="diff-hunk">
+          <span class="w-10 shrink-0" />
+          <span class="w-3 shrink-0" />
+          <span class="whitespace-pre">{props.row.text}</span>
+        </div>
+      }
+    >
+      <div data-slot="diff-line" data-kind={props.row.kind}>
+        <span class="w-10 shrink-0 text-right tabular-nums select-none">
+          {props.row.kind === "add" ? props.row.next : (props.row.old ?? "")}
+        </span>
+        <span class="diff-marker">
+          <Show when={props.row.kind === "add"}>
+            <span data-kind="add" />
+          </Show>
+          <Show when={props.row.kind === "remove"}>
+            <span data-kind="remove" />
+          </Show>
+        </span>
+        <span class="min-w-0 flex-1 select-text">
+          <SyntaxText text={props.row.text || " "} language={props.language} />
+        </span>
+      </div>
+    </Show>
   );
 }
 
@@ -682,28 +685,29 @@ const DIFF_VIEWPORT = 320;
 const DIFF_WINDOW = 200;
 
 /** Long diffs render a fixed 24px window so a large patch stays cheap to mount. */
-function FileDiffRows({ file }: { file: FileDiff }) {
-  const [scrollTop, setScrollTop] = useState(0);
-  const language = languageOf(file.path);
-  const pierre = diffAvailable() && Boolean(file.patch);
-  if (file.rows.length === 0) return null;
+function FileDiffRows(props: { file: FileDiff }) {
+  const [scrollTop, setScrollTop] = createSignal(0);
+  const language = () => languageOf(props.file.path);
+  const pierre = () => diffAvailable() && Boolean(props.file.patch);
 
-  if (pierre) return <PierreDiff path={file.path} patch={file.patch} />;
+  if (props.file.rows.length === 0) return null;
 
-  if (file.rows.length <= DIFF_WINDOW) {
+  if (pierre()) return <PierreDiff path={props.file.path} patch={props.file.patch} />;
+
+  if (props.file.rows.length <= DIFF_WINDOW) {
     return (
       <div data-slot="diff-scroll">
-        {file.rows.map((row, index) => (
-          <DiffLine key={index} row={row} language={language} />
-        ))}
+        <For each={props.file.rows}>
+          {(row) => <DiffLine row={row} language={language()} />}
+        </For>
       </div>
     );
   }
 
-  const total = file.rows.length * DIFF_LINE_HEIGHT;
-  const start = Math.max(0, Math.floor(scrollTop / DIFF_LINE_HEIGHT) - 8);
+  const total = props.file.rows.length * DIFF_LINE_HEIGHT;
+  const start = () => Math.max(0, Math.floor(scrollTop() / DIFF_LINE_HEIGHT) - 8);
   const visible = Math.ceil(DIFF_VIEWPORT / DIFF_LINE_HEIGHT) + 16;
-  const end = Math.min(file.rows.length, start + visible);
+  const end = () => Math.min(props.file.rows.length, start() + visible);
 
   return (
     <div
@@ -711,92 +715,92 @@ function FileDiffRows({ file }: { file: FileDiff }) {
       data-virtualized="true"
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >
-      <div style={{ height: total, position: "relative" }}>
-        <div style={{ position: "absolute", insetInline: 0, top: start * DIFF_LINE_HEIGHT }}>
-          {file.rows.slice(start, end).map((row, index) => (
-            <DiffLine key={start + index} row={row} language={language} />
-          ))}
+      <div style={{ height: `${total}px`, position: "relative" }}>
+        <div style={{ position: "absolute", "inset-inline": 0, top: `${start() * DIFF_LINE_HEIGHT}px` }}>
+          <For each={props.file.rows.slice(start(), end())}>
+            {(row) => <DiffLine row={row} language={language()} />}
+          </For>
         </div>
       </div>
     </div>
   );
 }
 
-function FileRow({
-  file,
-  groupKey,
-  detail,
-  first,
-}: {
-  file: FileDiff;
-  groupKey: string;
-  detail: TimelineDetail;
-  first: boolean;
-}) {
-  const path = splitPath(file.path);
-  const expandable = file.rows.length > 0;
+function FileRow(props: { file: FileDiff; groupKey: string; detail: TimelineDetail; first: boolean }) {
+  const path = () => splitPath(props.file.path);
+  const expandable = () => props.file.rows.length > 0;
   // Each change row keys its own slice. Keying by path alone made every row for
   // the same file share one disclosure, so opening one expanded them all.
-  const [open, setOpen] = useDisclosure(`${groupKey}:file:${file.id}`, detail.edit.details === "expanded");
+  const [open, setOpen] = useDisclosure(`${props.groupKey}:file:${props.file.id}`, props.detail.edit.details === "expanded");
 
   return (
     <div
       data-slot="accordion-item"
-      data-type={file.status}
-      data-expanded={open ? "" : undefined}
-      data-closed={!open ? "" : undefined}
-      data-first={first ? "true" : undefined}
+      data-type={props.file.status}
+      data-expanded={open() ? "" : undefined}
+      data-closed={!open() ? "" : undefined}
+      data-first={props.first ? "true" : undefined}
     >
       <h3
         data-slot="accordion-header"
         data-component="sticky-accordion-header"
-        data-expanded={open ? "" : undefined}
-        data-closed={!open ? "" : undefined}
+        data-expanded={open() ? "" : undefined}
+        data-closed={!open() ? "" : undefined}
       >
         <button
           type="button"
           data-slot="accordion-trigger"
-          data-expanded={open ? "" : undefined}
-          data-closed={!open ? "" : undefined}
-          aria-expanded={expandable ? open : undefined}
-          onClick={() => expandable && setOpen(!open)}
-          className={cn(!expandable && "cursor-default")}
+          data-expanded={open() ? "" : undefined}
+          data-closed={!open() ? "" : undefined}
+          aria-expanded={expandable() ? open() : undefined}
+          onClick={() => expandable() && setOpen(!open())}
+          class={cn(!expandable() && "cursor-default")}
         >
           <span data-slot="apply-patch-trigger-content">
             <span data-slot="apply-patch-file-info">
-              <FileTypeIcon path={file.path} />
+              <FileTypeIcon path={props.file.path} />
               <span data-slot="apply-patch-file-name-container">
-                {path.directory && <span data-slot="apply-patch-directory">{path.directory}</span>}
-                <span data-slot="apply-patch-filename">{path.name}</span>
+                <Show when={path().directory}>
+                  <span data-slot="apply-patch-directory">{path().directory}</span>
+                </Show>
+                <span data-slot="apply-patch-filename">{path().name}</span>
               </span>
             </span>
             <span data-slot="apply-patch-trigger-actions">
-              {file.status === "added" ? (
+              <Show
+                when={props.file.status === "added"}
+                fallback={
+                  <Show
+                    when={props.file.status === "deleted"}
+                    fallback={
+                      <span data-component="diff-changes" data-appearance="standard">
+                        <span data-slot="diff-changes-additions">+{props.file.added}</span>
+                        <span data-slot="diff-changes-deletions">-{props.file.removed}</span>
+                      </span>
+                    }
+                  >
+                    <span data-slot="apply-patch-change" data-type="removed">
+                      Deleted
+                    </span>
+                  </Show>
+                }
+              >
                 <span data-slot="apply-patch-change" data-type="added">
                   Created
                 </span>
-              ) : file.status === "deleted" ? (
-                <span data-slot="apply-patch-change" data-type="removed">
-                  Deleted
-                </span>
-              ) : (
-                <span data-component="diff-changes" data-appearance="standard">
-                  <span data-slot="diff-changes-additions">+{file.added}</span>
-                  <span data-slot="diff-changes-deletions">-{file.removed}</span>
-                </span>
-              )}
-              <ChevronsUpDown className="size-3.5 text-text-faint" />
+              </Show>
+              <ChevronsUpDown class="size-3.5 text-text-faint" />
             </span>
           </span>
         </button>
       </h3>
-      {expandable && open && (
+      <Show when={expandable() && open()}>
         <div data-slot="accordion-content" data-expanded="">
           <div data-component="apply-patch-file-diff">
-            <FileDiffRows file={file} />
+            <FileDiffRows file={props.file} />
           </div>
         </div>
-      )}
+      </Show>
     </div>
   );
 }
@@ -845,13 +849,7 @@ function diagnosticsOf(tools: ToolRun[]): Diagnostic[] {
     .slice(0, 3);
 }
 
-export function FileGroup({
-  tools,
-  detail: detailValue,
-  groupKey,
-  showHeader = false,
-  limit,
-}: {
+export function FileGroup(props: {
   tools: ToolRun[];
   detail: TimelineDetailInput;
   groupKey: string;
@@ -860,139 +858,136 @@ export function FileGroup({
   limit?: number;
 }) {
   const tr = useT();
-  const detail = timelineDetail(detailValue);
+  const detail = createMemo(() => timelineDetail(props.detail));
   // `filesOf` parses patches and builds preview diffs; it only needs to run when
   // the tools themselves change, not on every parent render.
-  const files = useMemo(() => filesOf(tools), [tools]);
-  const shown = limit === undefined ? files : files.slice(0, limit);
-  const diagnostics = useMemo(() => diagnosticsOf(tools), [tools]);
+  const files = createMemo(() => filesOf(props.tools));
+  const shown = createMemo(() => (props.limit === undefined ? files() : files().slice(0, props.limit)));
+  const diagnostics = createMemo(() => diagnosticsOf(props.tools));
 
-  const first = tools[0];
-  const name = first?.name === "edit" || first?.name === "write" ? first.name : "patch";
-  const title = toolName(name);
-  const component =
-    name === "edit" ? "edit-tool" : name === "write" ? "write-tool" : "apply-patch-tool";
-  const header = showHeader || (files.length === 0 && name !== "write");
-
-  const accordion = files.length > 0 && (
-    <div
-      data-component="accordion"
-      data-scope="apply-patch"
-      onKeyDown={(event) => {
-        if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-        if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
-        if (!(event.target instanceof HTMLButtonElement) || event.target.dataset.slot !== "accordion-trigger") return;
-
-        const triggers = [
-          ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-            ':scope > [data-slot="accordion-item"] > [data-slot="accordion-header"] > [data-slot="accordion-trigger"]',
-          ),
-        ];
-        const index = triggers.indexOf(event.target);
-        if (index < 0) return;
-        event.preventDefault();
-
-        if (event.key === "Home") return triggers[0]?.focus();
-        if (event.key === "End") return triggers[triggers.length - 1]?.focus();
-        triggers[(index + (event.key === "ArrowDown" ? 1 : -1) + triggers.length) % triggers.length]?.focus();
-      }}
-    >
-      {shown.map((file, index) => (
-        <FileRow key={file.id} file={file} groupKey={groupKey} detail={detail} first={index === 0} />
-      ))}
-    </div>
-  );
-
-  const diagnosticsPanel = diagnostics.length > 0 && (
-    <div data-component="diagnostics">
-      {diagnostics.map((item, index) => (
-        <div key={index} data-slot="diagnostic">
-          <span data-slot="diagnostic-label">{tr("toolErrorLabel")}</span>
-          <span data-slot="diagnostic-location">
-            [{item.line ?? 1}:{item.column ?? 1}]
-          </span>
-          <span data-slot="diagnostic-message">{item.message ?? ""}</span>
-        </div>
-      ))}
-    </div>
-  );
+  const first = () => props.tools[0];
+  const name = () => (first()?.name === "edit" || first()?.name === "write" ? first()!.name : "patch");
+  const title = () => toolName(name());
+  const component = () =>
+    name() === "edit" ? "edit-tool" : name() === "write" ? "write-tool" : "apply-patch-tool";
+  const header = () => props.showHeader || (files().length === 0 && name() !== "write");
 
   return (
-    <div data-component={component} data-header={header ? "" : undefined}>
-      <div data-component="collapsible" data-rail={header ? undefined : "false"} className="tool-collapsible">
-        {header && (
+    <div data-component={component()} data-header={header() ? "" : undefined}>
+      <div data-component="collapsible" data-rail={header() ? undefined : "false"} class="tool-collapsible">
+        <Show when={header()}>
           <div data-slot="collapsible-trigger" data-locked="true" aria-expanded="true">
             <div data-component="tool-trigger">
               <div data-slot="basic-tool-tool-trigger-content">
                 <div data-slot="basic-tool-tool-info">
                   <div data-slot="basic-tool-tool-info-structured">
                     <div data-slot="basic-tool-tool-info-main">
-                      <span data-slot="basic-tool-tool-title">{title}</span>
-                      {files.length > 0 && (
+                      <span data-slot="basic-tool-tool-title">{title()}</span>
+                      <Show when={files().length > 0}>
                         <span data-slot="basic-tool-tool-subtitle">
-                          {tr(files.length === 1 ? "toolFileOne" : "toolFilesMany", { count: files.length })}
+                          {tr(files().length === 1 ? "toolFileOne" : "toolFilesMany", { count: files().length })}
                         </span>
-                      )}
+                      </Show>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </Show>
         <div data-slot="collapsible-content" data-expanded="true">
-          {accordion}
-          {diagnosticsPanel}
+          <Show when={files().length > 0}>
+            <div
+              data-component="accordion"
+              data-scope="apply-patch"
+              onKeyDown={(event) => {
+                if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+                if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+                if (!(event.target instanceof HTMLButtonElement) || event.target.dataset.slot !== "accordion-trigger") return;
+
+                const triggers = [
+                  ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                    ':scope > [data-slot="accordion-item"] > [data-slot="accordion-header"] > [data-slot="accordion-trigger"]',
+                  ),
+                ];
+                const index = triggers.indexOf(event.target);
+                if (index < 0) return;
+                event.preventDefault();
+
+                if (event.key === "Home") return triggers[0]?.focus();
+                if (event.key === "End") return triggers[triggers.length - 1]?.focus();
+                triggers[(index + (event.key === "ArrowDown" ? 1 : -1) + triggers.length) % triggers.length]?.focus();
+              }}
+            >
+              <For each={shown()}>
+                {(file, index) => (
+                  <FileRow file={file} groupKey={props.groupKey} detail={detail()} first={index() === 0} />
+                )}
+              </For>
+            </div>
+          </Show>
+          <Show when={diagnostics().length > 0}>
+            <div data-component="diagnostics">
+              <For each={diagnostics()}>
+                {(item) => (
+                  <div data-slot="diagnostic">
+                    <span data-slot="diagnostic-label">{tr("toolErrorLabel")}</span>
+                    <span data-slot="diagnostic-location">
+                      [{item.line ?? 1}:{item.column ?? 1}]
+                    </span>
+                    <span data-slot="diagnostic-message">{item.message ?? ""}</span>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
         </div>
       </div>
     </div>
   );
 }
 
-export function ReadGroup({ tools, groupKey }: { tools: ToolRun[]; groupKey?: string }) {
+export function ReadGroup(props: { tools: ToolRun[]; groupKey?: string }) {
   const tr = useT();
-  const [expanded, setExpanded] = useDisclosure(`read:${groupKey ?? tools[0]?.id ?? "group"}`);
-  const [truncated, setTruncated] = useState(false);
-  const list = useRef<HTMLSpanElement>(null);
-  const files = useMemo(
-    () =>
-      tools.map((tool) => {
-        const args = parseArgs(tool.arguments);
-        return { id: tool.id, name: splitPath(stringArg(args, "path")).name, args: readArgs(args) };
-      }),
-    [tools],
+  const [expanded, setExpanded] = useDisclosure(`read:${props.groupKey ?? props.tools[0]?.id ?? "group"}`);
+  const [truncated, setTruncated] = createSignal(false);
+  let list: HTMLSpanElement | undefined;
+  const files = createMemo(() =>
+    props.tools.map((tool) => {
+      const args = parseArgs(tool.arguments);
+      return { id: tool.id, name: splitPath(stringArg(args, "path")).name, args: readArgs(args) };
+    }),
   );
-  const signature = useMemo(
-    () => files.map((file) => `${file.id}:${file.name}:${file.args.join(",")}`).join("|"),
-    [files],
-  );
+  const signature = createMemo(() => files().map((file) => `${file.id}:${file.name}:${file.args.join(",")}`).join("|"));
 
-  useEffect(() => {
-    const element = list.current;
-    if (!element || expanded) return;
+  createEffect(() => {
+    const isExpanded = expanded();
+    signature();
+    const element = list;
+    if (!element || isExpanded) return;
     const measure = () => setTruncated(element.scrollWidth > element.clientWidth);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
-    return () => observer.disconnect();
-  }, [expanded, signature]);
+    onCleanup(() => observer.disconnect());
+  });
 
-  const expandable = expanded || truncated;
+  const expandable = () => expanded() || truncated();
 
   return (
     <div
       data-component="read-tool-group"
-      data-timeline-part-ids={tools.map((tool) => tool.id).join(",")}
-      data-expanded={expanded ? "true" : undefined}
-      role={expandable ? "button" : undefined}
-      tabIndex={expandable ? 0 : undefined}
-      aria-expanded={expandable ? expanded : undefined}
-      onClick={() => expandable && setExpanded(!expanded)}
+      data-timeline-part-ids={props.tools.map((tool) => tool.id).join(",")}
+      data-expanded={expanded() ? "true" : undefined}
+      role={expandable() ? "button" : undefined}
+      tabIndex={expandable() ? 0 : undefined}
+      aria-expanded={expandable() ? expanded() : undefined}
+      onClick={() => expandable() && setExpanded(!expanded())}
       onKeyDown={(event) => {
-        if (!expandable) return;
+        if (!expandable()) return;
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
-        setExpanded(!expanded);
+        setExpanded(!expanded());
       }}
     >
       <div data-component="tool-trigger">
@@ -1001,47 +996,49 @@ export function ReadGroup({ tools, groupKey }: { tools: ToolRun[]; groupKey?: st
             <div data-slot="basic-tool-tool-info-structured">
               <div data-slot="basic-tool-tool-info-main">
                 <span data-slot="basic-tool-tool-title">
-                  <TextShimmer text={tr("toolRead")} active={tools.some((tool) => !tool.done)} />
+                  <TextShimmer text={tr("toolRead")} active={props.tools.some((tool) => !tool.done)} />
                 </span>
-                <span ref={list} data-slot="basic-tool-tool-subtitle">
-                  {files.map((file, index) => (
-                    <span key={file.id} data-slot="read-tool-group-file">
-                      {file.name}
-                      {file.args.map((arg) => (
-                        <span key={arg} data-slot="basic-tool-tool-arg">{arg}</span>
-                      ))}
-                      {index < files.length - 1 && ", "}
-                    </span>
-                  ))}
+                <span ref={(el) => (list = el)} data-slot="basic-tool-tool-subtitle">
+                  <For each={files()}>
+                    {(file, index) => (
+                      <span data-slot="read-tool-group-file">
+                        {file.name}
+                        <For each={file.args}>
+                          {(arg) => <span data-slot="basic-tool-tool-arg">{arg}</span>}
+                        </For>
+                        {index() < files().length - 1 && ", "}
+                      </span>
+                    )}
+                  </For>
                 </span>
               </div>
             </div>
           </div>
         </div>
-        {expandable && (
+        <Show when={expandable()}>
           <span data-slot="read-tool-group-arrow" aria-hidden="true">
-            <TriangleDown className="size-4 text-text-faint" />
+            <TriangleDown class="size-4 text-text-faint" />
           </span>
-        )}
+        </Show>
       </div>
     </div>
   );
 }
 
-function SkillGroup({ tools }: { tools: ToolRun[] }) {
+function SkillGroup(props: { tools: ToolRun[] }) {
   const tr = useT();
-  const names = unique(tools.map((tool) => skillName(tool) || "skill"));
-  const running = tools.some((tool) => !tool.done);
-  const kind = tr(names.length === 1 ? "toolSkillKind" : "toolSkillKindPlural");
-  const label = `${names.join(", ")} ${kind}`;
+  const names = () => unique(props.tools.map((tool) => skillName(tool) || "skill"));
+  const running = () => props.tools.some((tool) => !tool.done);
+  const kind = () => tr(names().length === 1 ? "toolSkillKind" : "toolSkillKindPlural");
+  const label = () => `${names().join(", ")} ${kind()}`;
 
   return (
-    <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${label}`}>
+    <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${label()}`}>
       <span data-slot="tool-loaded-label">{tr("toolLoaded")}</span>
       <span data-slot="tool-loaded-value">
-        <TextShimmer text={names.join(", ")} active={running} />
+        <TextShimmer text={names().join(", ")} active={running()} />
       </span>
-      <span data-slot="tool-loaded-kind">{kind}</span>
+      <span data-slot="tool-loaded-kind">{kind()}</span>
     </div>
   );
 }
@@ -1053,14 +1050,7 @@ function skillName(tool: ToolRun): string {
   return stringArg(args, "id") || stringArg(args, "name");
 }
 
-function ToolErrorCard({
-  tool,
-  error,
-  subtitle,
-  title,
-  id,
-  onSubtitleClick,
-}: {
+function ToolErrorCard(props: {
   tool: string;
   error: string;
   subtitle?: string;
@@ -1069,61 +1059,70 @@ function ToolErrorCard({
   onSubtitleClick?: () => void;
 }) {
   const tr = useT();
-  const [open, setOpen] = useDisclosure(`error:${id}`);
-  const [clipped, setClipped] = useState(false);
-  const subtitleRef = useRef<HTMLSpanElement>(null);
-  const cleaned = error.replace(/^Error:\s*/, "").trim();
-  const tail = cleaned.startsWith(`${tool} `) ? cleaned.slice(tool.length + 1) : cleaned;
-  const head = (tail.split(": ")[0] ?? "").trim();
-  const summary = head ? capitalize(head) : tr("toolFailed");
-  const name = title ?? toolName(tool);
+  const [open, setOpen] = useDisclosure(`error:${props.id}`);
+  const [clipped, setClipped] = createSignal(false);
+  let subtitleRef: HTMLSpanElement | undefined;
+  const cleaned = () => props.error.replace(/^Error:\s*/, "").trim();
+  const tail = () => {
+    const text = cleaned();
+    return text.startsWith(`${props.tool} `) ? text.slice(props.tool.length + 1) : text;
+  };
+  const summary = () => {
+    const head = (tail().split(": ")[0] ?? "").trim();
+    return head ? capitalize(head) : tr("toolFailed");
+  };
+  const name = () => props.title ?? toolName(props.tool);
 
-  useEffect(() => {
-    if (open) return;
-    const element = subtitleRef.current;
+  createEffect(() => {
+    const isOpen = open();
+    void props.subtitle;
+    if (isOpen) return;
+    const element = subtitleRef;
     if (!element) return;
     setClipped((element.textContent ?? "").includes("\n") || element.scrollWidth > element.clientWidth);
-  }, [open, subtitle]);
+  });
 
   return (
-    <div data-component="card" data-kind="tool-error-card" data-tool={tool} data-open={open ? "true" : "false"}>
-      <div data-component="collapsible" data-open={open ? "true" : "false"} className="tool-collapsible">
+    <div data-component="card" data-kind="tool-error-card" data-tool={props.tool} data-open={open() ? "true" : "false"}>
+      <div data-component="collapsible" data-open={open() ? "true" : "false"} class="tool-collapsible">
         <div
           data-slot="collapsible-trigger"
           role="button"
           tabIndex={0}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
+          aria-expanded={open()}
+          onClick={() => setOpen(!open())}
           onKeyDown={(event) => {
             if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
-            setOpen(!open);
+            setOpen(!open());
           }}
         >
           <div data-component="tool-trigger">
             <div data-slot="basic-tool-tool-trigger-content">
               <span data-slot="basic-tool-tool-indicator" data-component="tool-error-card-icon">
-                <TriangleAlert className="size-4 text-state-fg-danger" />
+                <TriangleAlert class="size-4 text-state-fg-danger" />
               </span>
               <div data-slot="basic-tool-tool-info">
                 <div data-slot="basic-tool-tool-info-structured">
                   <div data-slot="basic-tool-tool-info-main">
-                    <span data-slot="basic-tool-tool-title">{name}</span>
-                    {subtitle && !(open && clipped) && (
+                    <span data-slot="basic-tool-tool-title">{name()}</span>
+                    <Show when={props.subtitle && !(open() && clipped())}>
                       <span
-                        ref={subtitleRef}
+                        ref={(el) => (subtitleRef = el)}
                         data-slot="basic-tool-tool-subtitle"
-                        className={cn(onSubtitleClick && "clickable subagent-link")}
+                        class={cn(props.onSubtitleClick && "clickable subagent-link")}
                         onClick={(event) => {
-                          if (!onSubtitleClick) return;
+                          if (!props.onSubtitleClick) return;
                           event.stopPropagation();
-                          onSubtitleClick();
+                          props.onSubtitleClick();
                         }}
                       >
-                        {subtitle}
+                        {props.subtitle}
                       </span>
-                    )}
-                    {!open && <span data-slot="tool-error-card-summary">{summary}</span>}
+                    </Show>
+                    <Show when={!open()}>
+                      <span data-slot="tool-error-card-summary">{summary()}</span>
+                    </Show>
                   </div>
                 </div>
               </div>
@@ -1131,31 +1130,33 @@ function ToolErrorCard({
             <ToolArrow />
           </div>
         </div>
-        {open && (
+        <Show when={open()}>
           <div data-slot="collapsible-content" data-expanded="true">
             <div data-slot="tool-error-card-content">
               <span data-slot="tool-error-card-copy">
-                <CopyButton text={cleaned} label={tr("toolCopyError")} />
+                <CopyButton text={cleaned()} label={tr("toolCopyError")} />
               </span>
-              {clipped && subtitle && <p data-slot="tool-error-card-subtitle">{subtitle}</p>}
-              <p data-slot="card-description">{cleaned || tr("toolNoErrorOutput")}</p>
+              <Show when={clipped() && props.subtitle}>
+                <p data-slot="tool-error-card-subtitle">{props.subtitle}</p>
+              </Show>
+              <p data-slot="card-description">{cleaned() || tr("toolNoErrorOutput")}</p>
             </div>
           </div>
-        )}
+        </Show>
       </div>
     </div>
   );
 }
 
-function ShellConsoleCopy({ text, label }: { text: string; label: string }) {
+function ShellConsoleCopy(props: { text: string; label: string }) {
   return (
     <div data-slot="bash-copy">
-      <CopyButton text={text} label={label} iconClass="size-4" />
+      <CopyButton text={props.text} label={props.label} iconClass="size-4" />
     </div>
   );
 }
 
-function ConsoleOutput({ command, output, truncated }: { command?: string; output: string; truncated?: boolean }) {
+function ConsoleOutput(props: { command?: string; output: string; truncated?: boolean }) {
   const tr = useT();
   return (
     <div data-component="bash-output" data-variant="shell" dir="ltr">
@@ -1166,37 +1167,39 @@ function ConsoleOutput({ command, output, truncated }: { command?: string; outpu
         role="region"
         aria-label={tr("scrollableContent")}
       >
-        {command && (
+        <Show when={props.command}>
           <div data-slot="bash-command">
-            <ShellConsoleCopy text={command} label={tr("copyAction")} />
+            <ShellConsoleCopy text={props.command!} label={tr("copyAction")} />
             <pre data-slot="bash-pre">
-              <code>{command}</code>
+              <code>{props.command}</code>
             </pre>
           </div>
-        )}
-        {output && (
+        </Show>
+        <Show when={props.output}>
           <div data-slot="bash-result">
-            <ShellConsoleCopy text={output} label={tr("toolExecuteCopyOutput")} />
+            <ShellConsoleCopy text={props.output} label={tr("toolExecuteCopyOutput")} />
             <pre data-slot="bash-pre">
               <code>
-                <LinkedText text={output} />
+                <LinkedText text={props.output} />
               </code>
             </pre>
           </div>
-        )}
+        </Show>
       </div>
-      {truncated && <div data-slot="bash-truncated">{tr("toolOutputTruncated")}</div>}
+      <Show when={props.truncated}>
+        <div data-slot="bash-truncated">{tr("toolOutputTruncated")}</div>
+      </Show>
     </div>
   );
 }
 
-function ShellSubmessage({ text, animate }: { text: string; animate?: boolean }) {
+function ShellSubmessage(props: { text: string; animate?: boolean }) {
   return (
     <span data-component="shell-submessage" dir="ltr">
       <span data-slot="shell-submessage-width">
         <span data-slot="basic-tool-tool-subtitle">
-          <span data-slot="shell-submessage-value" className={cn(animate && "shell-submessage-in")}>
-            {text}
+          <span data-slot="shell-submessage-value" class={cn(props.animate && "shell-submessage-in")}>
+            {props.text}
           </span>
         </span>
       </span>
@@ -1204,29 +1207,26 @@ function ShellSubmessage({ text, animate }: { text: string; animate?: boolean })
   );
 }
 
-function ShellTrigger({
-  value,
-  pending,
-  open,
-  title,
-}: {
-  value: string;
-  pending: boolean;
-  open: boolean;
-  title?: string;
-}) {
+function ShellTrigger(props: { value: string; pending: boolean; open: boolean; title?: string }) {
   const tr = useT();
   return (
     <div data-slot="basic-tool-tool-info-structured">
       <div data-slot="basic-tool-tool-info-main">
         <span data-slot="basic-tool-tool-title">
-          <TextShimmer text={title ?? tr("toolShell")} active={pending} />
+          <TextShimmer text={props.title ?? tr("toolShell")} active={props.pending} />
         </span>
-        {!open && (value ? (
-          <ShellSubmessage text={value} animate={pending} />
-        ) : pending ? (
-          <span data-slot="basic-tool-tool-subtitle">{tr("toolWritingCommand")}</span>
-        ) : null)}
+        <Show when={!props.open}>
+          <Show
+            when={props.value}
+            fallback={
+              <Show when={props.pending}>
+                <span data-slot="basic-tool-tool-subtitle">{tr("toolWritingCommand")}</span>
+              </Show>
+            }
+          >
+            <ShellSubmessage text={props.value} animate={props.pending} />
+          </Show>
+        </Show>
       </div>
     </div>
   );
@@ -1240,14 +1240,17 @@ export interface ShellOutputSource {
 }
 
 /** Polls a running background job's output until it settles. */
-function useShellOutput(source?: ShellOutputSource) {
-  const [streamed, setStreamed] = useState<{ output: string; truncated: boolean }>();
-  const cursor = useRef(0);
+function useShellOutput(source: Accessor<ShellOutputSource | undefined>) {
+  const [streamed, setStreamed] = createSignal<{ output: string; truncated: boolean }>();
+  let cursor = 0;
 
-  useEffect(() => {
-    if (!source) {
+  createEffect(() => {
+    const current = source();
+    const id = current?.id;
+    const running = current?.running;
+    if (!current) {
       setStreamed(undefined);
-      cursor.current = 0;
+      cursor = 0;
       return;
     }
     let cancelled = false;
@@ -1255,36 +1258,30 @@ function useShellOutput(source?: ShellOutputSource) {
 
     const poll = async () => {
       try {
-        const page = await source.load(source.id, cursor.current);
+        const page = await current.load(id!, cursor);
         if (cancelled) return;
-        cursor.current = page.cursor;
-        setStreamed((current) => ({
-          output: `${current?.output ?? ""}${page.output}`,
-          truncated: Boolean(current?.truncated || page.truncated),
+        cursor = page.cursor;
+        setStreamed((value) => ({
+          output: `${value?.output ?? ""}${page.output}`,
+          truncated: Boolean(value?.truncated || page.truncated),
         }));
       } catch {
         // A missing job keeps the static snapshot; the activity pill reports it.
       }
-      if (!cancelled && source.running) timer = window.setTimeout(poll, 700);
+      if (!cancelled && running) timer = window.setTimeout(poll, 700);
     };
 
     void poll();
-    return () => {
+    onCleanup(() => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [source?.id, source?.running]);
+    });
+  });
 
   return streamed;
 }
 
-function ShellTool({
-  tool,
-  command,
-  defaultOpen,
-  title,
-  shellOutput,
-}: {
+function ShellTool(props: {
   tool?: ToolRun;
   command?: string;
   defaultOpen?: boolean;
@@ -1292,65 +1289,74 @@ function ShellTool({
   /** Streams a background job's captured output instead of a static snapshot. */
   shellOutput?: ShellOutputSource;
 }) {
-  const args = tool ? parseArgs(tool.arguments) : {};
-  const value = command ?? (stringArg(args, "command") || stringArg(args, "code"));
-  const streamed = useShellOutput(shellOutput);
-  const output = streamed?.output ?? stripAnsi(tool?.output ?? "");
-  const pending = tool ? !tool.done : false;
+  const args = createMemo(() => (props.tool ? parseArgs(props.tool.arguments) : {}));
+  const value = createMemo(() => props.command ?? (stringArg(args(), "command") || stringArg(args(), "code")));
+  const streamed = useShellOutput(() => props.shellOutput);
+  const output = createMemo(() => streamed()?.output ?? stripAnsi(props.tool?.output ?? ""));
+  const pending = createMemo(() => (props.tool ? !props.tool.done : false));
 
   return (
     <BasicTool
-      id={`shell:${tool?.id ?? value}`}
-      status={pending ? "running" : "completed"}
+      id={`shell:${props.tool?.id ?? value()}`}
+      status={pending() ? "running" : "completed"}
       allowOpenWhilePending
       compact
       rail={false}
       hasContent
-      defaultOpen={defaultOpen}
-      trigger={(open) => <ShellTrigger value={value} pending={pending} open={open} title={title} />}
+      defaultOpen={props.defaultOpen}
+      trigger={(open) => <ShellTrigger value={value()} pending={pending()} open={open} title={props.title} />}
     >
       <ConsoleOutput
-        command={value}
-        output={output}
-        truncated={streamed?.truncated || tool?.metadata?.truncated === true}
+        command={value()}
+        output={output()}
+        truncated={streamed()?.truncated || props.tool?.metadata?.truncated === true}
       />
     </BasicTool>
   );
 }
 
-export function SessionShellMessage({
-  shell,
-  entryKey,
-  detail: detailValue,
-}: {
+export function SessionShellMessage(props: {
   shell: ShellRun;
   entryKey: string;
   detail?: TimelineDetailInput;
 }) {
   const tr = useT();
-  const pending = shell.running === true;
-  const detail = timelineDetail(detailValue);
-  const error = shell.timedOut
-    ? tr("toolCommandTimedOut")
-    : !pending && shell.exit !== 0
-      ? tr("toolCommandExited", { code: shell.exit ?? 0 })
-      : "";
+  const pending = () => props.shell.running === true;
+  const detail = createMemo(() => timelineDetail(props.detail));
+  const error = () => {
+    if (props.shell.timedOut) return tr("toolCommandTimedOut");
+    if (!pending() && props.shell.exit !== 0) return tr("toolCommandExited", { code: props.shell.exit ?? 0 });
+    return "";
+  };
 
   return (
-    <div data-component="session-shell-message" data-timeline-part-id={entryKey}>
+    <div data-component="session-shell-message" data-timeline-part-id={props.entryKey}>
       <BasicTool
-        id={`shell-message:${entryKey}`}
-        status={pending ? "running" : "completed"}
+        id={`shell-message:${props.entryKey}`}
+        status={pending() ? "running" : "completed"}
         allowOpenWhilePending
         compact
         rail={false}
         hasContent
-        defaultOpen={detail.shell.details === "expanded"}
-        trigger={(open) => <ShellTrigger value={shell.command ?? ""} pending={pending} open={open} />}
+        defaultOpen={detail().shell.details === "expanded"}
+        trigger={(open) => <ShellTrigger value={props.shell.command ?? ""} pending={pending()} open={open} />}
       >
-        <ConsoleOutput command={shell.command ?? ""} output={stripAnsi(shell.output ?? "")} truncated={shell.truncated} />
+        <ConsoleOutput
+          command={props.shell.command ?? ""}
+          output={stripAnsi(props.shell.output ?? "")}
+          truncated={props.shell.truncated}
+        />
       </BasicTool>
-      {error && <ToolErrorCard tool="shell" error={error} subtitle={shell.command ?? ""} id={`shell-error:${entryKey}`} />}
+      <Show when={error()}>
+        {(message) => (
+          <ToolErrorCard
+            tool="shell"
+            error={message()}
+            subtitle={props.shell.command ?? ""}
+            id={`shell-error:${props.entryKey}`}
+          />
+        )}
+      </Show>
     </div>
   );
 }
@@ -1372,58 +1378,69 @@ function relativePath(path: string, workspace?: string): string {
   return normalized.startsWith(`${root}/`) ? normalized.slice(root.length + 1) : path;
 }
 
-function ReadTool({ tool, workspace }: { tool: ToolRun; workspace?: string }) {
+function ReadTool(props: { tool: ToolRun; workspace?: string }) {
   const tr = useT();
-  const args = parseArgs(tool.arguments);
-  const path = stringArg(args, "path");
-  const image = tool.done ? readImage(tool) : undefined;
-  const loaded = loadedPaths(tool).map((path) => relativePath(path, workspace));
+  const args = () => parseArgs(props.tool.arguments);
+  const path = () => stringArg(args(), "path");
+  const image = () => (props.tool.done ? readImage(props.tool) : undefined);
+  const loaded = () => loadedPaths(props.tool).map((value) => relativePath(value, props.workspace));
 
   return (
     <>
       <BasicTool
-        id={`read:${tool.id}`}
+        id={`read:${props.tool.id}`}
         title={tr("toolRead")}
-        subtitle={splitPath(path).name}
-        args={readArgs(args)}
-        pending={!tool.done}
-        hasContent={Boolean(image)}
+        subtitle={splitPath(path()).name}
+        args={readArgs(args())}
+        pending={!props.tool.done}
+        hasContent={Boolean(image())}
       >
-        {image && (
-          <div data-component="read-image">
-            <img src={`data:${image.mime};base64,${image.data}`} alt={image.name ?? splitPath(path).name} />
-          </div>
-        )}
+        <Show when={image()}>
+          {(attachment) => (
+            <div data-component="read-image">
+              <img
+                src={`data:${attachment().mime};base64,${attachment().data}`}
+                alt={attachment().name ?? splitPath(path()).name}
+              />
+            </div>
+          )}
+        </Show>
       </BasicTool>
-      {loaded.length > 0 && (
-        <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${loaded.join(", ")}`}>
+      <Show when={loaded().length > 0}>
+        <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${loaded().join(", ")}`}>
           <span data-slot="tool-loaded-label">{tr("toolLoaded")}</span>
-          <span data-slot="tool-loaded-value">{loaded.join(", ")}</span>
+          <span data-slot="tool-loaded-value">{loaded().join(", ")}</span>
         </div>
-      )}
+      </Show>
     </>
   );
 }
 
-function ListTool({ tool, summaryOnly }: { tool: ToolRun; summaryOnly?: boolean }) {
+function ListTool(props: { tool: ToolRun; summaryOnly?: boolean }) {
   const tr = useT();
-  const args = parseArgs(tool.arguments);
-  const title = tr("toolList");
-  const subtitle = displayDirectory(stringArg(args, "path"));
-  const output = tool.output ?? "";
-
-  if (summaryOnly) return <SearchSummary tool={tool} title={title} subtitle={subtitle} />;
+  const args = () => parseArgs(props.tool.arguments);
+  const title = () => tr("toolList");
+  const subtitle = () => displayDirectory(stringArg(args(), "path"));
+  const output = () => props.tool.output ?? "";
 
   return (
-    <BasicTool
-      id={`list:${tool.id}`}
-      title={title}
-      subtitle={subtitle}
-      pending={!tool.done}
-      hasContent={Boolean(output)}
-    >
-      {output && <ToolOutput text={output} />}
-    </BasicTool>
+    <Switch fallback={
+      <BasicTool
+        id={`list:${props.tool.id}`}
+        title={title()}
+        subtitle={subtitle()}
+        pending={!props.tool.done}
+        hasContent={Boolean(output())}
+      >
+        <Show when={output()}>
+          <ToolOutput text={output()} />
+        </Show>
+      </BasicTool>
+    }>
+      <Match when={props.summaryOnly}>
+        <SearchSummary tool={props.tool} title={title()} subtitle={subtitle()} />
+      </Match>
+    </Switch>
   );
 }
 
@@ -1432,49 +1449,55 @@ function ListTool({ tool, summaryOnly }: { tool: ToolRun; summaryOnly?: boolean 
  * the reference timeline. The match count stays on the row so the result is
  * still legible at a glance.
  */
-function SearchTool({ tool, summaryOnly }: { tool: ToolRun; summaryOnly?: boolean }) {
+function SearchTool(props: { tool: ToolRun; summaryOnly?: boolean }) {
   const tr = useT();
-  const args = parseArgs(tool.arguments);
-  const count = tool.done ? matchCount(tool, tool.output ?? "") : undefined;
-  const title = tool.name === "glob" ? tr("toolGlob") : tr("toolGrep");
-  const subtitle = displayDirectory(stringArg(args, "path"));
-  const searchArgs = toolArgs(tool, args);
-  const output = tool.output ?? "";
-
-  if (summaryOnly) {
-    const trailing = count ? (
-      <span data-slot="context-tool-group-matches">
-        {tr(count === 1 ? "toolMatchOne" : "toolMatchesMany", { count })}
-      </span>
-    ) : undefined;
-
-    return (
-      <SearchSummary
-        tool={tool}
-        title={title}
-        subtitle={subtitle}
-        args={searchArgs}
-        trailing={trailing}
-      />
-    );
-  }
+  const args = () => parseArgs(props.tool.arguments);
+  const count = () => (props.tool.done ? matchCount(props.tool, props.tool.output ?? "") : undefined);
+  const title = () => (props.tool.name === "glob" ? tr("toolGlob") : tr("toolGrep"));
+  const subtitle = () => displayDirectory(stringArg(args(), "path"));
+  const searchArgs = () => toolArgs(props.tool, args());
+  const output = () => props.tool.output ?? "";
 
   return (
-    <BasicTool
-      id={`${tool.name}:${tool.id}`}
-      title={title}
-      subtitle={subtitle}
-      args={searchArgs}
-      pending={!tool.done}
-      hasContent={Boolean(output)}
+    <Switch
+      fallback={
+        <BasicTool
+          id={`${props.tool.name}:${props.tool.id}`}
+          title={title()}
+          subtitle={subtitle()}
+          args={searchArgs()}
+          pending={!props.tool.done}
+          hasContent={Boolean(output())}
+        >
+          <Show when={output()}>
+            <ToolOutput text={output()} />
+          </Show>
+        </BasicTool>
+      }
     >
-      {output && <ToolOutput text={output} />}
-    </BasicTool>
+      <Match when={props.summaryOnly}>
+        <SearchSummary
+          tool={props.tool}
+          title={title()}
+          subtitle={subtitle()}
+          args={searchArgs()}
+          trailing={
+            <Show when={count()}>
+              {(matches) => (
+                <span data-slot="context-tool-group-matches">
+                  {tr(matches() === 1 ? "toolMatchOne" : "toolMatchesMany", { count: matches() })}
+                </span>
+              )}
+            </Show>
+          }
+        />
+      </Match>
+    </Switch>
   );
 }
 
 /** Raw search output, scrollable and capped like the reference tool row. */
-function ToolOutput({ text }: { text: string }) {
+function ToolOutput(props: { text: string }) {
   const tr = useT();
   return (
     <div
@@ -1484,23 +1507,17 @@ function ToolOutput({ text }: { text: string }) {
       role="region"
       aria-label={tr("scrollableContent")}
     >
-      <Markdown text={text} />
+      <Markdown text={props.text} />
     </div>
   );
 }
 
-function SearchSummary({
-  tool,
-  title,
-  subtitle,
-  args,
-  trailing,
-}: {
+function SearchSummary(props: {
   tool: ToolRun;
   title: string;
   subtitle: string;
   args?: string[];
-  trailing?: ReactNode;
+  trailing?: JSX.Element;
 }) {
   return (
     <div data-component="tool-trigger">
@@ -1509,17 +1526,17 @@ function SearchSummary({
           <div data-slot="basic-tool-tool-info-structured">
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
-                <TextShimmer text={title} active={!tool.done} />
+                <TextShimmer text={props.title} active={!props.tool.done} />
               </span>
-              <span data-slot="basic-tool-tool-subtitle">{subtitle}</span>
-              {args?.map((arg) => (
-                <span key={arg} data-slot="basic-tool-tool-arg">
-                  {arg}
-                </span>
-              ))}
+              <span data-slot="basic-tool-tool-subtitle">{props.subtitle}</span>
+              <For each={props.args ?? []}>
+                {(arg) => <span data-slot="basic-tool-tool-arg">{arg}</span>}
+              </For>
             </div>
-            {trailing && <span data-slot="context-tool-group-dot" />}
-            {trailing}
+            <Show when={props.trailing}>
+              <span data-slot="context-tool-group-dot" />
+              {props.trailing}
+            </Show>
           </div>
         </div>
       </div>
@@ -1527,32 +1544,32 @@ function SearchSummary({
   );
 }
 
-function WebfetchTool({ tool }: { tool: ToolRun }) {
+function WebfetchTool(props: { tool: ToolRun }) {
   const tr = useT();
-  const url = stringArg(parseArgs(tool.arguments), "url");
+  const url = () => stringArg(parseArgs(props.tool.arguments), "url");
   return (
     <BasicTool
-      id={`webfetch:${tool.id}`}
+      id={`webfetch:${props.tool.id}`}
       hideDetails
       trigger={
         <div data-slot="basic-tool-tool-info-structured">
           <div data-slot="basic-tool-tool-info-main">
             <span data-slot="basic-tool-tool-title">
-              <TextShimmer text={tr("toolWebfetch")} active={!tool.done} />
+              <TextShimmer text={tr("toolWebfetch")} active={!props.tool.done} />
             </span>
-            {url && (
+            <Show when={url()}>
               <a
                 data-slot="basic-tool-tool-subtitle"
-                className="webfetch-link"
-                href={url}
+                class="webfetch-link"
+                href={url()}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(event) => event.stopPropagation()}
               >
-                <span data-slot="webfetch-link-text">{url}</span>
-                <SquareArrow data-slot="webfetch-link-icon" className="size-4" />
+                <span data-slot="webfetch-link-text">{url()}</span>
+                <SquareArrow data-slot="webfetch-link-icon" class="size-4" />
               </a>
-            )}
+            </Show>
           </div>
         </div>
       }
@@ -1578,45 +1595,46 @@ function webUrls(output: string | undefined): string[] {
   ];
 }
 
-function WebsearchTool({ tool }: { tool: ToolRun }) {
+function WebsearchTool(props: { tool: ToolRun }) {
   const tr = useT();
-  const [showAll, setShowAll] = useState(false);
-  const query = stringArg(parseArgs(tool.arguments), "query");
-  const title = webProviderLabel(tool);
-  const links = useMemo(() => webUrls(tool.output), [tool.output]);
-  const visible = showAll ? links : links.slice(0, 10);
-  const remaining = Math.max(0, links.length - 10);
+  const [showAll, setShowAll] = createSignal(false);
+  const query = () => stringArg(parseArgs(props.tool.arguments), "query");
+  const title = () => webProviderLabel(props.tool);
+  const links = createMemo(() => webUrls(props.tool.output));
+  const visible = () => (showAll() ? links() : links().slice(0, 10));
+  const remaining = () => Math.max(0, links().length - 10);
 
   return (
     <BasicTool
-      id={`websearch:${tool.id}`}
-      title={title}
-      subtitle={query}
+      id={`websearch:${props.tool.id}`}
+      title={title()}
+      subtitle={query()}
       subtitleClass="exa-tool-query"
-      pending={!tool.done}
-      hasContent={links.length > 0}
+      pending={!props.tool.done}
+      hasContent={links().length > 0}
     >
       <div data-component="exa-tool-output">
         <div data-slot="exa-tool-links">
-          {visible.map((url) => (
-            <a
-              key={url}
-              data-slot="exa-tool-link"
-              className="webfetch-link"
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <span data-slot="webfetch-link-text">{url}</span>
-              <SquareArrow data-slot="webfetch-link-icon" className="size-4" />
-            </a>
-          ))}
-          {!showAll && remaining > 0 && (
+          <For each={visible()}>
+            {(url) => (
+              <a
+                data-slot="exa-tool-link"
+                class="webfetch-link"
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span data-slot="webfetch-link-text">{url}</span>
+                <SquareArrow data-slot="webfetch-link-icon" class="size-4" />
+              </a>
+            )}
+          </For>
+          <Show when={!showAll() && remaining() > 0}>
             <button type="button" data-slot="exa-tool-more" onClick={() => setShowAll(true)}>
-              {tr("toolMore", { count: remaining })}
+              {tr("toolMore", { count: remaining() })}
             </button>
-          )}
+          </Show>
         </div>
       </div>
     </BasicTool>
@@ -1667,92 +1685,94 @@ function executeSubtitle(calls: ExecuteCall[]): string {
   return args.length ? `${call.tool} [${args.join(", ")}]` : call.tool;
 }
 
-function ExecuteCallRow({
-  call,
-  error,
-  disclosureKey,
-}: {
-  call?: ExecuteCall;
-  error?: string;
-  disclosureKey: string;
-}) {
-  const [open, setOpen] = useDisclosure(`execute-call:${disclosureKey}`);
-  const args = executeArgs(call?.input);
-  const entries = Object.entries(call?.input ?? {});
-  const failed = !call || call.status === "error";
-  const expandable = entries.length > 0 || Boolean(error);
-  const summary = call ? args.join(", ") : (error ?? "").split("\n")[0];
+function ExecuteCallRow(props: { call?: ExecuteCall; error?: string; disclosureKey: string }) {
+  const [open, setOpen] = useDisclosure(`execute-call:${props.disclosureKey}`);
+  const args = () => executeArgs(props.call?.input);
+  const entries = () => Object.entries(props.call?.input ?? {});
+  const failed = () => !props.call || props.call.status === "error";
+  const expandable = () => entries().length > 0 || Boolean(props.error);
+  const summary = () => (props.call ? args().join(", ") : (props.error ?? "").split("\n")[0]);
 
   const toggle = () => {
-    if (!expandable || window.getSelection()?.toString()) return;
-    setOpen(!open);
+    if (!expandable() || window.getSelection()?.toString()) return;
+    setOpen(!open());
   };
 
   return (
     <div data-slot="execute-tool-call-item">
       <div
         data-slot="execute-tool-call"
-        data-status={failed ? "error" : call?.status}
-        data-expanded={open ? "true" : undefined}
+        data-status={failed() ? "error" : props.call?.status}
+        data-expanded={open() ? "true" : undefined}
         dir="ltr"
-        role={expandable ? "button" : undefined}
-        tabIndex={expandable ? 0 : undefined}
-        aria-expanded={expandable ? open : undefined}
+        role={expandable() ? "button" : undefined}
+        tabIndex={expandable() ? 0 : undefined}
+        aria-expanded={expandable() ? open() : undefined}
         onClick={toggle}
         onKeyDown={(event) => {
-          if (!expandable) return;
+          if (!expandable()) return;
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
           toggle();
         }}
       >
         <span data-slot="execute-tool-call-marker">
-          {failed ? <TriangleAlert className="size-3.5" /> : <span data-slot="execute-tool-call-arrow">›</span>}
+          <Show when={failed()} fallback={<span data-slot="execute-tool-call-arrow">›</span>}>
+            <TriangleAlert class="size-3.5" />
+          </Show>
         </span>
-        {call?.tool && (
-          <span data-slot="execute-tool-call-name">
-            <TextShimmer text={call.tool} active={call.status === "running"} />
+        <Show when={props.call?.tool}>
+          {(name) => (
+            <span data-slot="execute-tool-call-name">
+              <TextShimmer text={name()} active={props.call?.status === "running"} />
+            </span>
+          )}
+        </Show>
+        <Show when={!open() && summary()}>
+          <span data-slot="execute-tool-call-args" title={summary()}>
+            {props.call ? `[${summary()}]` : summary()}
           </span>
-        )}
-        {!open && summary && (
-          <span data-slot="execute-tool-call-args" title={summary}>
-            {call ? `[${summary}]` : summary}
-          </span>
-        )}
-        {error && <span data-slot="execute-tool-call-arrow">›</span>}
+        </Show>
+        <Show when={props.error}>
+          <span data-slot="execute-tool-call-arrow">›</span>
+        </Show>
       </div>
-      {open && (
+      <Show when={open()}>
         <>
-          {entries.length > 0 && (
+          <Show when={entries().length > 0}>
             <dl data-slot="execute-tool-call-input" dir="ltr">
-              {entries.map(([key, value]) => (
-                <div key={key} data-slot="execute-tool-call-input-entry">
-                  <dt>{key}:</dt>
-                  <dd>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</dd>
-                </div>
-              ))}
+              <For each={entries()}>
+                {([key, value]) => (
+                  <div data-slot="execute-tool-call-input-entry">
+                    <dt>{key}:</dt>
+                    <dd>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</dd>
+                  </div>
+                )}
+              </For>
             </dl>
-          )}
-          {error && (
-            <div data-slot="execute-tool-error" dir="ltr">
-              <LinkedText text={error} />
-            </div>
-          )}
+          </Show>
+          <Show when={props.error}>
+            {(error) => (
+              <div data-slot="execute-tool-error" dir="ltr">
+                <LinkedText text={error()} />
+              </div>
+            )}
+          </Show>
         </>
-      )}
+      </Show>
     </div>
   );
 }
 
-function ExecuteOutputRow({ output, disclosureKey }: { output: string; disclosureKey: string }) {
+function ExecuteOutputRow(props: { output: string; disclosureKey: string }) {
   const tr = useT();
-  const [open, setOpen] = useDisclosure(`execute-output:${disclosureKey}`);
-  const text = formatExecuteOutput(output).text;
-  const lines = executeLines(text);
+  const [open, setOpen] = useDisclosure(`execute-output:${props.disclosureKey}`);
+  const text = () => formatExecuteOutput(props.output).text;
+  const lines = () => executeLines(text());
 
   const toggle = () => {
     if (window.getSelection()?.toString()) return;
-    setOpen(!open);
+    setOpen(!open());
   };
 
   return (
@@ -1762,7 +1782,7 @@ function ExecuteOutputRow({ output, disclosureKey }: { output: string; disclosur
         data-kind="output"
         role="button"
         tabIndex={0}
-        aria-expanded={open}
+        aria-expanded={open()}
         onClick={toggle}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
@@ -1775,14 +1795,14 @@ function ExecuteOutputRow({ output, disclosureKey }: { output: string; disclosur
         </span>
         <span data-slot="execute-tool-call-name">{tr("toolExecuteOutput")}</span>
         <span data-slot="execute-tool-call-args">
-          {tr(lines === 1 ? "toolLinesOne" : "toolLinesMany", { count: lines })}
+          {tr(lines() === 1 ? "toolLinesOne" : "toolLinesMany", { count: lines() })}
         </span>
       </div>
-      {open && (
+      <Show when={open()}>
         <div data-slot="execute-tool-output">
-          <ConsoleOutput output={text} />
+          <ConsoleOutput output={text()} />
         </div>
-      )}
+      </Show>
     </div>
   );
 }
@@ -1791,302 +1811,328 @@ function executeLines(text: string) {
   return text.split("\n").length;
 }
 
-function ExecuteTool({ tool }: { tool: ToolRun }) {
+function ExecuteTool(props: { tool: ToolRun }) {
   const tr = useT();
-  const [codeOpen, setCodeOpen] = useState(false);
-  const calls = executeCalls(tool);
-  const pending = !tool.done;
-  const code = (typeof executeField(tool, "code") === "string"
-    ? String(executeField(tool, "code"))
-    : stringArg(parseArgs(tool.arguments), "code")
-  ).trimEnd();
+  const [codeOpen, setCodeOpen] = createSignal(false);
+  const calls = createMemo(() => executeCalls(props.tool));
+  const pending = () => !props.tool.done;
+  const code = () =>
+    (typeof executeField(props.tool, "code") === "string"
+      ? String(executeField(props.tool, "code"))
+      : stringArg(parseArgs(props.tool.arguments), "code")
+    ).trimEnd();
 
   // A runtime failure shows on the failing call row; a successful script shows
   // its result as a collapsible output row.
-  const error = (() => {
-    if (!tool.failed && tool.metadata?.error !== true) return "";
+  const error = () => {
+    if (!props.tool.failed && props.tool.metadata?.error !== true) return "";
     const explicit =
-      typeof executeField(tool, "errorMessage") === "string" ? String(executeField(tool, "errorMessage")) : "";
-    const text = stripAnsi(explicit || tool.output || tr("toolFailed")).replace(/^Error:\s*/, "").trim();
+      typeof executeField(props.tool, "errorMessage") === "string" ? String(executeField(props.tool, "errorMessage")) : "";
+    const text = stripAnsi(explicit || props.tool.output || tr("toolFailed")).replace(/^Error:\s*/, "").trim();
     return text || tr("toolFailed");
-  })();
-  const output = error
-    ? ""
-    : stripAnsi(
-        typeof executeField(tool, "output") === "string" ? String(executeField(tool, "output")) : tool.output ?? "",
-      )
-        .replace(/\r\n?/g, "\n")
-        .trim();
-  const formattedOutput = formatExecuteOutput(output);
-  const outputText = formattedOutput.text;
-  const owner = calls.reduce((found, item, index) => (item.status === "error" ? index : found), -1);
-  const subtitle = executeSubtitle(calls);
-  const viewable = !pending && Boolean(code);
-  const status = error ? tr("toolFailed") : pending ? tr("toolRunning") : tr("toolCompleted");
-  const callCount = calls.length
-    ? tr(calls.length === 1 ? "toolCallsOne" : "toolCallsMany", { count: calls.length })
-    : "";
-  const lineCount = tr(executeLines(code) === 1 ? "toolLinesOne" : "toolLinesMany", {
-    count: executeLines(code),
-  });
-  const outputLines = tr(executeLines(outputText) === 1 ? "toolLinesOne" : "toolLinesMany", {
-    count: executeLines(outputText),
-  });
+  };
+  const output = () => {
+    if (error()) return "";
+    return stripAnsi(
+      typeof executeField(props.tool, "output") === "string" ? String(executeField(props.tool, "output")) : props.tool.output ?? "",
+    )
+      .replace(/\r\n?/g, "\n")
+      .trim();
+  };
+  const formattedOutput = createMemo(() => formatExecuteOutput(output()));
+  const outputText = () => formattedOutput().text;
+  const owner = () => calls().reduce((found, item, index) => (item.status === "error" ? index : found), -1);
+  const subtitle = () => executeSubtitle(calls());
+  const viewable = () => !pending() && Boolean(code());
+  const status = () => (error() ? tr("toolFailed") : pending() ? tr("toolRunning") : tr("toolCompleted"));
+  const callCount = () =>
+    calls().length ? tr(calls().length === 1 ? "toolCallsOne" : "toolCallsMany", { count: calls().length }) : "";
+  const lineCount = () => tr(executeLines(code()) === 1 ? "toolLinesOne" : "toolLinesMany", { count: executeLines(code()) });
+  const outputLines = () =>
+    tr(executeLines(outputText()) === 1 ? "toolLinesOne" : "toolLinesMany", { count: executeLines(outputText()) });
   // Code and output share one gutter width, sized to the longer block, so their
   // content starts on the same column as the reference details dialog.
-  const digits = String(Math.max(executeLines(code), outputText && !error ? executeLines(outputText) : 0)).length;
+  const digits = () =>
+    String(Math.max(executeLines(code()), outputText() && !error() ? executeLines(outputText()) : 0)).length;
 
   return (
     <>
       <BasicTool
-        id={`execute:${tool.id}`}
+        id={`execute:${props.tool.id}`}
         title={tr("toolExecute")}
-        subtitleNode={subtitle ? <ShellSubmessage text={subtitle} animate={pending} /> : undefined}
+        subtitleNode={
+          <Show when={subtitle()}>
+            {(text) => <ShellSubmessage text={text()} animate={pending()} />}
+          </Show>
+        }
         hideSubtitleWhenOpen
-        status={error ? "error" : pending ? "running" : "completed"}
+        status={error() ? "error" : pending() ? "running" : "completed"}
         allowOpenWhilePending
         compact
         rail={false}
-        hasContent={calls.length > 0 || Boolean(error) || Boolean(output)}
+        hasContent={calls().length > 0 || Boolean(error()) || Boolean(output())}
         action={
-          viewable ? (
+          <Show when={viewable()}>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={tr("toolExecuteViewCode")}
-                  title={tr("toolExecuteViewCode")}
-                  aria-haspopup="dialog"
-                  className="grid size-6 place-items-center rounded-xs text-text-faint hover:text-text-base"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setCodeOpen(true);
-                  }}
-                >
-                  <Code className="size-4" />
-                </button>
+              <TooltipTrigger
+                type="button"
+                aria-label={tr("toolExecuteViewCode")}
+                title={tr("toolExecuteViewCode")}
+                aria-haspopup="dialog"
+                class="grid size-6 place-items-center rounded-xs text-text-faint hover:text-text-base"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setCodeOpen(true);
+                }}
+              >
+                <Code class="size-4" />
               </TooltipTrigger>
               <TooltipContent side="top">{tr("toolExecuteViewCode")}</TooltipContent>
             </Tooltip>
-          ) : undefined
+          </Show>
         }
       >
         <div data-component="execute-tool-calls">
-          {calls.map((call, index) => (
-            <ExecuteCallRow
-              key={index}
-              call={call}
-              error={index === owner ? error : undefined}
-              disclosureKey={`${tool.id}:${index}`}
-            />
-          ))}
-          {owner === -1 && error && <ExecuteCallRow error={error} disclosureKey={`${tool.id}:error`} />}
-          {output && <ExecuteOutputRow output={output} disclosureKey={tool.id} />}
+          <For each={calls()}>
+            {(call, index) => (
+              <ExecuteCallRow
+                call={call}
+                error={index() === owner() ? error() : undefined}
+                disclosureKey={`${props.tool.id}:${index()}`}
+              />
+            )}
+          </For>
+          <Show when={owner() === -1 && error()}>
+            {(message) => <ExecuteCallRow error={message()} disclosureKey={`${props.tool.id}:error`} />}
+          </Show>
+          <Show when={output()}>
+            {(text) => <ExecuteOutputRow output={text()} disclosureKey={props.tool.id} />}
+          </Show>
         </div>
       </BasicTool>
 
-      {code && (
-        <Dialog open={codeOpen} onOpenChange={setCodeOpen}>
-          <DialogContent
-            size="large"
-            height="fit"
-            className="bg-bg-base"
-          >
-            <DialogTitle className="flex items-center gap-2">
-              <span>{tr("toolExecute")}</span>
-              <span data-slot="execute-details-status" data-status={error ? "error" : pending ? "running" : "completed"}>
-                {status}
-              </span>
-              {callCount && <span data-slot="execute-details-meta">{callCount}</span>}
-            </DialogTitle>
-            <div
-              data-component="execute-details"
-              style={{ ["--execute-details-number-width" as string]: `${digits}ch` }}
-            >
-              <section data-slot="execute-details-section">
-                <header data-slot="execute-details-section-header">
-                  <span data-slot="execute-details-section-label">{tr("toolExecuteCode")}</span>
-                  <span data-slot="execute-details-section-meta">{lineCount}</span>
-                  <CopyButton text={code} label={tr("toolExecuteCopyCode")} />
-                </header>
-                <NumberedSource text={code} language="js" digits={digits} slot="execute-details-output" />
-              </section>
-              {error ? (
+      <Show when={code()}>
+        {(source) => (
+          <Dialog open={codeOpen()} onOpenChange={setCodeOpen}>
+            <DialogContent size="large" height="fit" class="bg-bg-base">
+              <DialogTitle class="flex items-center gap-2">
+                <span>{tr("toolExecute")}</span>
+                <span
+                  data-slot="execute-details-status"
+                  data-status={error() ? "error" : pending() ? "running" : "completed"}
+                >
+                  {status()}
+                </span>
+                <Show when={callCount()}>
+                  <span data-slot="execute-details-meta">{callCount()}</span>
+                </Show>
+              </DialogTitle>
+              <div
+                data-component="execute-details"
+                style={{ "--execute-details-number-width": `${digits()}ch` } as JSX.CSSProperties}
+              >
                 <section data-slot="execute-details-section">
                   <header data-slot="execute-details-section-header">
-                    <span data-slot="execute-details-section-label">{tr("toolExecuteError")}</span>
-                    <CopyButton text={error} label={tr("toolExecuteCopyError")} />
+                    <span data-slot="execute-details-section-label">{tr("toolExecuteCode")}</span>
+                    <span data-slot="execute-details-section-meta">{lineCount()}</span>
+                    <CopyButton text={source()} label={tr("toolExecuteCopyCode")} />
                   </header>
-                  <pre data-slot="execute-details-error">{error}</pre>
+                  <NumberedSource text={source()} language="js" digits={digits()} slot="execute-details-output" />
                 </section>
-              ) : (
-                output && (
-                  <section data-slot="execute-details-section">
-                    <header data-slot="execute-details-section-header">
-                      <span data-slot="execute-details-section-label">{tr("toolExecuteOutput")}</span>
-                      <span data-slot="execute-details-section-meta">{outputLines}</span>
-                      <CopyButton text={outputText} label={tr("toolExecuteCopyOutput")} />
-                    </header>
-                    <NumberedSource
-                      text={outputText}
-                      language={formattedOutput.json !== undefined && formattedOutput.rest === undefined ? "json" : "text"}
-                      digits={digits}
-                      slot="execute-details-output"
-                    />
-                  </section>
-                )
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+                <Show
+                  when={error()}
+                  fallback={
+                    <Show when={output()}>
+                      {(text) => (
+                        <section data-slot="execute-details-section">
+                          <header data-slot="execute-details-section-header">
+                            <span data-slot="execute-details-section-label">{tr("toolExecuteOutput")}</span>
+                            <span data-slot="execute-details-section-meta">{outputLines()}</span>
+                            <CopyButton text={outputText()} label={tr("toolExecuteCopyOutput")} />
+                          </header>
+                          <NumberedSource
+                            text={outputText()}
+                            language={formattedOutput().json !== undefined && formattedOutput().rest === undefined ? "json" : "text"}
+                            digits={digits()}
+                            slot="execute-details-output"
+                          />
+                        </section>
+                      )}
+                    </Show>
+                  }
+                >
+                  {(message) => (
+                    <section data-slot="execute-details-section">
+                      <header data-slot="execute-details-section-header">
+                        <span data-slot="execute-details-section-label">{tr("toolExecuteError")}</span>
+                        <CopyButton text={message()} label={tr("toolExecuteCopyError")} />
+                      </header>
+                      <pre data-slot="execute-details-error">{message()}</pre>
+                    </section>
+                  )}
+                </Show>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </Show>
     </>
   );
 }
 
-function QuestionTool({ tool }: { tool: ToolRun }) {
+function QuestionTool(props: { tool: ToolRun }) {
   const tr = useT();
-  const questions = useMemo(() => {
-    const value = parseArgs(tool.arguments).questions;
+  const questions = createMemo(() => {
+    const value = parseArgs(props.tool.arguments).questions;
     return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
-  }, [tool.arguments]);
+  });
 
-  const answers = useMemo(() => {
-    const value = tool.metadata?.answers;
+  const answers = createMemo(() => {
+    const value = props.tool.metadata?.answers;
     if (Array.isArray(value)) {
       return value.map((item) => (Array.isArray(item) ? item.map(String) : []));
     }
     const parsed: string[][] = [];
     const pattern = /"([^"]*)"="([^"]*)"/g;
-    for (const match of (tool.output ?? "").matchAll(pattern)) parsed.push([match[2]]);
+    for (const match of (props.tool.output ?? "").matchAll(pattern)) parsed.push([match[2]]);
     return parsed;
-  }, [tool.metadata?.answers, tool.output]);
+  });
 
-  const completed = answers.length > 0;
-  const subtitle = questions.length
-    ? completed
-      ? tr("toolAnswered", { count: questions.length })
-      : tr(questions.length === 1 ? "toolQuestionOne" : "toolQuestionsMany", { count: questions.length })
-    : "";
+  const completed = () => answers().length > 0;
+  const subtitle = () => {
+    if (!questions().length) return "";
+    return completed()
+      ? tr("toolAnswered", { count: questions().length })
+      : tr(questions().length === 1 ? "toolQuestionOne" : "toolQuestionsMany", { count: questions().length });
+  };
 
   return (
     <BasicTool
-      id={`question:${tool.id}`}
+      id={`question:${props.tool.id}`}
       title={tr("toolQuestions")}
-      subtitle={subtitle}
-      defaultOpen={completed}
-      hasContent={completed && questions.length > 0}
+      subtitle={subtitle()}
+      defaultOpen={completed()}
+      hasContent={completed() && questions().length > 0}
     >
       <div data-component="question-answers">
-        {questions.map((question, index) => {
-          const text = typeof question.question === "string" ? question.question : "";
-          return (
-            <div key={index} data-slot="question-answer-item">
+        <For each={questions()}>
+          {(question, index) => (
+            <div data-slot="question-answer-item">
               <div data-slot="question-text">
-                <LinkedText text={text} />
+                <LinkedText text={typeof question.question === "string" ? question.question : ""} />
               </div>
-              <div data-slot="answer-text">{answers[index]?.join(", ") || tr("toolNoAnswer")}</div>
+              <div data-slot="answer-text">{answers()[index()]?.join(", ") || tr("toolNoAnswer")}</div>
             </div>
-          );
-        })}
+          )}
+        </For>
       </div>
     </BasicTool>
   );
 }
 
-function SkillTool({ tool }: { tool: ToolRun }) {
+function SkillTool(props: { tool: ToolRun }) {
   const tr = useT();
-  const name = skillName(tool) || "skill";
-  const kind = tr("toolSkillKind");
+  const name = () => skillName(props.tool) || "skill";
+  const kind = () => tr("toolSkillKind");
   return (
-    <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${name} ${kind}`}>
+    <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${name()} ${kind()}`}>
       <span data-slot="tool-loaded-label">{tr("toolLoaded")}</span>
       <span data-slot="tool-loaded-value">
-        <TextShimmer text={name} active={!tool.done} />
+        <TextShimmer text={name()} active={!props.tool.done} />
       </span>
-      <span data-slot="tool-loaded-kind">{kind}</span>
+      <span data-slot="tool-loaded-kind">{kind()}</span>
     </div>
   );
 }
 
-function SubagentCard({
-  tool,
-  onOpenSession,
-  runningSubagents,
-}: {
+function SubagentCard(props: {
   tool: ToolRun;
   onOpenSession?: (id: string) => void;
   runningSubagents?: ReadonlySet<string>;
 }) {
   const tr = useT();
-  const args = parseArgs(tool.arguments);
-  const title = toolTitle(tool, args);
-  const sessionID = subagentSessionID(tool);
-  const description = stringArg(args, "description");
-  const background = args.background === true || tool.metadata?.background === true;
-  const subtitle = description || sessionID || "";
-  const clickable = Boolean(sessionID && onOpenSession);
-  const delegating = !tool.done && !sessionID && !tool.output;
-  const running = !tool.done || Boolean(sessionID && runningSubagents?.has(sessionID));
-  const state = delegating ? "delegating" : running ? (background ? "background" : "running") : "completed";
-
-  if (delegating) {
-    return (
-      <div data-component="task-tool-delegating" data-state="delegating">
-        <ActivityRing size={16} />
-        <span>{tr("toolDelegating")}</span>
-      </div>
-    );
-  }
+  const args = () => parseArgs(props.tool.arguments);
+  const title = () => toolTitle(props.tool, args());
+  const sessionID = () => subagentSessionID(props.tool);
+  const description = () => stringArg(args(), "description");
+  const background = () => args().background === true || props.tool.metadata?.background === true;
+  const subtitle = () => description() || sessionID() || "";
+  const clickable = () => Boolean(sessionID() && props.onOpenSession);
+  const delegating = () => !props.tool.done && !sessionID() && !props.tool.output;
+  const running = () => !props.tool.done || Boolean(sessionID() && props.runningSubagents?.has(sessionID()!));
+  const state = () =>
+    delegating() ? "delegating" : running() ? (background() ? "background" : "running") : "completed";
 
   const open = () => {
-    if (sessionID) onOpenSession?.(sessionID);
+    const id = sessionID();
+    if (id) props.onOpenSession?.(id);
   };
 
   return (
-    <div data-entry="subagent" data-state={state} data-background={background ? "true" : undefined} className="w-full min-w-0 transition-colors duration-200 motion-reduce:transition-none">
-      <BasicTool
-        id={`subagent:${tool.id}`}
-        hideDetails
-        clickable={clickable}
-        onTriggerClick={open}
-        ariaLabel={clickable ? tr("toolOpenSession", { name: title }) : undefined}
-        trigger={
-          <div data-component="task-tool-card">
-            <div data-component="task-tool-surface">
-              <div data-slot="basic-tool-tool-info-structured">
-                <div data-slot="basic-tool-tool-info-main">
-                  {running && <ActivityRing size={16} />}
-                  <span data-component="task-tool-title">{title}</span>
-                  {subtitle && <span data-slot="basic-tool-tool-subtitle">{subtitle}</span>}
-                </div>
-                {clickable && (
-                  <div data-component="task-tool-action">
-                    <ChevronRight className="size-4" />
+    <Show
+      when={!delegating()}
+      fallback={
+        <div data-component="task-tool-delegating" data-state="delegating">
+          <ActivityRing size={16} />
+          <span>{tr("toolDelegating")}</span>
+        </div>
+      }
+    >
+      <div
+        data-entry="subagent"
+        data-state={state()}
+        data-background={background() ? "true" : undefined}
+        class="w-full min-w-0 transition-colors duration-200 motion-reduce:transition-none"
+      >
+        <BasicTool
+          id={`subagent:${props.tool.id}`}
+          hideDetails
+          clickable={clickable()}
+          onTriggerClick={open}
+          ariaLabel={clickable() ? tr("toolOpenSession", { name: title() }) : undefined}
+          trigger={
+            <div data-component="task-tool-card">
+              <div data-component="task-tool-surface">
+                <div data-slot="basic-tool-tool-info-structured">
+                  <div data-slot="basic-tool-tool-info-main">
+                    <Show when={running()}>
+                      <ActivityRing size={16} />
+                    </Show>
+                    <span data-component="task-tool-title">{title()}</span>
+                    <Show when={subtitle()}>
+                      <span data-slot="basic-tool-tool-subtitle">{subtitle()}</span>
+                    </Show>
                   </div>
-                )}
+                  <Show when={clickable()}>
+                    <div data-component="task-tool-action">
+                      <ChevronRight class="size-4" />
+                    </div>
+                  </Show>
+                </div>
               </div>
             </div>
-          </div>
-        }
-      />
-    </div>
+          }
+        />
+      </div>
+    </Show>
   );
 }
 
-function GenericTool({ tool }: { tool: ToolRun }) {
+function GenericTool(props: { tool: ToolRun }) {
   const tr = useT();
-  const args = parseArgs(tool.arguments);
-  const label = toolSubtitle(tool, args);
-  const rawName =
-    typeof tool.metadata?.mcpTool === "string" && tool.metadata.mcpTool ? tool.metadata.mcpTool : tool.name;
+  const args = () => parseArgs(props.tool.arguments);
+  const label = () => toolSubtitle(props.tool, args());
+  const rawName = () =>
+    typeof props.tool.metadata?.mcpTool === "string" && props.tool.metadata.mcpTool
+      ? props.tool.metadata.mcpTool
+      : props.tool.name;
   return (
     <BasicTool
-      id={`generic:${tool.id}`}
-      title={tr("toolCalled", { name: rawName })}
-      subtitle={label}
-      args={genericArgs(args)}
-      pending={!tool.done}
+      id={`generic:${props.tool.id}`}
+      title={tr("toolCalled", { name: rawName() })}
+      subtitle={label()}
+      args={genericArgs(args())}
+      pending={!props.tool.done}
     />
   );
 }
@@ -2102,23 +2148,23 @@ function subagentSubtitle(_tool: ToolRun, args: Args): string {
   return stringArg(args, "description") || stringArg(args, "agent");
 }
 
-function fileToolContent(tool: ToolRun, context: ToolRenderContext): ReactNode {
+function fileToolContent(tool: Accessor<ToolRun>, context: ToolRenderContext): JSX.Element {
   if (context.summaryOnly) {
     return (
       <BasicTool
-        id={`${tool.name}:${tool.id}`}
-        title={toolTitle(tool)}
-        subtitle={toolSubtitle(tool)}
-        pending={!tool.done}
+        id={`${tool().name}:${tool().id}`}
+        title={toolTitle(tool())}
+        subtitle={toolSubtitle(tool())}
+        pending={!tool().done}
       />
     );
   }
   return (
     <FileGroup
-      tools={[tool]}
+      tools={[tool()]}
       detail={context.detail}
       groupKey={context.groupKey}
-      showHeader={tool.name === "edit"}
+      showHeader={tool().name === "edit"}
     />
   );
 }
@@ -2127,51 +2173,51 @@ const TOOL_SPECS: Record<string, ToolSpec> = {
   read: {
     title: "toolRead",
     subtitle: fileSubtitle,
-    render: (tool, context) => <ReadTool tool={tool} workspace={context.workspace} />,
+    render: (tool, context) => <ReadTool tool={tool()} workspace={context.workspace} />,
   },
   list: {
     title: "toolList",
     subtitle: directorySubtitle,
-    render: (tool, context) => <ListTool tool={tool} summaryOnly={context.summaryOnly} />,
+    render: (tool, context) => <ListTool tool={tool()} summaryOnly={context.summaryOnly} />,
   },
   glob: {
     title: "toolGlob",
     subtitle: directorySubtitle,
     args: patternArgs,
-    render: (tool, context) => <SearchTool tool={tool} summaryOnly={context.summaryOnly} />,
+    render: (tool, context) => <SearchTool tool={tool()} summaryOnly={context.summaryOnly} />,
   },
   grep: {
     title: "toolGrep",
     subtitle: directorySubtitle,
     args: grepArgs,
-    render: (tool, context) => <SearchTool tool={tool} summaryOnly={context.summaryOnly} />,
+    render: (tool, context) => <SearchTool tool={tool()} summaryOnly={context.summaryOnly} />,
   },
   shell: {
     title: "toolShell",
     subtitle: commandSubtitle,
     render: (tool, context) => (
       <ShellTool
-        tool={tool}
+        tool={tool()}
         defaultOpen={context.detail.shell.details === "expanded"}
-        shellOutput={context.shellOutput?.(tool)}
+        shellOutput={context.shellOutput?.(tool())}
       />
     ),
   },
   execute: {
     title: "toolExecute",
     subtitle: commandSubtitle,
-    render: (tool) => <ExecuteTool tool={tool} />,
+    render: (tool) => <ExecuteTool tool={tool()} />,
   },
   browser: { title: "toolBrowser" },
   webfetch: {
     title: "toolWebfetch",
     subtitle: (_tool, args) => stringArg(args, "url"),
-    render: (tool) => <WebfetchTool tool={tool} />,
+    render: (tool) => <WebfetchTool tool={tool()} />,
   },
   websearch: {
     title: "toolWebsearch",
     subtitle: (_tool, args) => stringArg(args, "query"),
-    render: (tool) => <WebsearchTool tool={tool} />,
+    render: (tool) => <WebsearchTool tool={tool()} />,
   },
   edit: { title: "toolEdit", file: true, subtitle: fileSubtitle, render: fileToolContent },
   write: { title: "toolWrite", file: true, subtitle: fileSubtitle, render: fileToolContent },
@@ -2182,7 +2228,7 @@ const TOOL_SPECS: Record<string, ToolSpec> = {
     subtitle: subagentSubtitle,
     render: (tool, context) => (
       <SubagentCard
-        tool={tool}
+        tool={tool()}
         onOpenSession={context.onOpenSession}
         runningSubagents={context.runningSubagents}
       />
@@ -2191,24 +2237,15 @@ const TOOL_SPECS: Record<string, ToolSpec> = {
   question: {
     title: "toolQuestions",
     subtitle: questionSubtitle,
-    render: (tool) => <QuestionTool tool={tool} />,
+    render: (tool) => <QuestionTool tool={tool()} />,
   },
   skill: {
     title: "toolSkill",
-    render: (tool) => <SkillTool tool={tool} />,
+    render: (tool) => <SkillTool tool={tool()} />,
   },
 };
 
-function ToolDisplay({
-  tool,
-  detail,
-  groupKey,
-  onOpenSession,
-  workspace,
-  runningSubagents,
-  shellOutput,
-  summaryOnly,
-}: {
+function ToolDisplay(props: {
   tool: ToolRun;
   detail: TimelineDetail;
   groupKey: string;
@@ -2219,86 +2256,130 @@ function ToolDisplay({
   summaryOnly?: boolean;
 }) {
   const tr = useT();
-  if (tool.cancelled) {
-    return (
-      <div data-component="tool-cancelled" className="flex w-full items-center gap-2">
-        <span className="text-meta leading-4 text-text-faint">{toolName(tool.name)}</span>
-        <span className="text-meta leading-4 text-text-faint">·</span>
-        <span className="text-meta leading-4 text-text-faint">{tr("toolCancelled")}</span>
-      </div>
-    );
-  }
-
-  if (tool.name === "execute") {
-    return <ExecuteTool tool={tool} />;
-  }
-
-  if (tool.failed && tool.name === "question" && /dismissed this question/i.test(tool.output ?? "")) {
-    return (
-      <div className="flex w-full justify-end">
-        <span className="text-meta leading-4 text-text-faint">{tr("toolDismissed")}</span>
-      </div>
-    );
-  }
-
-  if (tool.failed) {
-    const taskID = tool.name === "subagent" ? subagentSessionID(tool) : undefined;
-    const exit = tool.metadata?.exit;
-    const errorText =
-      tool.output ||
-      (typeof exit === "number" && exit !== 0
-        ? tr("toolCommandExited", { code: exit })
-        : tr("toolFailureGeneric"));
-    return (
-      <ToolErrorCard
-        tool={tool.name}
-        error={errorText}
-        title={tool.name === "websearch" ? webProviderLabel(tool) : undefined}
-        subtitle={taskID ? stringArg(parseArgs(tool.arguments), "description") || taskID : toolSubtitle(tool)}
-        id={tool.id}
-        onSubtitleClick={taskID && onOpenSession ? () => onOpenSession(taskID) : undefined}
-      />
-    );
-  }
-
-  if (tool.name === "question" && !tool.done) return null;
-
-  const content =
-    TOOL_SPECS[tool.name]?.render?.(tool, {
-      detail,
-      groupKey,
-      onOpenSession,
-      workspace,
-      runningSubagents,
-      shellOutput,
-      summaryOnly,
-    }) ?? <GenericTool tool={tool} />;
+  const spec = TOOL_SPECS[props.tool.name];
+  // Getters keep a spec renderer's context live when the detail setting or a
+  // callback changes without remounting the tool row.
+  const context: ToolRenderContext = {
+    get detail() {
+      return props.detail;
+    },
+    get groupKey() {
+      return props.groupKey;
+    },
+    get onOpenSession() {
+      return props.onOpenSession;
+    },
+    get workspace() {
+      return props.workspace;
+    },
+    get runningSubagents() {
+      return props.runningSubagents;
+    },
+    get shellOutput() {
+      return props.shellOutput;
+    },
+    get summaryOnly() {
+      return props.summaryOnly;
+    },
+  };
 
   return (
-    <div data-component="tool-part-wrapper" data-timeline-part-id={tool.id}>
-      {content}
-    </div>
+    <Show when={props.tool.name !== "question" || props.tool.done || Boolean(props.tool.failed)}>
+      <Switch
+        fallback={<GenericTool tool={props.tool} />}
+      >
+        <Match when={props.tool.cancelled}>
+          <div data-component="tool-cancelled" class="flex w-full items-center gap-2">
+            <span class="text-meta leading-4 text-text-faint">{toolName(props.tool.name)}</span>
+            <span class="text-meta leading-4 text-text-faint">·</span>
+            <span class="text-meta leading-4 text-text-faint">{tr("toolCancelled")}</span>
+          </div>
+        </Match>
+        <Match when={props.tool.name === "execute"}>
+          <ExecuteTool tool={props.tool} />
+        </Match>
+        <Match when={props.tool.failed && props.tool.name === "question" && /dismissed this question/i.test(props.tool.output ?? "")}>
+          <div class="flex w-full justify-end">
+            <span class="text-meta leading-4 text-text-faint">{tr("toolDismissed")}</span>
+          </div>
+        </Match>
+        <Match when={props.tool.failed}>
+          <ToolErrorCard
+            tool={props.tool.name}
+            error={
+              props.tool.output ||
+              (typeof props.tool.metadata?.exit === "number" && props.tool.metadata.exit !== 0
+                ? tr("toolCommandExited", { code: props.tool.metadata.exit })
+                : tr("toolFailureGeneric"))
+            }
+            title={props.tool.name === "websearch" ? webProviderLabel(props.tool) : undefined}
+            subtitle={
+              props.tool.name === "subagent"
+                ? stringArg(parseArgs(props.tool.arguments), "description") || subagentSessionID(props.tool)
+                : toolSubtitle(props.tool)
+            }
+            id={props.tool.id}
+            onSubtitleClick={
+              props.tool.name === "subagent" && subagentSessionID(props.tool) && props.onOpenSession
+                ? () => props.onOpenSession?.(subagentSessionID(props.tool)!)
+                : undefined
+            }
+          />
+        </Match>
+        <Match when={Boolean(spec?.render)}>
+          <div data-component="tool-part-wrapper" data-timeline-part-id={props.tool.id}>
+            {spec!.render!(() => props.tool, context)}
+          </div>
+        </Match>
+      </Switch>
+    </Show>
   );
 }
 
-function groupParts(parts: ContextPart[]) {
-  const items: (
-    | { kind: "read"; tools: ToolRun[] }
-    | { kind: "files"; tools: ToolRun[] }
-    | { kind: "skills"; tools: ToolRun[] }
-    | { kind: "part"; part: ContextPart }
-  )[] = [];
+type ToolRowItem =
+  | { key: string; variant: "read" | "files" | "skills"; tools: ToolRun[] }
+  | {
+      key: string;
+      variant: "tool" | "reasoning" | "shell" | "notice" | "loaded" | "text";
+      part: ContextPart;
+    };
+
+function partOfItem(item: ToolRowItem | undefined): ContextPart | undefined {
+  return item && "part" in item ? item.part : undefined;
+}
+
+function toolsOfItem(item: ToolRowItem | undefined): ToolRun[] {
+  return item && "tools" in item ? item.tools : [];
+}
+
+function partEntryOf(item: ToolRowItem | undefined): TimelineEntry | undefined {
+  const part = partOfItem(item);
+  return part && part.kind !== "tool" ? part.entry : undefined;
+}
+
+function toolOfItem(item: ToolRowItem | undefined): ToolRun | undefined {
+  const part = partOfItem(item);
+  return part?.kind === "tool" ? part.tool : undefined;
+}
+
+function textOfItem(item: ToolRowItem | undefined): string {
+  const part = partOfItem(item);
+  return part && part.kind !== "tool" ? (part.entry.text ?? "") : "";
+}
+
+function groupParts(parts: ContextPart[]): ToolRowItem[] {
+  const items: ToolRowItem[] = [];
 
   for (const part of parts) {
     if (part.kind !== "tool") {
-      items.push({ kind: "part", part });
+      items.push({ key: `${part.kind}:${part.entry.key}`, variant: part.kind, part });
       continue;
     }
     const tool = part.tool;
     // Loaded instruction files and images keep their own rows, as the reference does.
     const groupedRead =
       !tool.failed && tool.name === "read" && !isImageRead(tool) && loadedPaths(tool).length === 0;
-    const kind = groupedRead
+    const variant = groupedRead
       ? "read"
       : !tool.failed && isFileTool(tool.name)
         ? "files"
@@ -2306,14 +2387,14 @@ function groupParts(parts: ContextPart[]) {
           ? "skills"
           : undefined;
 
-    if (!kind) {
-      items.push({ kind: "part", part });
+    if (!variant) {
+      items.push({ key: `tool:${tool.id}`, variant: "tool", part });
       continue;
     }
 
     const previous = items[items.length - 1];
-    if (previous && previous.kind === kind) previous.tools.push(tool);
-    else items.push({ kind, tools: [tool] });
+    if (previous && "tools" in previous && previous.variant === variant) previous.tools.push(tool);
+    else items.push({ key: `${variant}:${tool.id}`, variant, tools: [tool] });
   }
 
   return items;
@@ -2327,32 +2408,39 @@ function scrollParent(element: HTMLElement): HTMLElement | undefined {
 }
 
 /** A notice folded into a group reads as one compact line, without a divider. */
-function GroupedNotice({ entry }: { entry: TimelineEntry }) {
+function GroupedNotice(props: { entry: TimelineEntry }) {
   const tr = useT();
-  const text = entry.notice ? noticeText(entry.notice, tr) : (entry.text ?? "");
-  if (!text) return null;
+  const text = () => (props.entry.notice ? noticeText(props.entry.notice, tr) : (props.entry.text ?? ""));
+
   return (
-    <div data-slot="session-timeline-notice" className="w-full truncate py-1 text-body leading-5 text-text-faint">
-      {text}
-    </div>
+    <Show when={text()}>
+      {(label) => (
+        <div data-slot="session-timeline-notice" class="w-full truncate py-1 text-body leading-5 text-text-faint">
+          {label()}
+        </div>
+      )}
+    </Show>
   );
 }
 
 /** Instruction files loaded during the turn. */
-export function LoadedRow({ paths }: { paths: string[] }) {
+export function LoadedRow(props: { paths: string[] }) {
   const tr = useT();
   return (
-    <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${paths.join(", ")}`}>
+    <div data-component="tool-loaded-item" aria-label={`${tr("toolLoaded")} ${props.paths.join(", ")}`}>
       <span data-slot="tool-loaded-label">{tr("toolLoaded")}</span>
-      <span data-slot="tool-loaded-value">{paths.join(", ")}</span>
+      <span data-slot="tool-loaded-value">{props.paths.join(", ")}</span>
     </div>
   );
 }
 
 /** An instruction load folded into a group, matching its standalone row. */
-function GroupedLoaded({ entry }: { entry: TimelineEntry }) {
-  if (!entry.loaded?.length) return null;
-  return <LoadedRow paths={entry.loaded} />;
+function GroupedLoaded(props: { entry: TimelineEntry }) {
+  return (
+    <Show when={props.entry.loaded?.length ? props.entry.loaded : undefined}>
+      {(paths) => <LoadedRow paths={paths()} />}
+    </Show>
+  );
 }
 
 function thinkingElapsed(parts: ContextPart[], now: number): string {
@@ -2365,16 +2453,7 @@ function thinkingElapsed(parts: ContextPart[], now: number): string {
   return `${Math.floor(total / 60)}m ${total % 60}s`;
 }
 
-export function ToolBlock({
-  parts,
-  busy,
-  detail: detailValue,
-  onOpenFile,
-  onOpenSession,
-  workspace,
-  runningSubagents,
-  shellOutput,
-}: {
+export function ToolBlock(props: {
   parts: ContextPart[];
   busy?: boolean;
   detail?: TimelineDetailInput;
@@ -2385,197 +2464,214 @@ export function ToolBlock({
   shellOutput?: (tool: ToolRun) => ShellOutputSource | undefined;
 }) {
   const tr = useT();
-  const detail = timelineDetail(detailValue);
-  const visible = useMemo(() => parts, [parts]);
-  const tools = useMemo(
-    () => visible.flatMap((part) => (part.kind === "tool" ? [part.tool] : [])),
-    [visible],
-  );
-  const shells = useMemo(
-    () => visible.flatMap((part) => (part.kind === "shell" ? [part] : [])),
-    [visible],
-  );
-  const reasoning = useMemo(
-    () => visible.flatMap((part) => (part.kind === "reasoning" ? [part] : [])),
-    [visible],
-  );
-  const liveReasoning = reasoning.some((part) => part.entry.live);
+  const detail = createMemo(() => timelineDetail(props.detail));
+  const visible = () => props.parts;
+  const tools = createMemo(() => visible().flatMap((part) => (part.kind === "tool" ? [part.tool] : [])));
+  const shells = createMemo(() => visible().flatMap((part) => (part.kind === "shell" ? [part] : [])));
+  const reasoning = createMemo(() => visible().flatMap((part) => (part.kind === "reasoning" ? [part] : [])));
+  const liveReasoning = createMemo(() => reasoning().some((part) => part.entry.live));
   // A finished thought is no longer "Thinking"; the next live turn phase owns
   // that label instead of every busy group.
-  const thinking = reasoning.length > 0 && reasoning.length === visible.length && liveReasoning;
-  const first = visible[0];
+  const thinking = createMemo(
+    () => reasoning().length > 0 && reasoning().length === visible().length && liveReasoning(),
+  );
+  const first = () => visible()[0];
   // Commentary can join ahead of the tools and later leave, so it never anchors
   // the block. The first non-text part does, but a reasoning or notice entry key
   // is rebuilt when the finished turn is reloaded from history. A tool keeps the
   // call id it was streamed with, so it is the one identity that survives that
   // reload; keep the anchor as an alias for blocks that never held a tool.
-  const anchor = visible.find((part) => part.kind !== "text") ?? first;
-  const anchorKey = anchor ? (anchor.kind === "tool" ? anchor.tool.id : anchor.entry.key) : "context";
-  const key = tools[0]?.id ?? anchorKey;
-  const disclosureKeys =
-    key === anchorKey ? [`group:${key}`] : [`group:${key}`, `group:${anchorKey}`];
-  const [open, setOpen] = useDisclosure(disclosureKeys);
-  const root = useRef<HTMLDivElement>(null);
-  const [now, setNow] = useState(Date.now());
-  const pending = Boolean(busy) || tools.some((tool) => !tool.done);
+  const anchor = () => visible().find((part) => part.kind !== "text") ?? first();
+  const anchorKey = () => {
+    const value = anchor();
+    if (!value) return "context";
+    return value.kind === "tool" ? value.tool.id : value.entry.key;
+  };
+  const key = () => tools()[0]?.id ?? anchorKey();
+  const disclosureKeys = createMemo(() =>
+    key() === anchorKey() ? [`group:${key()}`] : [`group:${key()}`, `group:${anchorKey()}`],
+  );
+  const [open, setOpen] = useDisclosure(disclosureKeys());
+  let root: HTMLDivElement | undefined;
+  const [now, setNow] = createSignal(Date.now());
+  const pending = createMemo(() => Boolean(props.busy) || tools().some((tool) => !tool.done));
 
   const change = (next: boolean) => {
     // Collapsing from a stuck header would leave the viewport below the group;
     // keep the header in place by scrolling before the shorter content clamps.
-    if (!next && root.current) {
-      const trigger = root.current.querySelector<HTMLElement>(
+    if (!next && root) {
+      const trigger = root.querySelector<HTMLElement>(
         ':scope > [data-component="collapsible"] > [data-slot="collapsible-trigger"]',
       );
-      const stuck = trigger
-        ? trigger.getBoundingClientRect().top - root.current.getBoundingClientRect().top
-        : 0;
-      if (stuck > 0) scrollParent(root.current)?.scrollBy?.({ top: -stuck, behavior: "instant" });
+      const stuck = trigger ? trigger.getBoundingClientRect().top - root.getBoundingClientRect().top : 0;
+      if (stuck > 0) scrollParent(root)?.scrollBy?.({ top: -stuck, behavior: "instant" });
     }
     setOpen(next);
   };
 
-  useEffect(() => {
-    if (!thinking) return;
+  createEffect(() => {
+    if (!thinking()) return;
     setNow(Date.now());
     const timer = window.setInterval(() => {
       if (!document.hidden) setNow(Date.now());
     }, 1000);
-    return () => window.clearInterval(timer);
-  }, [thinking]);
+    onCleanup(() => window.clearInterval(timer));
+  });
 
-  const names = useMemo(() => {
+  const names = createMemo(() => {
     const labels = unique([
-      ...tools.map((tool) =>
+      ...tools().map((tool) =>
         tool.name === "subagent"
           ? toolName("subagent")
           : tool.name === "websearch"
             ? webProviderLabel(tool)
             : toolTitle(tool),
       ),
-      ...(shells.length ? [tr("toolShell")] : []),
+      ...(shells().length ? [tr("toolShell")] : []),
     ]);
     // Code Mode callers scan for this row; keep it at the front when the summary
     // is clipped to one line in a narrow transcript.
     const executeLabel = tr("toolExecute");
     labels.sort((a, b) => Number(b === executeLabel) - Number(a === executeLabel));
     return labels;
-  }, [tools, shells, tr]);
-  const count = tools.length + shells.length || reasoning.length;
-  const title =
-    names.join(", ") ||
-    (reasoning.length > 0
-      ? reasoning.length === 1
+  });
+  const count = createMemo(() => tools().length + shells().length || reasoning().length);
+  const title = () =>
+    names().join(", ") ||
+    (reasoning().length > 0
+      ? reasoning().length === 1
         ? tr("toolThought")
         : tr("toolThoughts")
       : tr("toolUpdates"));
-  const label = thinking ? tr("toolThinking") : title;
-  const elapsed = thinking ? thinkingElapsed(visible, now) : "";
-  const showCount = !thinking && count > 0;
+  const label = () => (thinking() ? tr("toolThinking") : title());
+  const elapsed = () => (thinking() ? thinkingElapsed(visible(), now()) : "");
+  const showCount = () => !thinking() && count() > 0;
+  const countText = () =>
+    `${tr("toolUsed")} ${count()} ${tr("toolUsedBetween")}${tr("toolUsedBetween") ? " " : ""}${title()}`;
 
-  if (visible.length === 0) return null;
-
-  const items = groupParts(visible);
-
-  const countText = `${tr("toolUsed")} ${count} ${tr("toolUsedBetween")}${tr("toolUsedBetween") ? " " : ""}${title}`;
+  // Group keys stay stable while parts append, so a streamed tool keeps its
+  // mounted row instead of remounting the whole summary list.
+  const items = createMemo(() => groupParts(visible()));
+  const itemKeys = createMemo(() => items().map((item) => item.key));
+  const itemByKey = createMemo(() => new Map(items().map((item) => [item.key, item])));
 
   return (
-    <div
-      ref={root}
-      data-component="collapsed-tool-group"
-      data-notices-only={visible.every((part) => part.kind === "notice" || part.kind === "loaded") ? "" : undefined}
-      data-timeline-part-ids={visible.map((part) => (part.kind === "tool" ? part.tool.id : part.entry.key)).join(",")}
-    >
-      <BasicTool
-        id={`group:${key}`}
-        compact
-        hasContent
-        open={open}
-        onOpenChange={change}
-        status={pending ? "running" : "completed"}
-        allowOpenWhilePending
-        ariaLabel={thinking ? tr("toolThinking") : showCount ? countText : title}
-        trigger={
-          <div data-component="context-tool-group-trigger">
-            <span data-slot="context-tool-group-title">
-              {showCount && (
-                <span data-slot="context-tool-group-usage">
-                  <span data-slot="context-tool-group-prefix">{tr("toolUsed")}</span>
-                  <AnimatedNumber value={count} />
-                  {tr("toolUsedBetween") && (
-                    <span data-slot="context-tool-group-prefix">{tr("toolUsedBetween")}</span>
-                  )}
-                </span>
-              )}
-              <span data-slot="basic-tool-tool-title" title={label}>
-                <TextShimmer text={label} active={thinking} />
-              </span>
-              {elapsed && <span data-slot="basic-tool-tool-subtitle">{elapsed}</span>}
-            </span>
-          </div>
-        }
+    <Show when={visible().length > 0}>
+      <div
+        ref={(el) => (root = el)}
+        data-component="collapsed-tool-group"
+        data-notices-only={visible().every((part) => part.kind === "notice" || part.kind === "loaded") ? "" : undefined}
+        data-timeline-part-ids={visible().map((part) => (part.kind === "tool" ? part.tool.id : part.entry.key)).join(",")}
       >
-        <div data-component="context-tool-group-list">
-          {items.map((item, index) => {
-            let content: ReactNode;
-            let itemKey: string;
-            if (item.kind === "read") {
-              itemKey = `read-${index}`;
-              content = <ReadGroup tools={item.tools} groupKey={`${key}:read-${index}`} />;
-            } else if (item.kind === "files") {
-              itemKey = `files-${index}`;
-              content = <FileGroup tools={item.tools} detail={detail} groupKey={`${key}:files-${index}`} />;
-            } else if (item.kind === "skills") {
-              itemKey = `skills-${index}`;
-              content = <SkillGroup tools={item.tools} />;
-            } else {
-              const part = item.part;
-              itemKey = part.kind === "tool" ? part.tool.id : part.entry.key;
-              if (part.kind === "reasoning") {
-                content = <ReasoningRow entry={part.entry} detail={detail} insideGroup autoOpen={thinking} />;
-              } else if (part.kind === "shell") {
-                content = <SessionShellMessage shell={part.entry.shell!} entryKey={part.entry.key} detail={detail} />;
-              } else if (part.kind === "notice") {
-                content = <GroupedNotice entry={part.entry} />;
-              } else if (part.kind === "loaded") {
-                content = <GroupedLoaded entry={part.entry} />;
-              } else if (part.kind === "text") {
-                content = <Markdown text={part.entry.text ?? ""} />;
-              } else {
-                content = (
-                  <ToolDisplay
-                    tool={part.tool}
-                    detail={detail}
-                    groupKey={key}
-                    onOpenSession={onOpenSession}
-                    workspace={workspace}
-                    runningSubagents={runningSubagents}
-                    shellOutput={shellOutput}
-                    summaryOnly
-                  />
+        <BasicTool
+          id={`group:${key()}`}
+          compact
+          hasContent
+          open={open()}
+          onOpenChange={change}
+          status={pending() ? "running" : "completed"}
+          allowOpenWhilePending
+          ariaLabel={thinking() ? tr("toolThinking") : showCount() ? countText() : title()}
+          trigger={
+            <div data-component="context-tool-group-trigger">
+              <span data-slot="context-tool-group-title">
+                <Show when={showCount()}>
+                  <span data-slot="context-tool-group-usage">
+                    <span data-slot="context-tool-group-prefix">{tr("toolUsed")}</span>
+                    <AnimatedNumber value={count()} />
+                    <Show when={tr("toolUsedBetween")}>
+                      <span data-slot="context-tool-group-prefix">{tr("toolUsedBetween")}</span>
+                    </Show>
+                  </span>
+                </Show>
+                <span data-slot="basic-tool-tool-title" title={label()}>
+                  <TextShimmer text={label()} active={thinking()} />
+                </span>
+                <Show when={elapsed()}>
+                  <span data-slot="basic-tool-tool-subtitle">{elapsed()}</span>
+                </Show>
+              </span>
+            </div>
+          }
+        >
+          <div data-component="context-tool-group-list">
+            <For each={itemKeys()}>
+              {(itemKey) => {
+                const item = () => itemByKey().get(itemKey);
+                return (
+                  <div data-slot="context-tool-group-item">
+                    <Switch>
+                      <Match when={item()?.variant === "read"}>
+                        <ReadGroup tools={toolsOfItem(item())} groupKey={`${key()}:${itemKey}`} />
+                      </Match>
+                      <Match when={item()?.variant === "files"}>
+                        <FileGroup tools={toolsOfItem(item())} detail={detail()} groupKey={`${key()}:${itemKey}`} />
+                      </Match>
+                      <Match when={item()?.variant === "skills"}>
+                        <SkillGroup tools={toolsOfItem(item())} />
+                      </Match>
+                      <Match when={item()?.variant === "reasoning"}>
+                        <ReasoningRow
+                          entry={partEntryOf(item())!}
+                          detail={detail()}
+                          insideGroup
+                          autoOpen={thinking()}
+                        />
+                      </Match>
+                      <Match when={item()?.variant === "shell"}>
+                        <Show when={partEntryOf(item())?.shell}>
+                          {(shell) => (
+                            <SessionShellMessage
+                              shell={shell()}
+                              entryKey={partEntryOf(item())!.key}
+                              detail={detail()}
+                            />
+                          )}
+                        </Show>
+                      </Match>
+                      <Match when={item()?.variant === "notice"}>
+                        <Show when={partEntryOf(item())}>
+                          {(entry) => <GroupedNotice entry={entry()} />}
+                        </Show>
+                      </Match>
+                      <Match when={item()?.variant === "loaded"}>
+                        <Show when={partEntryOf(item())}>
+                          {(entry) => <GroupedLoaded entry={entry()} />}
+                        </Show>
+                      </Match>
+                      <Match when={item()?.variant === "text"}>
+                        <Markdown text={textOfItem(item())} />
+                      </Match>
+                      <Match when={item()?.variant === "tool"}>
+                        <Show when={toolOfItem(item())}>
+                          {(tool) => (
+                            <ToolDisplay
+                              tool={tool()}
+                              detail={detail()}
+                              groupKey={key()}
+                              onOpenSession={props.onOpenSession}
+                              workspace={props.workspace}
+                              runningSubagents={props.runningSubagents}
+                              shellOutput={props.shellOutput}
+                              summaryOnly
+                            />
+                          )}
+                        </Show>
+                      </Match>
+                    </Switch>
+                  </div>
                 );
-              }
-            }
-            return (
-              <div key={itemKey} data-slot="context-tool-group-item">
-                {content}
-              </div>
-            );
-          })}
-        </div>
-      </BasicTool>
-    </div>
+              }}
+            </For>
+          </div>
+        </BasicTool>
+      </div>
+    </Show>
   );
 }
 
 /** Standalone tools keep their full detail row and content outside a group. */
-export function ToolStandalone({
-  tool,
-  detail: detailValue,
-  onOpenSession,
-  workspace,
-  runningSubagents,
-  shellOutput,
-}: {
+export function ToolStandalone(props: {
   tool: ToolRun;
   detail?: TimelineDetailInput;
   onOpenSession?: (sessionID: string) => void;
@@ -2583,29 +2679,24 @@ export function ToolStandalone({
   runningSubagents?: ReadonlySet<string>;
   shellOutput?: (tool: ToolRun) => ShellOutputSource | undefined;
 }) {
-  const detail = timelineDetail(detailValue);
+  const detail = createMemo(() => timelineDetail(props.detail));
   return (
     <div data-entry="tool">
       <ToolDisplay
-        tool={tool}
-        detail={detail}
-        groupKey={`standalone:${tool.id}`}
-        onOpenSession={onOpenSession}
-        workspace={workspace}
-        runningSubagents={runningSubagents}
-        shellOutput={shellOutput}
+        tool={props.tool}
+        detail={detail()}
+        groupKey={`standalone:${props.tool.id}`}
+        onOpenSession={props.onOpenSession}
+        workspace={props.workspace}
+        runningSubagents={props.runningSubagents}
+        shellOutput={props.shellOutput}
       />
     </div>
   );
 }
 
 /** Provider reasoning folded into a single row; live text shimmers. */
-export function ReasoningRow({
-  entry,
-  detail: detailValue,
-  insideGroup,
-  autoOpen,
-}: {
+export function ReasoningRow(props: {
   entry: TimelineEntry;
   detail?: TimelineDetailInput;
   insideGroup?: boolean;
@@ -2613,41 +2704,42 @@ export function ReasoningRow({
   autoOpen?: boolean;
 }) {
   const tr = useT();
-  const detail = timelineDetail(detailValue);
-  const text = entry.text ?? "";
-  const live = entry.live;
-  const duration = reasoningDuration(entry.created, entry.endedAt);
-  const heading = live ? reasoningHeading(text) : undefined;
-  const label = live ? tr("toolThinking") : tr("toolThought");
-  const hasText = Boolean(text.trim());
+  const detail = createMemo(() => timelineDetail(props.detail));
+  const text = () => props.entry.text ?? "";
+  const live = () => props.entry.live;
+  const duration = () => reasoningDuration(props.entry.created, props.entry.endedAt);
+  const heading = () => (live() ? reasoningHeading(text()) : undefined);
+  const label = () => (live() ? tr("toolThinking") : tr("toolThought"));
+  const hasText = () => Boolean(text().trim());
 
   return (
     <div data-component="reasoning-part" data-entry="reasoning">
       <BasicTool
-        id={`reasoning:${entry.key}`}
+        id={`reasoning:${props.entry.key}`}
         compact
-        hasContent={hasText}
-        status={live ? "running" : "completed"}
+        hasContent={hasText()}
+        status={live() ? "running" : "completed"}
         allowOpenWhilePending
-        hideDetails={!hasText}
-        defaultOpen={Boolean(autoOpen) || detail.thinking.details === "expanded"}
+        hideDetails={!hasText()}
+        defaultOpen={Boolean(props.autoOpen) || detail().thinking.details === "expanded"}
         trigger={(open) => (
           <div data-slot="basic-tool-tool-info-structured">
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
-                <TextShimmer text={label} active={live} />
+                <TextShimmer text={label()} active={live()} />
               </span>
-              {live && !open && heading && <span data-slot="basic-tool-tool-subtitle">{heading}</span>}
-              {!live && duration && <span data-slot="basic-tool-tool-subtitle">{duration}</span>}
+              <Show when={live() && !open && heading()}>
+                <span data-slot="basic-tool-tool-subtitle">{heading()}</span>
+              </Show>
+              <Show when={!live() && duration()}>
+                <span data-slot="basic-tool-tool-subtitle">{duration()}</span>
+              </Show>
             </div>
           </div>
         )}
       >
-        <Markdown text={text} className="reasoning-markdown" />
+        <Markdown text={text()} class="reasoning-markdown" />
       </BasicTool>
     </div>
   );
 }
-
-
-

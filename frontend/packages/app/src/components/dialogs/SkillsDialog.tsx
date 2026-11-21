@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { Play, Sparkles } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -24,26 +24,27 @@ interface Props {
 }
 
 /** Starts one discovered skill as a new turn with optional arguments. */
-export function SkillsDialog({ open, workspace, sessionID, title, skillID, create, onOpenChange }: Props) {
+export function SkillsDialog(props: Props) {
   const tr = useT();
-  const [skills, setSkills] = useState<SkillSummary[]>([]);
-  const [name, setName] = useState(skillID ?? "");
-  const [args, setArgs] = useState("");
-  const [detail, setDetail] = useState<SkillDetail>();
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [preview, setPreview] = useState<FileContent & { error?: string }>();
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [sourceErrors, setSourceErrors] = useState<{ url: string; error: string }[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [creating, setCreating] = useState(Boolean(create));
-  const [newID, setNewID] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [skills, setSkills] = createSignal<SkillSummary[]>([]);
+  const [name, setName] = createSignal(props.skillID ?? "");
+  const [args, setArgs] = createSignal("");
+  const [detail, setDetail] = createSignal<SkillDetail>();
+  const [detailLoading, setDetailLoading] = createSignal(false);
+  const [preview, setPreview] = createSignal<FileContent & { error?: string }>();
+  const [previewLoading, setPreviewLoading] = createSignal(false);
+  const [sourceErrors, setSourceErrors] = createSignal<{ url: string; error: string }[]>([]);
+  const [loading, setLoading] = createSignal(false);
+  const [busy, setBusy] = createSignal(false);
+  const [creating, setCreating] = createSignal(Boolean(props.create));
+  const [newID, setNewID] = createSignal("");
+  const [newName, setNewName] = createSignal("");
+  const [newDescription, setNewDescription] = createSignal("");
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
 
   const loadDetail = async (id: string) => {
+    const workspace = props.workspace;
     if (!workspace || !id.trim()) {
       setDetail(undefined);
       return;
@@ -61,6 +62,7 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
   };
 
   const load = async (rescan = false, preferred?: string) => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setLoading(true);
     try {
@@ -68,7 +70,7 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
       const [next, errors] = await Promise.all([api.skills(workspace), api.skillErrors(workspace)]);
       setSkills(next);
       setSourceErrors(errors);
-      const wanted = (preferred ?? name).trim();
+      const wanted = (preferred ?? untrack(name)).trim();
       const selected = (wanted && next.some((skill) => skill.id === wanted) ? wanted : "") || next[0]?.id || "";
       setName(selected);
       setError("");
@@ -87,15 +89,16 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
   };
 
   const createSkill = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
-    const id = newID.trim();
+    const id = newID().trim();
     if (!id) {
       setError("Skill id is required.");
       return;
     }
     setBusy(true);
     try {
-      await api.createSkill(workspace, id, newName.trim() || id, newDescription.trim());
+      await api.createSkill(workspace, id, newName().trim() || id, newDescription().trim());
       setCreating(false);
       setNewID("");
       setNewName("");
@@ -113,12 +116,13 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
   };
 
   const deleteSkill = async () => {
-    if (!workspace || !name.trim()) return;
-    if (!window.confirm(`Delete skill "${name.trim()}" and its folder?`)) return;
+    const workspace = props.workspace;
+    if (!workspace || !name().trim()) return;
+    if (!window.confirm(`Delete skill "${name().trim()}" and its folder?`)) return;
     setBusy(true);
     try {
-      await api.deleteSkill(workspace, name.trim());
-      setNotice(`Skill "${name.trim()}" deleted`);
+      await api.deleteSkill(workspace, name().trim());
+      setNotice(`Skill "${name().trim()}" deleted`);
       setName("");
       setDetail(undefined);
       await load(false);
@@ -131,21 +135,23 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
     }
   };
 
-  useEffect(() => {
-    if (open) {
-      setName(skillID ?? "");
-      setCreating(Boolean(create));
-      void load(false, skillID);
+  createEffect(() => {
+    if (props.open) {
+      setName(props.skillID ?? "");
+      setCreating(Boolean(props.create));
+      void load(false, props.skillID);
       // The core watches skill roots; poll the catalog so new or removed
       // skills appear without closing the dialog.
+      const workspace = props.workspace;
       const timer = window.setInterval(() => {
         if (!workspace) return;
         void api
           .skills(workspace)
-          .then(setSkills)
+          .then((next) => setSkills(next))
           .catch(() => undefined);
       }, 3000);
-      return () => window.clearInterval(timer);
+      onCleanup(() => window.clearInterval(timer));
+      return;
     }
     setSkills([]);
     setName("");
@@ -160,10 +166,10 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
     setNewID("");
     setNewName("");
     setNewDescription("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace, skillID, create]);
+  });
 
   const openPreview = async (path: string) => {
+    const workspace = props.workspace;
     if (!workspace || !path) return;
     setPreview(undefined);
     setPreviewLoading(true);
@@ -198,15 +204,17 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
   };
 
   const invoke = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
-    const id = name.trim();
+    const id = name().trim();
     if (!id) {
       setError("Skill name is required.");
       return;
     }
     setBusy(true);
     try {
-      await api.skill(workspace, sessionID, id, args.trim());
+      await api.skill(workspace, sessionID, id, args().trim());
       setNotice(`Skill "${id}" started`);
       setError("");
     } catch (err) {
@@ -218,221 +226,243 @@ export function SkillsDialog({ open, workspace, sessionID, title, skillID, creat
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <Sparkles class="size-4 text-text-faint" />
               Skills
             </DialogTitle>
-            <DialogDescription className="truncate">
-              {title ? `${title} · ` : ""}
-              {skills.length} discovered
+            <DialogDescription class="truncate">
+              {props.title ? `${props.title} · ` : ""}
+              {skills().length} discovered
             </DialogDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="xs" onClick={() => setCreating((value) => !value)}>
-              {creating ? "Cancel" : "New skill"}
+          <div class="flex items-center gap-2">
+            <Button type="button" variant="outline" size="xs" onClick={() => setCreating(!creating())}>
+              {creating() ? "Cancel" : "New skill"}
             </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load(true)} />
+            <RefreshButton loading={loading()} onRefresh={() => void load(true)} />
           </div>
         </div>
 
-        <ErrorBanner error={error} />
-        <NoticeBanner notice={notice} shrink />
-        {sourceErrors.length > 0 && (
-          <div className="mt-2 rounded-md border border-border-base bg-bg-layer-01 px-3 py-2 text-caption text-state-fg-danger">
-            {sourceErrors.map((item) => (
-              <p key={`${item.url}:${item.error}`} className="break-all">
-                {item.url ? `${item.url}: ` : ""}
-                {item.error}
-              </p>
-            ))}
+        <ErrorBanner error={error()} />
+        <NoticeBanner notice={notice()} shrink />
+        <Show when={sourceErrors().length > 0}>
+          <div class="mt-2 rounded-md border border-border-base bg-bg-layer-01 px-3 py-2 text-caption text-state-fg-danger">
+            <For each={sourceErrors()}>
+              {(item) => (
+                <p class="break-all">
+                  {item.url ? `${item.url}: ` : ""}
+                  {item.error}
+                </p>
+              )}
+            </For>
           </div>
-        )}
+        </Show>
 
-        {creating && (
-          <div className="mt-3 grid gap-2 rounded-md border border-border-base bg-bg-layer-01 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto]">
+        <Show when={creating()}>
+          <div class="mt-3 grid gap-2 rounded-md border border-border-base bg-bg-layer-01 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto]">
             <Input
-              value={newID}
+              value={newID()}
               aria-label={tr("skillNewID")}
               placeholder={tr("skillIDPlaceholder")}
-              onChange={(event) => setNewID(event.target.value)}
-              className="select-text font-mono"
+              onInput={(event) => setNewID(event.currentTarget.value)}
+              class="select-text font-mono"
             />
             <Input
-              value={newName}
+              value={newName()}
               aria-label={tr("skillNewName")}
               placeholder={tr("skillNamePlaceholder")}
-              onChange={(event) => setNewName(event.target.value)}
-              className="select-text"
+              onInput={(event) => setNewName(event.currentTarget.value)}
+              class="select-text"
             />
             <Input
-              value={newDescription}
+              value={newDescription()}
               aria-label={tr("skillNewDescription")}
               placeholder={tr("skillDescriptionPlaceholder")}
-              onChange={(event) => setNewDescription(event.target.value)}
-              className="select-text"
+              onInput={(event) => setNewDescription(event.currentTarget.value)}
+              class="select-text"
             />
-            <Button type="button" size="sm" disabled={busy || !newID.trim()} onClick={() => void createSkill()}>
+            <Button type="button" size="sm" disabled={busy() || !newID().trim()} onClick={() => void createSkill()}>
               Create
             </Button>
           </div>
-        )}
+        </Show>
 
-        <div className="mt-4 grid min-h-0 flex-1 gap-3 md:grid-cols-2">
-          <div className="min-h-0 overflow-auto rounded-md border border-border-base">
-            {skills.length === 0 ? (
-              <p className="p-3 text-meta text-text-faint">
-                {loading ? "Loading…" : "No skills discovered for this workspace."}
-              </p>
-            ) : (
-              skills.map((skill) => (
-                <button
-                  key={skill.id}
-                  type="button"
-                  onClick={() => selectSkill(skill.id)}
-                  className={`interactive flex w-full flex-col gap-0.5 border-b border-border-base px-3 py-2 text-left last:border-b-0 ${
-                    name === skill.id ? "bg-bg-layer-02" : "hover:bg-bg-layer-01"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-body text-text-base">{skill.name || skill.id}</span>
-                    <span className="font-mono text-caption text-text-faint">{skill.id}</span>
-                    {skill.autoinvoke === false && (
-                      <span className="text-caption text-text-faint">manual</span>
-                    )}
-                  </span>
-                  {skill.description && (
-                    <span className="text-caption text-text-faint">{skill.description}</span>
-                  )}
-                </button>
-              ))
-            )}
+        <div class="mt-4 grid min-h-0 flex-1 gap-3 md:grid-cols-2">
+          <div class="min-h-0 overflow-auto rounded-md border border-border-base">
+            <Show
+              when={skills().length > 0}
+              fallback={
+                <p class="p-3 text-meta text-text-faint">
+                  {loading() ? "Loading…" : "No skills discovered for this workspace."}
+                </p>
+              }
+            >
+              <For each={skills()}>
+                {(skill) => (
+                  <button
+                    type="button"
+                    onClick={() => selectSkill(skill.id)}
+                    class={`interactive flex w-full flex-col gap-0.5 border-b border-border-base px-3 py-2 text-left last:border-b-0 ${
+                      name() === skill.id ? "bg-bg-layer-02" : "hover:bg-bg-layer-01"
+                    }`}
+                  >
+                    <span class="flex items-center gap-2">
+                      <span class="text-body text-text-base">{skill.name || skill.id}</span>
+                      <span class="font-mono text-caption text-text-faint">{skill.id}</span>
+                      <Show when={skill.autoinvoke === false}>
+                        <span class="text-caption text-text-faint">manual</span>
+                      </Show>
+                    </span>
+                    <Show when={skill.description}>
+                      <span class="text-caption text-text-faint">{skill.description}</span>
+                    </Show>
+                  </button>
+                )}
+              </For>
+            </Show>
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-auto">
-            <div className="rounded-md border border-border-base bg-bg-layer-01 p-2">
-              <div className="flex items-baseline gap-2">
-                <p className="min-w-0 flex-1 truncate text-body text-text-base">
-                  {detail?.name || name || "No skill selected"}
+          <div class="flex min-h-0 min-w-0 flex-col gap-2 overflow-auto">
+            <div class="rounded-md border border-border-base bg-bg-layer-01 p-2">
+              <div class="flex items-baseline gap-2">
+                <p class="min-w-0 flex-1 truncate text-body text-text-base">
+                  {detail()?.name || name() || "No skill selected"}
                 </p>
-                {detail?.autoinvoke && (
-                  <span className="shrink-0 text-caption text-state-fg-success">auto</span>
-                )}
-                {name.trim() && (
+                <Show when={detail()?.autoinvoke}>
+                  <span class="shrink-0 text-caption text-state-fg-success">auto</span>
+                </Show>
+                <Show when={name().trim()}>
                   <Button
                     type="button"
                     variant="outline"
                     size="xs"
-                    className="shrink-0"
-                    disabled={busy}
+                    class="shrink-0"
+                    disabled={busy()}
                     onClick={() => void deleteSkill()}
                   >
                     Delete
                   </Button>
-                )}
+                </Show>
               </div>
-              {detail?.description && (
-                <p className="mt-1 text-caption text-text-faint">{detail.description}</p>
-              )}
-              {detail?.path && (
-                <button
-                  type="button"
-                  onClick={() => void openPreview(detail.path)}
-                  className="interactive mt-1 block max-w-full break-all text-left font-mono text-caption text-text-faint hover:text-text-base"
-                  title={detail.path}
-                >
-                  {detail.path}
-                </button>
-              )}
-              {detailLoading && <p className="mt-2 text-meta text-text-faint">Loading…</p>}
-              {detail?.files && detail.files.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-caption text-text-faint">Files</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {detail.files.map((file) => (
-                      <button
-                        key={file}
-                        type="button"
-                        onClick={() => void openPreview(file)}
-                        title={file}
-                        className="interactive rounded border border-border-base px-1 py-0.5 font-mono text-caption text-text-muted hover:text-text-base"
-                      >
-                        {file.split(/[\\/]/).pop()}
-                      </button>
-                    ))}
+              <Show when={detail()?.description}>
+                <p class="mt-1 text-caption text-text-faint">{detail()!.description}</p>
+              </Show>
+              <Show when={detail()?.path}>
+                {(path) => (
+                  <button
+                    type="button"
+                    onClick={() => void openPreview(path())}
+                    class="interactive mt-1 block max-w-full break-all text-left font-mono text-caption text-text-faint hover:text-text-base"
+                    title={path()}
+                  >
+                    {path()}
+                  </button>
+                )}
+              </Show>
+              <Show when={detailLoading()}>
+                <p class="mt-2 text-meta text-text-faint">Loading…</p>
+              </Show>
+              <Show when={detail()?.files && detail()!.files!.length > 0}>
+                <div class="mt-2">
+                  <p class="text-caption text-text-faint">Files</p>
+                  <div class="mt-1 flex flex-wrap gap-1">
+                    <For each={detail()?.files ?? []}>
+                      {(file) => (
+                        <button
+                          type="button"
+                          onClick={() => void openPreview(file)}
+                          title={file}
+                          class="interactive rounded border border-border-base px-1 py-0.5 font-mono text-caption text-text-muted hover:text-text-base"
+                        >
+                          {file.split(/[\\/]/).pop()}
+                        </button>
+                      )}
+                    </For>
                   </div>
                 </div>
-              )}
-              <p className="mt-2 text-caption text-text-faint">Instructions</p>
-              <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5 text-text-muted select-text">
-                {detail?.content || "Select a skill to preview its instructions."}
+              </Show>
+              <p class="mt-2 text-caption text-text-faint">Instructions</p>
+              <pre class="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5 text-text-muted select-text">
+                {detail()?.content || "Select a skill to preview its instructions."}
               </pre>
             </div>
 
-            {(previewLoading || preview) && (
-              <div className="rounded-md border border-border-base bg-bg-layer-01 p-2">
-                <div className="flex items-center gap-2">
-                  <p className="min-w-0 flex-1 truncate font-mono text-caption text-text-muted">
-                    {preview?.path || "Loading…"}
+            <Show when={previewLoading() || preview()}>
+              <div class="rounded-md border border-border-base bg-bg-layer-01 p-2">
+                <div class="flex items-center gap-2">
+                  <p class="min-w-0 flex-1 truncate font-mono text-caption text-text-muted">
+                    {preview()?.path || "Loading…"}
                   </p>
-                  {preview?.path && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => void reveal(preview.path)}
-                    >
-                      {tr("revealInFileExplorer")}
-                    </Button>
-                  )}
+                  <Show when={preview()?.path}>
+                    {(path) => (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => void reveal(path())}
+                      >
+                        {tr("revealInFileExplorer")}
+                      </Button>
+                    )}
+                  </Show>
                   <Button type="button" variant="ghost" size="xs" onClick={() => setPreview(undefined)}>
                     Close
                   </Button>
                 </div>
-                {previewLoading ? (
-                  <p className="mt-2 text-meta text-text-faint">Loading…</p>
-                ) : preview?.error ? (
-                  <p className="mt-2 text-caption text-state-fg-danger">{preview.error}</p>
-                ) : preview?.binary ? (
-                  <p className="mt-2 text-meta text-text-faint">Binary file ({preview.size} bytes).</p>
-                ) : (
-                  <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5 text-text-muted select-text">
-                    {preview?.content || "Empty file."}
-                    {preview?.truncated ? "\n\n[truncated]" : ""}
-                  </pre>
-                )}
+                <Show
+                  when={!previewLoading()}
+                  fallback={<p class="mt-2 text-meta text-text-faint">Loading…</p>}
+                >
+                  <Show
+                    when={!preview()?.error}
+                    fallback={<p class="mt-2 text-caption text-state-fg-danger">{preview()!.error}</p>}
+                  >
+                    <Show
+                      when={!preview()?.binary}
+                      fallback={
+                        <p class="mt-2 text-meta text-text-faint">Binary file ({preview()!.size} bytes).</p>
+                      }
+                    >
+                      <pre class="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5 text-text-muted select-text">
+                        {preview()?.content || "Empty file."}
+                        {preview()?.truncated ? "\n\n[truncated]" : ""}
+                      </pre>
+                    </Show>
+                  </Show>
+                </Show>
               </div>
-            )}
+            </Show>
 
-            <label className="flex flex-col gap-1 text-caption text-text-faint">
+            <label class="flex flex-col gap-1 text-caption text-text-faint">
               {tr("dialogSkillNameOrId")}
               <Input
-                value={name}
+                value={name()}
                 aria-label={tr("skillsSkillName")}
                 placeholder={tr("dialogSkillExample")}
-                onChange={(event) => setName(event.target.value)}
-                onBlur={() => void loadDetail(name)}
-                className="select-text font-mono"
+                onInput={(event) => setName(event.currentTarget.value)}
+                onBlur={() => void loadDetail(name())}
+                class="select-text font-mono"
               />
             </label>
-            <label className="flex flex-col gap-1 text-caption text-text-faint">
+            <label class="flex flex-col gap-1 text-caption text-text-faint">
               Arguments (optional)
               <Textarea
-                value={args}
+                value={args()}
                 aria-label={tr("skillsSkillArguments")}
                 placeholder={tr("skillsExtraInstructionsAppendedToTheSkillPrompt")}
-                onChange={(event) => setArgs(event.target.value)}
-                className="min-h-20 select-text"
+                onInput={(event) => setArgs(event.currentTarget.value)}
+                class="min-h-20 select-text"
               />
             </label>
-            <Button type="button" size="sm" className="self-end" disabled={busy} onClick={() => void invoke()}>
+            <Button type="button" size="sm" class="self-end" disabled={busy()} onClick={() => void invoke()}>
               <Play />
-              {busy ? "Starting…" : "Run skill"}
+              {busy() ? "Starting…" : "Run skill"}
             </Button>
-            <p className="text-caption text-text-faint">
+            <p class="text-caption text-text-faint">
               The skill becomes a new user turn; its output appears in the chat.
             </p>
           </div>

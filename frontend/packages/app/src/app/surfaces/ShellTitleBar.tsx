@@ -4,32 +4,34 @@ import { useShell } from "../ShellProvider";
 /** Window chrome: menu, sidebar toggle, window controls and session navigation. */
 export function ShellTitleBar() {
   const shell = useShell();
-  const { view, mobile, keybinds, chatActions, activeWorkspace } = shell;
+  const view = shell.view;
+  const activeWorkspace = () => shell.activeWorkspace;
 
   return (
     <TitleBar
       sidebarOpen={shell.sidebarOpen}
-      onToggleSidebar={mobile ? undefined : () => shell.setSidebarOpen((value) => !value)}
-      onOpenDrawer={mobile ? () => shell.setMobileDrawerOpen(true) : undefined}
+      onToggleSidebar={shell.mobile ? undefined : () => shell.setSidebarOpen((value) => !value)}
+      onOpenDrawer={shell.mobile ? () => shell.setMobileDrawerOpen(true) : undefined}
       onOpenSettings={() => view.openSettings()}
       onOpenPalette={() => shell.dialogs.setPaletteOpen(true)}
       onNewSession={() => {
-        if (activeWorkspace) void chatActions.newChat(activeWorkspace.path);
+        const workspace = activeWorkspace();
+        if (workspace) void shell.chatActions.newChat(workspace.path);
       }}
-      sidebarKeybind={keybinds["sidebar.toggle"]}
+      sidebarKeybind={shell.keybinds["sidebar.toggle"]}
       onPreviousTab={() => {
-        if (shell.tabs.sideTabs.length < 2) return;
-        const index = shell.tabs.sideTabs.findIndex((tab) => tab.key === shell.activeSideTab);
+        const tabs = shell.tabs.sideTabs();
+        if (tabs.length < 2) return;
+        const index = tabs.findIndex((tab) => tab.key === shell.activeSideTab);
         if (index < 0) return;
-        shell.tabs.selectSideTab(
-          shell.tabs.sideTabs[(index - 1 + shell.tabs.sideTabs.length) % shell.tabs.sideTabs.length],
-        );
+        shell.tabs.selectSideTab(tabs[(index - 1 + tabs.length) % tabs.length]);
       }}
       onNextTab={() => {
-        if (shell.tabs.sideTabs.length < 2) return;
-        const index = shell.tabs.sideTabs.findIndex((tab) => tab.key === shell.activeSideTab);
+        const tabs = shell.tabs.sideTabs();
+        if (tabs.length < 2) return;
+        const index = tabs.findIndex((tab) => tab.key === shell.activeSideTab);
         if (index < 0) return;
-        shell.tabs.selectSideTab(shell.tabs.sideTabs[(index + 1) % shell.tabs.sideTabs.length]);
+        shell.tabs.selectSideTab(tabs[(index + 1) % tabs.length]);
       }}
     />
   );

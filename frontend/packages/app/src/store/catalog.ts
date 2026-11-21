@@ -1,4 +1,5 @@
-import { create } from "zustand";
+import { type Accessor } from "solid-js";
+import { createStore } from "./create";
 import { api } from "../lib/api";
 import type { AppSettings, ProviderSettings } from "@lingzhu/ui/types";
 
@@ -26,7 +27,7 @@ const toCatalog = (settings: AppSettings): Catalog => ({
 // A slow earlier read must not overwrite the list a later push already stored.
 let requestSeq = 0;
 
-export const useCatalogStore = create<CatalogStore>((set) => ({
+export const useCatalogStore = createStore<CatalogStore>((set) => ({
   catalog: undefined,
 
   reload: async () => {
@@ -46,6 +47,6 @@ export const useCatalogStore = create<CatalogStore>((set) => ({
   },
 }));
 
-export function useCatalog(): Catalog | undefined {
+export function useCatalog(): Accessor<Catalog | undefined> {
   return useCatalogStore((state) => state.catalog);
 }

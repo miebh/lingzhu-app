@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { Eye, EyeOff, FilePlus, FolderClosed, FolderOpen, FolderPlus, Pencil, RefreshCw, Save, Search, Trash2, Wand2 } from "@lingzhu/ui/icons";
 import { FileTypeIcon } from "@lingzhu/ui/file-icons";
 import { Button } from "@lingzhu/ui/button";
@@ -33,42 +34,45 @@ function nameOf(path: string): string {
  * Workspace file tree with a read-only text preview. Directories load lazily;
  * hidden entries are opt-in; paths are confined to the workspace by the core.
  */
-export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChange }: Props) {
+export function FileTreeDialog(props: Props) {
   const tr = useT();
-  const [children, setChildren] = useState<Record<string, FsEntry[]>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [truncated, setTruncated] = useState<Record<string, boolean>>({});
-  const [hidden, setHidden] = useState(false);
-  const [selected, setSelected] = useState<string>();
-  const [preview, setPreview] = useState<FileContent>();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [formatting, setFormatting] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [renaming, setRenaming] = useState<{ path: string; value: string }>();
-  const [creating, setCreating] = useState<{ kind: "file" | "dir"; value: string; dir: string }>();
-  const [deleteTarget, setDeleteTarget] = useState<FsEntry>();
-  const renameCancelled = useRef(false);
-  const createCancelled = useRef(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<"name" | "content">("name");
-  const [hits, setHits] = useState<FileSearchHit[]>([]);
-  const [hitsTruncated, setHitsTruncated] = useState(false);
-  const [grepHits, setGrepHits] = useState<FileGrepHit[]>([]);
-  const [grepTruncated, setGrepTruncated] = useState(false);
-  const [searching, setSearching] = useState(false);
+  const [children, setChildren] = createSignal<Record<string, FsEntry[]>>({});
+  const [expanded, setExpanded] = createSignal<Record<string, boolean>>({});
+  const [truncated, setTruncated] = createSignal<Record<string, boolean>>({});
+  const [hidden, setHidden] = createSignal(false);
+  const [selected, setSelected] = createSignal<string>();
+  const [preview, setPreview] = createSignal<FileContent>();
+  const [editing, setEditing] = createSignal(false);
+  const [draft, setDraft] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+  const [formatting, setFormatting] = createSignal(false);
+  const [notice, setNotice] = createSignal("");
+  const [renaming, setRenaming] = createSignal<{ path: string; value: string }>();
+  const [creating, setCreating] = createSignal<{ kind: "file" | "dir"; value: string; dir: string }>();
+  const [deleteTarget, setDeleteTarget] = createSignal<FsEntry>();
+  let renameCancelled = false;
+  let createCancelled = false;
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [query, setQuery] = createSignal("");
+  const [searchMode, setSearchMode] = createSignal<"name" | "content">("name");
+  const [hits, setHits] = createSignal<FileSearchHit[]>([]);
+  const [hitsTruncated, setHitsTruncated] = createSignal(false);
+  const [grepHits, setGrepHits] = createSignal<FileGrepHit[]>([]);
+  const [grepTruncated, setGrepTruncated] = createSignal(false);
+  const [searching, setSearching] = createSignal(false);
 
   const loadDir = async (path: string, showHidden: boolean) => {
-    const list = await api.files(workspace ?? "", path, showHidden);
-    setChildren((current) => ({ ...current, [path]: list.entries }));
-    setTruncated((current) => ({ ...current, [path]: list.truncated }));
+    const list = await api.files(props.workspace ?? "", path, showHidden);
+    update(setChildren, children, (current) => ({ ...current, [path]: list.entries }));
+    update(setTruncated, truncated, (current) => ({ ...current, [path]: list.truncated }));
   };
 
-  useEffect(() => {
-    if (!open || !workspace) {
+  createEffect(() => {
+    const workspace = props.workspace;
+    const isHidden = hidden();
+    const initialPath = props.initialPath;
+    if (!props.open || !workspace) {
       setChildren({});
       setExpanded({});
       setTruncated({});
@@ -103,7 +107,7 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
     setRenaming(undefined);
     setCreating(undefined);
     api
-      .files(workspace, "", hidden)
+      .files(workspace, "", isHidden)
       .then((list) => {
         if (!alive) return;
         setChildren({ "": list.entries });
@@ -116,14 +120,16 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
       .finally(() => {
         if (alive) setLoading(false);
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [open, workspace, hidden, initialPath]);
+    });
+  });
 
-  useEffect(() => {
-    if (!open || !workspace) return;
-    const term = query.trim();
+  createEffect(() => {
+    const workspace = props.workspace;
+    const term = query().trim();
+    const mode = searchMode();
+    if (!props.open || !workspace) return;
     if (!term) {
       setHits([]);
       setHitsTruncated(false);
@@ -136,7 +142,7 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
     const timer = window.setTimeout(() => {
       setSearching(true);
       const request =
-        searchMode === "name"
+        mode === "name"
           ? api.searchFiles(workspace, term, 50).then((result) => {
               if (!alive) return;
               setHits(result.files);
@@ -159,27 +165,28 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
           if (alive) setSearching(false);
         });
     }, 250);
-    return () => {
+    onCleanup(() => {
       alive = false;
       window.clearTimeout(timer);
-    };
-  }, [open, workspace, query, searchMode]);
+    });
+  });
 
   const toggleDir = async (path: string) => {
-    if (expanded[path]) {
-      setExpanded((current) => ({ ...current, [path]: false }));
+    if (expanded()[path]) {
+      update(setExpanded, expanded, (current) => ({ ...current, [path]: false }));
       return;
     }
-    setExpanded((current) => ({ ...current, [path]: true }));
-    if (children[path]) return;
+    update(setExpanded, expanded, (current) => ({ ...current, [path]: true }));
+    if (children()[path]) return;
     try {
-      await loadDir(path, hidden);
+      await loadDir(path, hidden());
     } catch (err) {
       setError(messageOf(err));
     }
   };
 
   const openFile = async (path: string) => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setSelected(path);
     setPreview(undefined);
@@ -195,25 +202,28 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
   };
 
   const startEdit = () => {
-    if (!preview) return;
-    setDraft(preview.content);
+    const file = preview();
+    if (!file) return;
+    setDraft(file.content);
     setEditing(true);
     setNotice("");
   };
 
   const formatFile = async () => {
-    if (!workspace || !preview) return;
+    const workspace = props.workspace;
+    const file = preview();
+    if (!workspace || !file) return;
     setFormatting(true);
     setNotice("");
     try {
-      const result = await api.formatFile(workspace, preview.path);
+      const result = await api.formatFile(workspace, file.path);
       if (!result.name) {
         setNotice("No formatter matched this file.");
       } else if (result.changed) {
         setNotice(`${result.name} formatted the file.`);
-        setPreview(await api.fileContent(workspace, preview.path));
+        setPreview(await api.fileContent(workspace, file.path));
         setEditing(false);
-        await loadDir(parentOf(preview.path), hidden);
+        await loadDir(parentOf(file.path), hidden());
       } else {
         setNotice(`${result.name}: already formatted.`);
       }
@@ -226,18 +236,20 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
   };
 
   const save = async () => {
-    if (!workspace || !preview) return;
+    const workspace = props.workspace;
+    const file = preview();
+    if (!workspace || !file) return;
     setSaving(true);
     try {
-      await api.writeFile(workspace, preview.path, draft);
-      const next = await api.fileContent(workspace, preview.path);
+      await api.writeFile(workspace, file.path, draft());
+      const next = await api.fileContent(workspace, file.path);
       setPreview(next);
       setEditing(false);
       setError("");
-      const parent = preview.path.includes("/")
-        ? preview.path.slice(0, preview.path.lastIndexOf("/"))
+      const parent = file.path.includes("/")
+        ? file.path.slice(0, file.path.lastIndexOf("/"))
         : "";
-      await loadDir(parent, hidden);
+      await loadDir(parent, hidden());
     } catch (err) {
       setError(messageOf(err));
     } finally {
@@ -246,16 +258,20 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
   };
 
   const refresh = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setLoading(true);
     setError("");
     setEditing(false);
     try {
-      const paths = ["", ...Object.keys(expanded).filter((path) => expanded[path])];
+      const current = expanded();
+      const paths = ["", ...Object.keys(current).filter((path) => current[path])];
       for (const path of paths) {
-        await loadDir(path, hidden);
+        await loadDir(path, hidden());
       }
-      if (selected) setPreview(await api.fileContent(workspace, selected));
+      const target = selected();
+      if (target) setPreview(await api.fileContent(workspace, target));
+      setError("");
     } catch (err) {
       setError(messageOf(err));
     } finally {
@@ -264,19 +280,22 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
   };
 
   const startCreate = (kind: "file" | "dir") => {
-    createCancelled.current = false;
-    setCreating({ kind, value: "", dir: selected ? parentOf(selected) : "" });
+    createCancelled = false;
+    const target = selected();
+    setCreating({ kind, value: "", dir: target ? parentOf(target) : "" });
     setError("");
   };
 
   const commitCreate = async () => {
-    if (!workspace || !creating) return;
-    if (createCancelled.current) {
-      createCancelled.current = false;
+    const workspace = props.workspace;
+    const current = creating();
+    if (!workspace || !current) return;
+    if (createCancelled) {
+      createCancelled = false;
       setCreating(undefined);
       return;
     }
-    const target = creating;
+    const target = current;
     setCreating(undefined);
     const name = target.value.trim();
     if (!name) return;
@@ -288,9 +307,9 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
     try {
       await api.createEntry(workspace, path, target.kind, "");
       if (target.dir) {
-        setExpanded((current) => ({ ...current, [target.dir]: true }));
+        update(setExpanded, expanded, (current) => ({ ...current, [target.dir]: true }));
       }
-      await loadDir(target.dir, hidden);
+      await loadDir(target.dir, hidden());
       if (target.kind === "file") {
         setSelected(path);
         setEditing(false);
@@ -303,13 +322,15 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
   };
 
   const commitRename = async () => {
-    if (!workspace || !renaming) return;
-    if (renameCancelled.current) {
-      renameCancelled.current = false;
+    const workspace = props.workspace;
+    const current = renaming();
+    if (!workspace || !current) return;
+    if (renameCancelled) {
+      renameCancelled = false;
       setRenaming(undefined);
       return;
     }
-    const target = renaming;
+    const target = current;
     setRenaming(undefined);
     const name = target.value.trim();
     if (!name || name === nameOf(target.path)) return;
@@ -321,12 +342,12 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
     const next = parent ? `${parent}/${name}` : name;
     try {
       await api.moveFile(workspace, target.path, next);
-      if (selected === target.path) {
+      if (selected() === target.path) {
         setSelected(next);
         setPreview(await api.fileContent(workspace, next));
         setEditing(false);
       }
-      await loadDir(parent, hidden);
+      await loadDir(parent, hidden());
       setError("");
     } catch (err) {
       setError(messageOf(err));
@@ -334,371 +355,421 @@ export function FileTreeDialog({ open, workspace, name, initialPath, onOpenChang
   };
 
   const removeEntry = async () => {
-    const target = deleteTarget;
+    const target = deleteTarget();
+    const workspace = props.workspace;
     if (!target || !workspace) return;
     setDeleteTarget(undefined);
     try {
       await api.deleteFile(workspace, target.path);
-      if (selected === target.path) {
+      if (selected() === target.path) {
         setSelected(undefined);
         setPreview(undefined);
         setEditing(false);
       }
-      await loadDir(parentOf(target.path), hidden);
+      await loadDir(parentOf(target.path), hidden());
       setError("");
     } catch (err) {
       setError(messageOf(err));
     }
   };
 
-  const renderLevel = (path: string, depth: number): ReactNode => {
-    const entries = children[path] ?? [];
-    if (entries.length === 0) {
-      return (
-        <p className="px-2 py-1 text-body leading-4 font-[440] text-text-faint" style={{ paddingLeft: 10 + depth * 14 }}>
-          {children[path] ? "Empty" : "Loading…"}
-        </p>
-      );
-    }
-    return entries.map((entry) => {
-      const directory = entry.type === "dir";
-      const isOpen = Boolean(expanded[entry.path]);
-      const active = selected === entry.path;
-      return (
-        <div key={entry.path}>
-          <div
-            className={`interactive group/file flex h-7 items-center gap-1.5 rounded-md pe-2 text-body ${
-              active ? "bg-bg-layer-02 text-text-base" : "text-text-muted hover:text-text-base"
-            }`}
-            style={{ paddingLeft: 8 + depth * 14 }}
+  function Level(level: { path: string; depth: number }) {
+    const entries = () => children()[level.path] ?? [];
+    return (
+      <Show
+        when={entries().length > 0}
+        fallback={
+          <p
+            class="px-2 py-1 text-body leading-4 font-[440] text-text-faint"
+            style={{ "padding-left": `${10 + level.depth * 14}px` }}
           >
-            {renaming?.path === entry.path ? (
-              <input
-                autoFocus
-                value={renaming.value}
-                aria-label={`Rename ${entry.name}`}
-                onChange={(event) =>
-                  setRenaming({ path: entry.path, value: event.target.value })
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    renameCancelled.current = true;
-                    event.currentTarget.blur();
-                  }
-                }}
-                onBlur={() => void commitRename()}
-                className="my-0.5 min-w-0 flex-1 rounded-xs border border-border-base bg-bg-base px-1 py-0.5 font-mono text-meta text-text-base outline-none select-text"
-              />
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => (directory ? void toggleDir(entry.path) : void openFile(entry.path))}
-                  className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left"
-                  title={entry.path}
+            {children()[level.path] ? "Empty" : "Loading…"}
+          </p>
+        }
+      >
+        <For each={entries()}>
+          {(entry) => {
+            const directory = entry.type === "dir";
+            const isOpen = () => Boolean(expanded()[entry.path]);
+            const active = () => selected() === entry.path;
+            return (
+              <div>
+                <div
+                  class={`interactive group/file flex h-7 items-center gap-1.5 rounded-md pe-2 text-body ${
+                    active() ? "bg-bg-layer-02 text-text-base" : "text-text-muted hover:text-text-base"
+                  }`}
+                  style={{ "padding-left": `${8 + level.depth * 14}px` }}
                 >
-                  {directory ? (
-                    isOpen ? (
-                      <FolderOpen className="size-4 shrink-0 text-text-faint" />
-                    ) : (
-                      <FolderClosed className="size-4 shrink-0 text-text-faint" />
-                    )
-                  ) : (
-                    <FileTypeIcon path={entry.path} className="size-4" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate font-[530]">{entry.name}</span>
-                  {!directory && (
-                    <span className="shrink-0 text-caption tabular-nums text-text-faint">
-                      {formatBytes(entry.size)}
-                    </span>
-                  )}
-                </button>
-                <span className="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within/file:opacity-100 group-hover/file:opacity-100">
-                  <button
-                    type="button"
-                    aria-label={`Rename ${entry.name}`}
-                    onClick={() => {
-                      renameCancelled.current = false;
-                      setRenaming({ path: entry.path, value: entry.name });
-                    }}
-                    className="interactive grid size-5 place-items-center rounded-xs text-text-faint hover:text-text-base"
+                  <Show
+                    when={renaming()?.path === entry.path}
+                    fallback={
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => (directory ? void toggleDir(entry.path) : void openFile(entry.path))}
+                          class="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left"
+                          title={entry.path}
+                        >
+                          {directory ? (
+                            isOpen() ? (
+                              <FolderOpen class="size-4 shrink-0 text-text-faint" />
+                            ) : (
+                              <FolderClosed class="size-4 shrink-0 text-text-faint" />
+                            )
+                          ) : (
+                            <FileTypeIcon path={entry.path} class="size-4" />
+                          )}
+                          <span class="min-w-0 flex-1 truncate font-[530]">{entry.name}</span>
+                          <Show when={!directory}>
+                            <span class="shrink-0 text-caption tabular-nums text-text-faint">
+                              {formatBytes(entry.size)}
+                            </span>
+                          </Show>
+                        </button>
+                        <span class="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within/file:opacity-100 group-hover/file:opacity-100">
+                          <button
+                            type="button"
+                            aria-label={`Rename ${entry.name}`}
+                            onClick={() => {
+                              renameCancelled = false;
+                              setRenaming({ path: entry.path, value: entry.name });
+                            }}
+                            class="interactive grid size-5 place-items-center rounded-xs text-text-faint hover:text-text-base"
+                          >
+                            <Pencil class="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${entry.name}`}
+                            onClick={() => setDeleteTarget(entry)}
+                            class="interactive grid size-5 place-items-center rounded-xs text-text-faint hover:text-state-fg-danger"
+                          >
+                            <Trash2 class="size-3" />
+                          </button>
+                        </span>
+                      </>
+                    }
                   >
-                    <Pencil className="size-3" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${entry.name}`}
-                    onClick={() => setDeleteTarget(entry)}
-                    className="interactive grid size-5 place-items-center rounded-xs text-text-faint hover:text-state-fg-danger"
+                    <input
+                      autofocus
+                      value={renaming()!.value}
+                      aria-label={`Rename ${entry.name}`}
+                      onInput={(event) =>
+                        setRenaming({ path: entry.path, value: event.currentTarget.value })
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          renameCancelled = true;
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      onBlur={() => void commitRename()}
+                      class="my-0.5 min-w-0 flex-1 rounded-xs border border-border-base bg-bg-base px-1 py-0.5 font-mono text-meta text-text-base outline-none select-text"
+                    />
+                  </Show>
+                </div>
+                <Show when={directory && isOpen()}>
+                  <Level path={entry.path} depth={level.depth + 1} />
+                </Show>
+                <Show when={directory && isOpen() && truncated()[entry.path]}>
+                  <p
+                    class="px-2 py-1 text-caption text-text-faint"
+                    style={{ "padding-left": `${10 + (level.depth + 1) * 14}px` }}
                   >
-                    <Trash2 className="size-3" />
-                  </button>
-                </span>
-              </>
-            )}
-          </div>
-          {directory && isOpen && renderLevel(entry.path, depth + 1)}
-          {directory && isOpen && truncated[entry.path] && (
-            <p className="px-2 py-1 text-caption text-text-faint" style={{ paddingLeft: 10 + (depth + 1) * 14 }}>
-              {tr("dialogFirst1000Entries")}
-            </p>
-          )}
-        </div>
-      );
-    });
-  };
+                    {tr("dialogFirst1000Entries")}
+                  </p>
+                </Show>
+              </div>
+            );
+          }}
+        </For>
+      </Show>
+    );
+  }
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle>Files</DialogTitle>
-            <DialogDescription className="truncate">{name || workspace}</DialogDescription>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <label className="flex h-control-sm items-center gap-1 rounded-md border border-border-base bg-bg-base px-2">
-              <Search className="size-3.5 shrink-0 text-text-faint" />
-              <input
-                value={query}
-                aria-label={tr("fileTreeSearchWorkspaceFiles")}
-                placeholder={searchMode === "name" ? "Search files" : "Search contents"}
-                onChange={(event) => setQuery(event.target.value)}
-                className="w-36 bg-transparent text-meta text-text-base outline-none placeholder:text-text-faint select-text"
-              />
-            </label>
-            <select
-              value={searchMode}
-              aria-label={tr("fileTreeSearchMode")}
-              onChange={(event) => setSearchMode(event.target.value === "content" ? "content" : "name")}
-              className="h-control-sm rounded-md border border-border-base bg-bg-base px-1 text-caption text-text-muted outline-none"
-            >
-              <option value="name">Name</option>
-              <option value="content">Content</option>
-            </select>
-            <Button type="button" variant="outline" size="sm" onClick={() => startCreate("file")}>
-              <FilePlus />
-              {tr("dialogNewFile")}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => startCreate("dir")}>
-              <FolderPlus />
-              {tr("dialogNewFolder")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-pressed={hidden}
-              onClick={() => setHidden((value) => !value)}
-            >
-              {hidden ? <EyeOff /> : <Eye />}
-              {hidden ? "Hide hidden" : "Show hidden"}
-            </Button>
-            <Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void refresh()}>
-              <RefreshCw className={loading ? "motion-safe:animate-spin" : undefined} />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        <ErrorBanner error={error} className="mt-4 shrink-0" />
-
-        <div className="mt-4 flex min-h-0 flex-1 gap-3">
-          <div className="w-72 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
-            {query.trim() ? (
-              <div className="flex flex-col">
-                {searchMode === "name" ? (
-                  <>
-                    {hits.length === 0 ? (
-                      <p className="px-2 py-1 text-meta text-text-faint">
-                        {searching ? "Searching…" : "No matching files."}
-                      </p>
-                    ) : (
-                      hits.map((hit) => (
-                        <button
-                          key={hit.path}
-                          type="button"
-                          onClick={() => void openFile(hit.path)}
-                          className={`interactive flex w-full items-center gap-2 px-2 py-1.5 text-left text-meta ${
-                            selected === hit.path
-                              ? "bg-bg-layer-02 text-text-base"
-                              : "text-text-muted hover:text-text-base"
-                          }`}
-                        >
-                          <FileTypeIcon path={hit.path} className="size-3.5" />
-                          <span className="min-w-0 flex-1 truncate font-mono" title={hit.path}>
-                            {hit.path}
-                          </span>
-                          <span className="shrink-0 text-caption tabular-nums text-text-faint">
-                            {formatBytes(hit.size)}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                    {hitsTruncated && (
-                      <p className="px-2 py-1 text-caption text-text-faint">Showing the first 50 matches.</p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {grepHits.length === 0 ? (
-                      <p className="px-2 py-1 text-meta text-text-faint">
-                        {searching ? "Searching…" : "No matching lines."}
-                      </p>
-                    ) : (
-                      grepHits.map((hit) => (
-                        <button
-                          key={`${hit.path}:${hit.line}`}
-                          type="button"
-                          onClick={() => void openFile(hit.path)}
-                          className={`interactive flex w-full flex-col gap-0.5 px-2 py-1.5 text-left ${
-                            selected === hit.path
-                              ? "bg-bg-layer-02"
-                              : "hover:bg-bg-layer-02"
-                          }`}
-                        >
-                          <span className="w-full truncate font-mono text-caption text-text-faint">
-                            {hit.path}:{hit.line}
-                          </span>
-                          <span className="w-full truncate font-mono text-meta text-text-muted">
-                            {hit.text}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                    {grepTruncated && (
-                      <p className="px-2 py-1 text-caption text-text-faint">Showing the first 50 matches.</p>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : (
-              <>
-            {creating && (
-              <div className="px-2 py-1">
+      <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+        <DialogContent size="wide" height="body" class="flex flex-col">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <DialogTitle>Files</DialogTitle>
+              <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <label class="flex h-control-sm items-center gap-1 rounded-md border border-border-base bg-bg-base px-2">
+                <Search class="size-3.5 shrink-0 text-text-faint" />
                 <input
-                  autoFocus
-                  value={creating.value}
-                  aria-label={`New ${creating.kind === "dir" ? "folder" : "file"}`}
-                  placeholder={`New ${creating.kind === "dir" ? "folder" : "file"} in ${
-                    creating.dir || "/"
-                  }`}
-                  onChange={(event) =>
-                    setCreating({ ...creating, value: event.target.value })
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      event.currentTarget.blur();
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      createCancelled.current = true;
-                      event.currentTarget.blur();
-                    }
-                  }}
-                  onBlur={() => void commitCreate()}
-                  className="w-full rounded-xs border border-border-base bg-bg-base px-1 py-0.5 font-mono text-meta text-text-base outline-none select-text"
+                  value={query()}
+                  aria-label={tr("fileTreeSearchWorkspaceFiles")}
+                  placeholder={searchMode() === "name" ? "Search files" : "Search contents"}
+                  onInput={(event) => setQuery(event.currentTarget.value)}
+                  class="w-36 bg-transparent text-meta text-text-base outline-none placeholder:text-text-faint select-text"
                 />
-              </div>
-            )}
-            {renderLevel("", 0)}
-              </>
-            )}
+              </label>
+              <select
+                value={searchMode()}
+                aria-label={tr("fileTreeSearchMode")}
+                onChange={(event) =>
+                  setSearchMode(event.currentTarget.value === "content" ? "content" : "name")
+                }
+                class="h-control-sm rounded-md border border-border-base bg-bg-base px-1 text-caption text-text-muted outline-none"
+              >
+                <option value="name">Name</option>
+                <option value="content">Content</option>
+              </select>
+              <Button type="button" variant="outline" size="sm" onClick={() => startCreate("file")}>
+                <FilePlus />
+                {tr("dialogNewFile")}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => startCreate("dir")}>
+                <FolderPlus />
+                {tr("dialogNewFolder")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-pressed={hidden()}
+                onClick={() => setHidden(!hidden())}
+              >
+                {hidden() ? <EyeOff /> : <Eye />}
+                {hidden() ? "Hide hidden" : "Show hidden"}
+              </Button>
+              <Button type="button" variant="outline" size="sm" disabled={loading()} onClick={() => void refresh()}>
+                <RefreshCw class={loading() ? "motion-safe:animate-spin" : undefined} />
+                Refresh
+              </Button>
+            </div>
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
-            {preview ? (
-              <>
-                <div className="flex shrink-0 items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
-                  <span className="min-w-0 flex-1 truncate font-mono">{preview.path}</span>
-                  <span className="shrink-0 tabular-nums">{formatBytes(preview.size)}</span>
-                  {!editing ? (
+          <ErrorBanner error={error()} class="mt-4 shrink-0" />
+
+          <div class="mt-4 flex min-h-0 flex-1 gap-3">
+            <div class="w-72 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
+              <Show
+                when={query().trim()}
+                fallback={
+                  <>
+                    <Show when={creating()}>
+                      {(target) => (
+                        <div class="px-2 py-1">
+                          <input
+                            autofocus
+                            value={target().value}
+                            aria-label={`New ${target().kind === "dir" ? "folder" : "file"}`}
+                            placeholder={`New ${target().kind === "dir" ? "folder" : "file"} in ${
+                              target().dir || "/"
+                            }`}
+                            onInput={(event) =>
+                              setCreating({ ...target(), value: event.currentTarget.value })
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                event.currentTarget.blur();
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                createCancelled = true;
+                                event.currentTarget.blur();
+                              }
+                            }}
+                            onBlur={() => void commitCreate()}
+                            class="w-full rounded-xs border border-border-base bg-bg-base px-1 py-0.5 font-mono text-meta text-text-base outline-none select-text"
+                          />
+                        </div>
+                      )}
+                    </Show>
+                    <Level path="" depth={0} />
+                  </>
+                }
+              >
+                <div class="flex flex-col">
+                  <Show
+                    when={searchMode() === "name"}
+                    fallback={
+                      <>
+                        <Show
+                          when={grepHits().length > 0}
+                          fallback={
+                            <p class="px-2 py-1 text-meta text-text-faint">
+                              {searching() ? "Searching…" : "No matching lines."}
+                            </p>
+                          }
+                        >
+                          <For each={grepHits()}>
+                            {(hit) => (
+                              <button
+                                type="button"
+                                onClick={() => void openFile(hit.path)}
+                                class={`interactive flex w-full flex-col gap-0.5 px-2 py-1.5 text-left ${
+                                  selected() === hit.path
+                                    ? "bg-bg-layer-02"
+                                    : "hover:bg-bg-layer-02"
+                                }`}
+                              >
+                                <span class="w-full truncate font-mono text-caption text-text-faint">
+                                  {hit.path}:{hit.line}
+                                </span>
+                                <span class="w-full truncate font-mono text-meta text-text-muted">
+                                  {hit.text}
+                                </span>
+                              </button>
+                            )}
+                          </For>
+                        </Show>
+                        <Show when={grepTruncated()}>
+                          <p class="px-2 py-1 text-caption text-text-faint">Showing the first 50 matches.</p>
+                        </Show>
+                      </>
+                    }
+                  >
                     <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        disabled={formatting || preview.binary}
-                        onClick={() => void formatFile()}
+                      <Show
+                        when={hits().length > 0}
+                        fallback={
+                          <p class="px-2 py-1 text-meta text-text-faint">
+                            {searching() ? "Searching…" : "No matching files."}
+                          </p>
+                        }
                       >
-                        <Wand2 />
-                        {formatting ? "Formatting…" : "Format"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        disabled={preview.binary || preview.truncated}
-                        onClick={startEdit}
-                      >
-                        <Pencil />
-                        Edit
-                      </Button>
+                        <For each={hits()}>
+                          {(hit) => (
+                            <button
+                              type="button"
+                              onClick={() => void openFile(hit.path)}
+                              class={`interactive flex w-full items-center gap-2 px-2 py-1.5 text-left text-meta ${
+                                selected() === hit.path
+                                  ? "bg-bg-layer-02 text-text-base"
+                                  : "text-text-muted hover:text-text-base"
+                              }`}
+                            >
+                              <FileTypeIcon path={hit.path} class="size-3.5" />
+                              <span class="min-w-0 flex-1 truncate font-mono" title={hit.path}>
+                                {hit.path}
+                              </span>
+                              <span class="shrink-0 text-caption tabular-nums text-text-faint">
+                                {formatBytes(hit.size)}
+                              </span>
+                            </button>
+                          )}
+                        </For>
+                      </Show>
+                      <Show when={hitsTruncated()}>
+                        <p class="px-2 py-1 text-caption text-text-faint">Showing the first 50 matches.</p>
+                      </Show>
                     </>
-                  ) : (
-                    <span className="flex shrink-0 items-center gap-1">
-                      <Button type="button" size="xs" disabled={saving} onClick={() => void save()}>
-                        <Save />
-                        {saving ? "Saving…" : "Save"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        disabled={saving}
-                        onClick={() => setEditing(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </span>
-                  )}
+                  </Show>
                 </div>
-                {notice && (
-                  <p className="shrink-0 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
-                    {notice}
-                  </p>
+              </Show>
+            </div>
+
+            <div class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
+              <Show
+                when={preview()}
+                fallback={<p class="p-3 text-meta text-text-faint">Select a file to preview it.</p>}
+              >
+                {(file) => (
+                  <>
+                    <div class="flex shrink-0 items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
+                      <span class="min-w-0 flex-1 truncate font-mono">{file().path}</span>
+                      <span class="shrink-0 tabular-nums">{formatBytes(file().size)}</span>
+                      <Show
+                        when={!editing()}
+                        fallback={
+                          <span class="flex shrink-0 items-center gap-1">
+                            <Button type="button" size="xs" disabled={saving()} onClick={() => void save()}>
+                              <Save />
+                              {saving() ? "Saving…" : "Save"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              disabled={saving()}
+                              onClick={() => setEditing(false)}
+                            >
+                              Cancel
+                            </Button>
+                          </span>
+                        }
+                      >
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            disabled={formatting() || file().binary}
+                            onClick={() => void formatFile()}
+                          >
+                            <Wand2 />
+                            {formatting() ? "Formatting…" : "Format"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            disabled={file().binary || file().truncated}
+                            onClick={startEdit}
+                          >
+                            <Pencil />
+                            Edit
+                          </Button>
+                        </>
+                      </Show>
+                    </div>
+                    <Show when={notice()}>
+                      <p class="shrink-0 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
+                        {notice()}
+                      </p>
+                    </Show>
+                    <Show
+                      when={editing()}
+                      fallback={
+                        <Show
+                          when={!file().binary}
+                          fallback={
+                            <p class="p-3 text-meta text-text-faint">Binary file, no preview available.</p>
+                          }
+                        >
+                          <pre class="min-h-0 flex-1 overflow-auto p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
+                            {file().content || "(empty file)"}
+                          </pre>
+                        </Show>
+                      }
+                    >
+                      <textarea
+                        value={draft()}
+                        aria-label={`Edit ${file().path}`}
+                        spellcheck={false}
+                        onInput={(event) => setDraft(event.currentTarget.value)}
+                        class="min-h-0 flex-1 resize-none bg-bg-base p-3 font-mono text-meta leading-5 text-text-base outline-none select-text"
+                      />
+                    </Show>
+                    <Show when={file().truncated && !editing()}>
+                      <div class="shrink-0 border-t border-border-base px-3 py-1.5 text-caption text-text-faint">
+                        Preview truncated at 256 KB; editing is disabled.
+                      </div>
+                    </Show>
+                  </>
                 )}
-                {editing ? (
-                  <textarea
-                    value={draft}
-                    aria-label={`Edit ${preview.path}`}
-                    spellCheck={false}
-                    onChange={(event) => setDraft(event.target.value)}
-                    className="min-h-0 flex-1 resize-none bg-bg-base p-3 font-mono text-meta leading-5 text-text-base outline-none select-text"
-                  />
-                ) : preview.binary ? (
-                  <p className="p-3 text-meta text-text-faint">Binary file, no preview available.</p>
-                ) : (
-                  <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
-                    {preview.content || "(empty file)"}
-                  </pre>
-                )}
-                {preview.truncated && !editing && (
-                  <div className="shrink-0 border-t border-border-base px-3 py-1.5 text-caption text-text-faint">
-                    Preview truncated at 256 KB; editing is disabled.
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="p-3 text-meta text-text-faint">Select a file to preview it.</p>
-            )}
+              </Show>
+            </div>
           </div>
-        </div>
-      </DialogContent>
+        </DialogContent>
       </Dialog>
 
       <ConfirmDialog
-        open={deleteTarget !== undefined}
+        open={deleteTarget() !== undefined}
         title={tr("fileTreeDeleteEntry")}
-        description={`Delete "${deleteTarget?.path ?? ""}"? ${
-          deleteTarget?.type === "dir" ? "Only empty directories can be deleted." : "This cannot be undone."
+        description={`Delete "${deleteTarget()?.path ?? ""}"? ${
+          deleteTarget()?.type === "dir" ? "Only empty directories can be deleted." : "This cannot be undone."
         }`}
         confirmLabel="Delete"
         destructive

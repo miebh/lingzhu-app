@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { Show, createEffect, createMemo, createSignal } from "solid-js";
+import { Tooltip as TooltipPrimitive } from "@kobalte/core/tooltip";
 import {
   Copy,
   ExternalLink,
@@ -18,9 +19,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@lingzhu/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@lingzhu/ui/tooltip";
+import { Tooltip, TooltipContent } from "@lingzhu/ui/tooltip";
 import { api } from "../../lib/api";
-import { t, useLanguage, type MessageKey } from "@lingzhu/ui/i18n";
+import { t, type MessageKey } from "@lingzhu/ui/i18n";
 import { notify } from "../../app/useApp";
 import type { VCSInfo } from "@lingzhu/ui/types";
 import { ProjectAvatar } from "../workspace/ProjectAvatar";
@@ -60,24 +61,17 @@ function splitPath(path: string) {
 }
 
 /** The location card behind the session header's project trigger. */
-export function SessionLocationMenu({
-  workspace,
-  workspaceIcon,
-  workspaceColor,
-  directory,
-  worktree,
-  label,
-  onOpenProject,
-  onOpenSettings,
-}: Props) {
-  useLanguage();
-  const [vcs, setVcs] = useState<VCSInfo | null>(null);
+export function SessionLocationMenu(props: Props) {
+  const [vcs, setVcs] = createSignal<VCSInfo | null>(null);
 
-  useEffect(() => {
+  createEffect(() => {
+    // A new directory starts from no branch until its info arrives.
+    props.directory;
     setVcs(null);
-  }, [directory]);
+  });
 
   const loadBranch = async () => {
+    const directory = props.directory;
     if (!directory) return;
     try {
       setVcs(await api.vcsInfo(directory));
@@ -103,110 +97,111 @@ export function SessionLocationMenu({
     }
   };
 
-  const branch = vcs?.branch?.current;
-  const baseBranch = vcs?.branch?.default;
-  const [parentPath, leafPath] = directory ? splitPath(directory) : ["", ""];
+  const branch = createMemo(() => vcs()?.branch?.current);
+  const baseBranch = createMemo(() => vcs()?.branch?.default);
+  const parts = createMemo(() => (props.directory ? splitPath(props.directory) : ["", ""]));
+  const parentPath = () => parts()[0];
+  const leafPath = () => parts()[1];
 
   return (
     <DropdownMenu onOpenChange={(open) => open && void loadBranch()}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={label || t("project")}
-              className="interactive flex h-7 min-w-0 max-w-full shrink items-center gap-2 overflow-hidden rounded-[6px] px-1.5 text-[13px] leading-4 tracking-[-0.04px] text-text-muted hover:text-text-base data-[state=open]:text-text-base"
-            >
-              <ProjectAvatar name={workspace} icon={workspaceIcon} color={workspaceColor} />
-              {label && <span className="min-w-0 max-w-44 shrink-0 truncate">{label}</span>}
-            </button>
+        <TooltipPrimitive.Trigger as="span" class="flex min-w-0 max-w-full shrink">
+          <DropdownMenuTrigger
+            type="button"
+            aria-label={props.label || t("project")}
+            class="interactive flex h-7 min-w-0 max-w-full shrink items-center gap-2 overflow-hidden rounded-[6px] px-1.5 text-[13px] leading-4 tracking-[-0.04px] text-text-muted hover:text-text-base data-[state=open]:text-text-base"
+          >
+            <ProjectAvatar name={props.workspace} icon={props.workspaceIcon} color={props.workspaceColor} />
+            <Show when={props.label}>
+              <span class="min-w-0 max-w-44 shrink-0 truncate">{props.label}</span>
+            </Show>
           </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{label || t("project")}</TooltipContent>
+        </TooltipPrimitive.Trigger>
+        <TooltipContent side="bottom">{props.label || t("project")}</TooltipContent>
       </Tooltip>
 
       <DropdownMenuContent
         align="start"
         sideOffset={4}
-        className="w-[320px] max-w-[calc(100vw-16px)]"
-        aria-label={workspace}
+        class="w-[320px] max-w-[calc(100vw-16px)]"
+        aria-label={props.workspace}
       >
-        <DropdownMenuItem className="min-w-0" disabled={!workspace} onSelect={onOpenProject}>
-          <ProjectAvatar name={workspace} icon={workspaceIcon} color={workspaceColor} />
-          <bdi dir="auto" className="min-w-0 truncate font-[530]">
-            {workspace}
+        <DropdownMenuItem class="min-w-0" disabled={!props.workspace} onSelect={props.onOpenProject}>
+          <ProjectAvatar name={props.workspace} icon={props.workspaceIcon} color={props.workspaceColor} />
+          <bdi dir="auto" class="min-w-0 truncate font-[530]">
+            {props.workspace}
           </bdi>
         </DropdownMenuItem>
 
-        <div className="flex h-7 min-w-0 items-center gap-2 rounded-xs px-3 text-body leading-4 font-[440] tracking-[-0.04px] text-text-base">
-          {worktree ? (
-            <Worktree className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
-          ) : (
-            <Monitor className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
-          )}
-          <span className="min-w-0 truncate">{worktree ? baseName(worktree) : t("localWorkspace")}</span>
+        <div class="flex h-7 min-w-0 items-center gap-2 rounded-xs px-3 text-body leading-4 font-[440] tracking-[-0.04px] text-text-base">
+          <Show
+            when={props.worktree}
+            fallback={<Monitor class="size-4 shrink-0 text-icon-base" aria-hidden="true" />}
+          >
+            <Worktree class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+          </Show>
+          <span class="min-w-0 truncate">{props.worktree ? baseName(props.worktree) : t("localWorkspace")}</span>
         </div>
 
-        {vcs && branch && (
+        <Show when={vcs() && branch()}>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              <GitBranch className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
-              <bdi dir="auto" className="min-w-0 truncate">
-                {branch}
+              <GitBranch class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+              <bdi dir="auto" class="min-w-0 truncate">
+                {branch()}
               </bdi>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-max min-w-[172px]">
-              <DropdownMenuItem onSelect={() => void copy(branch)}>
-                <Copy className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+            <DropdownMenuSubContent class="w-max min-w-[172px]">
+              <DropdownMenuItem onSelect={() => void copy(branch() ?? "")}>
+                <Copy class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
                 {t("copyBranch")}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-        )}
+        </Show>
 
-        {vcs && !branch && (
-          <div className="flex h-7 min-w-0 items-center gap-2 rounded-xs px-3 text-body leading-4 font-[440] tracking-[-0.04px] text-text-base">
-            <GitBranch className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 whitespace-nowrap">{t("noBranch")}</span>
-              {baseBranch && (
-                <>
-                  <span className="text-text-muted">·</span>
-                  <span className="truncate text-text-faint">{t("basedOn", { branch: baseBranch })}</span>
-                </>
-              )}
+        <Show when={vcs() && !branch()}>
+          <div class="flex h-7 min-w-0 items-center gap-2 rounded-xs px-3 text-body leading-4 font-[440] tracking-[-0.04px] text-text-base">
+            <GitBranch class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+            <span class="flex min-w-0 items-center gap-1.5">
+              <span class="shrink-0 whitespace-nowrap">{t("noBranch")}</span>
+              <Show when={baseBranch()}>
+                <span class="text-text-muted">·</span>
+                <span class="truncate text-text-faint">
+                  {t("basedOn", { branch: baseBranch() ?? "" })}
+                </span>
+              </Show>
             </span>
           </div>
-        )}
+        </Show>
 
-        {directory && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger data-slot="session-location-path" aria-label={directory}>
-                <FolderOpen className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
-                <bdi dir="ltr" className="flex min-w-0 select-text whitespace-nowrap">
-                  <span className="min-w-0 truncate">{parentPath}</span>
-                  <span className="max-w-full shrink-0 truncate">{leafPath}</span>
-                </bdi>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-max max-w-[calc(100vw-32px)]">
-                <DropdownMenuItem onSelect={() => void copy(directory)}>
-                  <Copy className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
-                  {t("copyPath")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void reveal(directory)}>
-                  <ExternalLink className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
-                  {t(revealKey())}
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </>
-        )}
+        <Show when={props.directory}>
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger data-slot="session-location-path" aria-label={props.directory}>
+              <FolderOpen class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+              <bdi dir="ltr" class="flex min-w-0 select-text whitespace-nowrap">
+                <span class="min-w-0 truncate">{parentPath()}</span>
+                <span class="max-w-full shrink-0 truncate">{leafPath()}</span>
+              </bdi>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent class="w-max max-w-[calc(100vw-32px)]">
+              <DropdownMenuItem onSelect={() => void copy(props.directory ?? "")}>
+                <Copy class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+                {t("copyPath")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void reveal(props.directory ?? "")}>
+                <ExternalLink class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+                {t(revealKey())}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </Show>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!workspace} onSelect={onOpenSettings}>
-          <Settings2 className="size-4 shrink-0 text-icon-base" aria-hidden="true" />
+        <DropdownMenuItem disabled={!props.workspace} onSelect={props.onOpenSettings}>
+          <Settings2 class="size-4 shrink-0 text-icon-base" aria-hidden="true" />
           {t("projectSettings")}
         </DropdownMenuItem>
       </DropdownMenuContent>

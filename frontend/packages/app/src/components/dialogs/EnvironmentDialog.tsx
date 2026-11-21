@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { Show, createEffect, createSignal } from "solid-js";
 import { Copy, Cpu, Save } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -18,15 +18,17 @@ interface Props {
 }
 
 /** Read-only runtime environment of one session. */
-export function EnvironmentDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
-  const [env, setEnv] = useState<SessionEnvironment>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
+export function EnvironmentDialog(props: Props) {
+  const [env, setEnv] = createSignal<SessionEnvironment>();
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [copied, setCopied] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+  const [notice, setNotice] = createSignal("");
 
   const load = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     setLoading(true);
     setError("");
@@ -39,8 +41,10 @@ export function EnvironmentDialog({ open, workspace, sessionID, title, onOpenCha
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
+      void props.sessionID;
       void load();
     } else {
       setEnv(undefined);
@@ -49,16 +53,16 @@ export function EnvironmentDialog({ open, workspace, sessionID, title, onOpenCha
       setSaving(false);
       setNotice("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace, sessionID]);
+  });
 
   const saveEnvironment = async () => {
-    if (!env) return;
+    const current = env();
+    if (!current) return;
     setSaving(true);
     try {
       const path = await api.saveTextFile(
-        environmentExportName(env.id),
-        serializeEnvironment({ environment: env }),
+        environmentExportName(current.id),
+        serializeEnvironment({ environment: current }),
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -83,67 +87,77 @@ export function EnvironmentDialog({ open, workspace, sessionID, title, onOpenCha
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Cpu className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <Cpu class="size-4 text-text-faint" />
               Environment
             </DialogTitle>
-            <DialogDescription className="truncate">{title || sessionID}</DialogDescription>
+            <DialogDescription class="truncate">{props.title || props.sessionID}</DialogDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={saving || !env}
+              disabled={saving() || !env()}
               onClick={() => void saveEnvironment()}
             >
               <Save />
-              {saving ? "Saving…" : "Save file"}
+              {saving() ? "Saving…" : "Save file"}
             </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load()} />
+            <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
         </div>
 
-        <ErrorBanner error={error} className="mt-3" />
-        <NoticeBanner notice={notice} mono />
+        <ErrorBanner error={error()} class="mt-3" />
+        <NoticeBanner notice={notice()} mono />
 
-        {env ? (
-          <>
-            <div className="mt-4 rounded-md border border-border-base">
-              <DetailRow label="Session" value={env.id} />
-              <DetailRow label="Workdir" value={env.workdir || "(process directory)"} />
-              <DetailRow label="Shell" value={env.shell.join(" ")} />
-              <DetailRow label="Running" value={env.running ? "yes" : "no"} />
-              <DetailRow label="Provider" value={env.provider} />
-              <DetailRow label="Model" value={env.model} />
-              <DetailRow label="Agent" value={env.agent || "default"} />
-              <DetailRow label="Platform" value={`${env.os}/${env.arch}`} />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {env.workdir && (
-                <Button type="button" variant="outline" size="xs" onClick={() => void copy(env.workdir)}>
+        <Show
+          when={env()}
+          fallback={
+            <p class="mt-4 text-meta text-text-faint">{loading() ? "Loading…" : "No environment data."}</p>
+          }
+        >
+          {(current) => (
+            <>
+              <div class="mt-4 rounded-md border border-border-base">
+                <DetailRow label="Session" value={current().id} />
+                <DetailRow label="Workdir" value={current().workdir || "(process directory)"} />
+                <DetailRow label="Shell" value={current().shell.join(" ")} />
+                <DetailRow label="Running" value={current().running ? "yes" : "no"} />
+                <DetailRow label="Provider" value={current().provider} />
+                <DetailRow label="Model" value={current().model} />
+                <DetailRow label="Agent" value={current().agent || "default"} />
+                <DetailRow label="Platform" value={`${current().os}/${current().arch}`} />
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <Show when={current().workdir}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => void copy(current().workdir)}
+                  >
+                    <Copy />
+                    {copied() === current().workdir ? "Copied" : "Copy workdir"}
+                  </Button>
+                </Show>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => void copy(current().shell.join(" "))}
+                >
                   <Copy />
-                  {copied === env.workdir ? "Copied" : "Copy workdir"}
+                  {copied() === current().shell.join(" ") ? "Copied" : "Copy shell"}
                 </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={() => void copy(env.shell.join(" "))}
-              >
-                <Copy />
-                {copied === env.shell.join(" ") ? "Copied" : "Copy shell"}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <p className="mt-4 text-meta text-text-faint">{loading ? "Loading…" : "No environment data."}</p>
-        )}
+              </div>
+            </>
+          )}
+        </Show>
       </DialogContent>
     </Dialog>
   );

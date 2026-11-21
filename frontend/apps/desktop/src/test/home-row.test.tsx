@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { HomeDashboard } from "@lingzhu/app/components/home/HomeDashboard";
@@ -16,7 +16,7 @@ const row = {
 describe("home session row", () => {
   test("the open-in-tab mark sits outside the avatar, not before the title", () => {
     const { container } = render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[{ path: "/w", name: "bgmfans", addr: "", connected: true, error: "" }]}
         rows={[row]}
         openKeys={new Set([row.key])}
@@ -45,7 +45,7 @@ describe("home session row", () => {
   test("the project row starts a session without opening the menu", async () => {
     const onNewSession = vi.fn();
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[{ path: "/w", name: "bgmfans", addr: "", connected: true, error: "" }]}
         rows={[]}
         onOpenSession={() => {}}
@@ -65,7 +65,7 @@ describe("home session row", () => {
     const onEditWorkspace = vi.fn();
     const onRemoveWorkspace = vi.fn();
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[{ path: "/w", name: "bgmfans", addr: "", connected: true, error: "" }]}
         rows={[]}
         onOpenSession={() => {}}

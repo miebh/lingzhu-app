@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createStore } from "./create";
 import { addPanelTab, closePanelTabState } from "../lib/panelTabs";
 import { DEFAULT_SIDE_PANEL_TAB, isSidePanelTabID, type SidePanelTabID } from "../lib/sidePanel";
 
@@ -81,7 +81,7 @@ function readPanelState(): { panelTabs: SidePanelTabID[]; panelTab: SidePanelTab
 
 const initialPanel = readPanelState();
 
-export const useUiStore = create<UiStore>((set, get) => ({
+export const useUiStore = createStore<UiStore>((set, get) => ({
   mobile: typeof window !== "undefined" && window.innerWidth < 768,
   sidebarOpen: readSidebarOpen(),
   sideTabsWidth: readSideTabsWidth(),

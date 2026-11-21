@@ -1,3 +1,4 @@
+import { createMemo } from "solid-js";
 import { HomeDashboard } from "../../../components/home/HomeDashboard";
 import { useShell } from "../../ShellProvider";
 import { useHomeRows } from "../../hooks";
@@ -5,9 +6,15 @@ import { useHomeRows } from "../../hooks";
 /** Home: projects column plus the recent session list and its search. */
 export function HomePane() {
   const shell = useShell();
-  const { view, workspaceActions, chatActions, dialogs } = shell;
-  const rows = useHomeRows().filter((row) => (shell.homeProject ? row.path === shell.homeProject : true));
-  const openKeys = new Set(shell.tabs.sessionTabs.map((tab) => tab.key));
+  const view = shell.view;
+  const workspaceActions = shell.workspaceActions;
+  const chatActions = shell.chatActions;
+  const dialogs = shell.dialogs;
+  const homeRows = useHomeRows();
+  const rows = createMemo(() =>
+    homeRows().filter((row) => (shell.homeProject ? row.path === shell.homeProject : true)),
+  );
+  const openKeys = createMemo(() => new Set(shell.tabs.sessionTabs().map((tab) => tab.key)));
 
   return (
     <HomeDashboard
@@ -16,8 +23,8 @@ export function HomePane() {
       activePath={shell.activePath}
       selectedPath={shell.homeProject}
       hideProjectName={shell.homeProject !== undefined}
-      rows={rows}
-      openKeys={openKeys}
+      rows={rows()}
+      openKeys={openKeys()}
       loading={shell.sessionsLoading}
       onRename={(row) => {
         const session = shell.sessionsByWorkspace[row.path]?.find((item) => item.id === row.sessionID);

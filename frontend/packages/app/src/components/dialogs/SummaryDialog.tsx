@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Show, createEffect, createSignal } from "solid-js";
 import { Copy, FileText } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -15,18 +15,18 @@ interface Props {
 }
 
 /** Shows the hidden summary agent's pull-request-style session summary. */
-export function SummaryDialog({ open, title, text, loading, error, onOpenChange }: Props) {
+export function SummaryDialog(props: Props) {
   const tr = useT();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = createSignal(false);
 
-  useEffect(() => {
-    if (!open) setCopied(false);
-  }, [open]);
+  createEffect(() => {
+    if (!props.open) setCopied(false);
+  });
 
   const copy = async () => {
-    if (!text) return;
+    if (!props.text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(props.text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1_500);
     } catch {
@@ -35,34 +35,35 @@ export function SummaryDialog({ open, title, text, loading, error, onOpenChange 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[70vh] flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent class="flex max-h-[70vh] flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <FileText class="size-4 text-text-faint" />
               {tr("dialogSessionSummary")}
             </DialogTitle>
-            <DialogDescription className="truncate">
-              {title ? `${title} · ` : ""}
+            <DialogDescription class="truncate">
+              {props.title ? `${props.title} · ` : ""}
               {tr("dialogSummaryHint")}
             </DialogDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" disabled={!text} onClick={() => void copy()}>
+          <Button type="button" variant="outline" size="sm" disabled={!props.text} onClick={() => void copy()}>
             <Copy />
-            {copied ? "Copied" : "Copy"}
+            {copied() ? "Copied" : "Copy"}
           </Button>
         </div>
 
-        <ErrorBanner error={error} className="mt-3" />
+        <ErrorBanner error={props.error} class="mt-3" />
 
-        {loading ? (
-          <p className="mt-4 text-body text-text-muted">Summarizing…</p>
-        ) : (
-          <pre className="mt-4 min-h-24 flex-1 overflow-auto whitespace-pre-wrap rounded-md bg-bg-layer-01 p-3 font-mono text-caption leading-5 text-text-base select-text">
-            {text || "No summary returned."}
+        <Show
+          when={!props.loading}
+          fallback={<p class="mt-4 text-body text-text-muted">Summarizing…</p>}
+        >
+          <pre class="mt-4 min-h-24 flex-1 overflow-auto whitespace-pre-wrap rounded-md bg-bg-layer-01 p-3 font-mono text-caption leading-5 text-text-base select-text">
+            {props.text || "No summary returned."}
           </pre>
-        )}
+        </Show>
       </DialogContent>
     </Dialog>
   );

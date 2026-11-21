@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { createEffect, onCleanup, type JSX } from "solid-js";
 import {
   createVirtualizedFileDiff,
   diffAvailable,
@@ -20,13 +20,15 @@ function lineCount(fileDiff: { hunks?: { splitLineCount?: number; unifiedLineCou
  * Mounts the vendored Pierre diff web component. Long diffs use the reference
  * Virtualizer window; short diffs render through the plain FileDiff instance.
  */
-export function PierreDiff({ path, patch }: { path: string; patch: string }) {
-  const scroll = useRef<HTMLDivElement>(null);
-  const host = useRef<HTMLDivElement>(null);
+export function PierreDiff(props: { path: string; patch: string }) {
+  let scroll: HTMLDivElement | undefined;
+  let host: HTMLDivElement | undefined;
 
-  useEffect(() => {
-    const root = scroll.current;
-    const wrapper = host.current;
+  createEffect(() => {
+    const root = scroll;
+    const wrapper = host;
+    const path = props.path;
+    const patch = props.patch;
     if (!root || !wrapper) return;
     const fileDiff = parseFileDiff(path, patch);
     if (!fileDiff) return;
@@ -35,7 +37,7 @@ export function PierreDiff({ path, patch }: { path: string; patch: string }) {
     const { instance, virtualizer } = createVirtualizedFileDiff(root, wrapper, virtual);
     wrapper.dataset.renderer = virtual ? "virtualized" : "plain";
     instance.render({ fileDiff, containerWrapper: wrapper, lineAnnotations: [] });
-    return () => {
+    onCleanup(() => {
       try {
         instance.cleanUp();
       } catch {
@@ -43,18 +45,18 @@ export function PierreDiff({ path, patch }: { path: string; patch: string }) {
       }
       virtualizer?.cleanUp();
       wrapper.replaceChildren();
-    };
-  }, [path, patch]);
+    });
+  });
 
   return (
     <div
-      ref={scroll}
+      ref={(el) => (scroll = el)}
       data-slot="diff-scroll"
       data-pierre="true"
-      style={pierreStyleVariables as CSSProperties}
+      style={pierreStyleVariables as JSX.CSSProperties}
     >
       <div
-        ref={host}
+        ref={(el) => (host = el)}
         data-slot="diff-pierre"
         data-available={diffAvailable() ? "true" : "false"}
       />

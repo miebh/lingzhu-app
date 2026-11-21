@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { ConfirmDialog, MoveSessionDialog, RenameDialog, WorktreeDialog } from "@/components/dialogs/Dialogs";
@@ -9,7 +9,7 @@ describe("dialogs surfaces", () => {
   test("dialog closes through its action", async () => {
     const onOpenChange = vi.fn();
     render(
-      <ConfirmDialog
+      () => <ConfirmDialog
         open
         title="Delete session"
         description="This cannot be undone."
@@ -26,7 +26,7 @@ describe("dialogs surfaces", () => {
   test("rename dialog localizes to Chinese", async () => {
     setLanguage("zh");
     render(
-      <RenameDialog open initial="Session" onOpenChange={() => undefined} onConfirm={() => undefined} />,
+      () => <RenameDialog open initial="Session" onOpenChange={() => undefined} onConfirm={() => undefined} />,
     );
     expect(await screen.findByText("重命名会话")).toBeTruthy();
     expect(screen.getByRole("button", { name: "取消" })).toBeTruthy();
@@ -37,12 +37,12 @@ describe("dialogs surfaces", () => {
   test("worktree and move dialogs localize to Chinese", async () => {
     setLanguage("zh");
     render(
-      <WorktreeDialog open onOpenChange={() => undefined} onConfirm={() => undefined} />,
+      () => <WorktreeDialog open onOpenChange={() => undefined} onConfirm={() => undefined} />,
     );
     expect(await screen.findByText("新建工作树")).toBeTruthy();
     expect(screen.getByRole("button", { name: "创建" })).toBeTruthy();
     render(
-      <MoveSessionDialog open workspaces={[]} onOpenChange={() => undefined} onConfirm={() => undefined} />,
+      () => <MoveSessionDialog open workspaces={[]} onOpenChange={() => undefined} onConfirm={() => undefined} />,
     );
     expect(await screen.findByText("移动会话")).toBeTruthy();
     expect(screen.getByText("请先添加另一个工作区。")).toBeTruthy();
@@ -52,7 +52,7 @@ describe("dialogs surfaces", () => {
   test("dialog also closes with Escape", async () => {
     const onOpenChange = vi.fn();
     render(
-      <ConfirmDialog
+      () => <ConfirmDialog
         open
         title="Delete session"
         description="This cannot be undone."
@@ -67,7 +67,7 @@ describe("dialogs surfaces", () => {
   });
 
   test("summary dialog shows the generated summary", () => {
-    render(<SummaryDialog open title="Session" text="I added X." loading={false} error="" onOpenChange={() => {}} />);
+    render(() => <SummaryDialog open title="Session" text="I added X." loading={false} error="" onOpenChange={() => {}} />);
     expect(screen.getByText("Session summary")).toBeTruthy();
     expect(screen.getByText("I added X.")).toBeTruthy();
   });

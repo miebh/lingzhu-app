@@ -1,4 +1,5 @@
-import { create } from "zustand";
+import { type Accessor } from "solid-js";
+import { createStore } from "./create";
 import { api } from "../lib/api";
 import { messageOf } from "../lib/errors";
 import type { SessionInfo, WorkspaceInfo } from "@lingzhu/ui/types";
@@ -59,7 +60,7 @@ async function removeSession(workspace: string, sessionID: string) {
 }
 
 /** The workspace list, the active one, and the session history per workspace. */
-export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
+export const useWorkspaceStore = createStore<WorkspaceStore>((set, get) => ({
   workspaces: [],
   activePath: undefined,
   sessionsByWorkspace: {},
@@ -230,19 +231,19 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 }));
 
-export function useWorkspaces(): WorkspaceInfo[] {
+export function useWorkspaces(): Accessor<WorkspaceInfo[]> {
   return useWorkspaceStore((state) => state.workspaces);
 }
 
-export function useActivePath(): string | undefined {
+export function useActivePath(): Accessor<string | undefined> {
   return useWorkspaceStore((state) => state.activePath);
 }
 
-export function useSessionsByWorkspace(): Record<string, SessionInfo[]> {
+export function useSessionsByWorkspace(): Accessor<Record<string, SessionInfo[]>> {
   return useWorkspaceStore((state) => state.sessionsByWorkspace);
 }
 
 /** True while any workspace is still fetching its first session list. */
-export function useSessionsLoading(): boolean {
+export function useSessionsLoading(): Accessor<boolean> {
   return useWorkspaceStore((state) => Object.values(state.loadingSessions).some(Boolean));
 }

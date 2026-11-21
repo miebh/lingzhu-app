@@ -1,3 +1,4 @@
+import { createMemo, Show } from "solid-js";
 import {
   siDeepseek,
   siMistralai,
@@ -23,18 +24,23 @@ const icons: Record<string, { path: string; title: string }> = {
  * Provider mark: a brand glyph when the icon set has one, otherwise the
  * provider's initial. Kept monochrome so it inherits the surrounding text slot.
  */
-export function ProviderLogo({ id, name, className = "size-4" }: { id: string; name?: string; className?: string }) {
-  const icon = icons[id];
-  if (icon) {
-    return (
-      <svg role="img" aria-label={icon.title} viewBox="0 0 24 24" className={className} fill="currentColor">
-        <path d={icon.path} />
-      </svg>
-    );
-  }
+export function ProviderLogo(props: { id: string; name?: string; class?: string }) {
+  const icon = createMemo(() => icons[props.id]);
+  const label = () => props.class ?? "size-4";
   return (
-    <span className={`grid place-items-center text-caption font-medium ${className}`} aria-hidden>
-      {(Array.from((name || id).trim())[0] ?? "?").toUpperCase()}
-    </span>
+    <Show
+      when={icon()}
+      fallback={
+        <span class={`grid place-items-center text-caption font-medium ${label()}`} aria-hidden="true">
+          {(Array.from((props.name || props.id).trim())[0] ?? "?").toUpperCase()}
+        </span>
+      }
+    >
+      {(current) => (
+        <svg role="img" aria-label={current().title} viewBox="0 0 24 24" class={label()} fill="currentColor">
+          <path d={current().path} />
+        </svg>
+      )}
+    </Show>
   );
 }

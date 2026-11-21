@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "./solid-testing";
 import { AppShell } from "@lingzhu/app/app/AppShell";
 import { useWorkspaceStore } from "@lingzhu/app/store/workspaces";
 import { useChatStore } from "@lingzhu/app/store/chat";
@@ -8,7 +8,7 @@ import { usePreferencesStore } from "@lingzhu/app/store/preferences";
 import { defaultPreferences } from "@lingzhu/app/lib/preferences";
 
 describe("app startup", () => {
-  test("renders without a React update-depth error", async () => {
+  test("renders without a reactive update loop", async () => {
     useWorkspaceStore.setState({
       workspaces: [{ path: "/w", name: "lingzhu", addr: "127.0.0.1:1", connected: true, error: "" }],
       activePath: "/w",
@@ -24,7 +24,7 @@ describe("app startup", () => {
       errors.push(args.map((arg) => String(arg)).join(" "));
     });
 
-    render(<AppShell />);
+    render(() => <AppShell />);
 
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     spy.mockRestore();

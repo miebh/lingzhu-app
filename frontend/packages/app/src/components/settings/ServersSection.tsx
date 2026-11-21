@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { Ellipsis, Plus, RefreshCw, Trash2 } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import {
@@ -29,12 +30,13 @@ const SHELL_COMMANDS = [
 ];
 
 /** Server connections and each server's own terminal shell. */
-export function ServersSection({ workspaces, onAdd, onRemove, onRestart }: Props) {
-  const [shells, setShells] = useState<Record<string, string>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const single = workspaces.length === 1;
+export function ServersSection(props: Props) {
+  const [shells, setShells] = createSignal<Record<string, string>>({});
+  const [errors, setErrors] = createSignal<Record<string, string>>({});
+  const single = createMemo(() => props.workspaces.length === 1);
 
-  useEffect(() => {
+  createEffect(() => {
+    const workspaces = props.workspaces;
     let live = true;
     void Promise.allSettled(
       workspaces.map(async (workspace) => {
@@ -54,13 +56,13 @@ export function ServersSection({ workspaces, onAdd, onRemove, onRestart }: Props
       setShells(nextShells);
       setErrors(nextErrors);
     });
-    return () => {
+    onCleanup(() => {
       live = false;
-    };
-  }, [workspaces]);
+    });
+  });
 
   const commitShell = async (path: string, value: string) => {
-    setShells((current) => ({ ...current, [path]: value }));
+    update(setShells, shells, (current) => ({ ...current, [path]: value }));
     try {
       await api.updateCoreConfig(path, {
         shell: value
@@ -68,14 +70,14 @@ export function ServersSection({ workspaces, onAdd, onRemove, onRestart }: Props
           .split(/\s+/)
           .filter((part) => part.length > 0),
       });
-      setErrors((current) => ({ ...current, [path]: "" }));
+      update(setErrors, errors, (current) => ({ ...current, [path]: "" }));
     } catch (cause) {
-      setErrors((current) => ({ ...current, [path]: messageOf(cause) }));
+      update(setErrors, errors, (current) => ({ ...current, [path]: messageOf(cause) }));
     }
   };
 
   const shellOptions = (path: string) => {
-    const current = shells[path] ?? "";
+    const current = shells()[path] ?? "";
     const known = SHELL_COMMANDS.some((item) => item.value === current);
     return [
       ...SHELL_COMMANDS.map((item) => ({ value: item.value, label: t(item.key as never) })),
@@ -84,38 +86,37 @@ export function ServersSection({ workspaces, onAdd, onRemove, onRestart }: Props
   };
 
   const connectionRow = (workspace: WorkspaceInfo) => (
-    <div className="flex min-h-12 flex-wrap items-center gap-3 py-3 sm:flex-nowrap">
+    <div class="flex min-h-12 flex-wrap items-center gap-3 py-3 sm:flex-nowrap">
       <span
         role="status"
         aria-label={workspace.connected ? t("connected") : t("offline")}
-        className={`size-2 shrink-0 rounded-full ${workspace.connected ? "bg-state-fg-success" : "bg-state-fg-danger"}`}
+        class={`size-2 shrink-0 rounded-full ${workspace.connected ? "bg-state-fg-success" : "bg-state-fg-danger"}`}
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="min-w-0 truncate text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <span class="min-w-0 truncate text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
           {workspace.name || workspace.path}
         </span>
-        <span className="min-w-0 truncate font-mono text-caption leading-4 text-text-faint" dir="ltr">
+        <span class="min-w-0 truncate font-mono text-caption leading-4 text-text-faint" dir="ltr">
           {workspace.addr ? `http://${workspace.addr}` : workspace.path}
         </span>
       </div>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={t("serverActions")}
-            className="text-text-faint hover:text-text-base"
-          >
-            <Ellipsis />
-          </Button>
+        <DropdownMenuTrigger
+          variant="ghost"
+          size="icon-xs"
+          aria-label={t("serverActions")}
+          class="text-text-faint hover:text-text-base"
+          as={Button}
+        >
+          <Ellipsis />
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="bottom" align="end" className="w-44">
-          <DropdownMenuItem onSelect={() => onRestart?.(workspace.path)}>
+        <DropdownMenuContent side="bottom" align="end" class="w-44">
+          <DropdownMenuItem onSelect={() => props.onRestart?.(workspace.path)}>
             <RefreshCw />
             {t("refresh")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem destructive onSelect={() => onRemove?.(workspace.path)}>
+          <DropdownMenuItem destructive onSelect={() => props.onRemove?.(workspace.path)}>
             <Trash2 />
             {t("removeAction")}
           </DropdownMenuItem>
@@ -129,61 +130,64 @@ export function ServersSection({ workspaces, onAdd, onRemove, onRestart }: Props
       <SettingsRow title={t("terminalShell")} description={t("terminalShellDesc")}>
         <SettingsSelect
           label={t("terminalShellFor", { name: workspace.name || workspace.path })}
-          value={shells[workspace.path] ?? ""}
+          value={shells()[workspace.path] ?? ""}
           options={shellOptions(workspace.path)}
           onChange={(value) => void commitShell(workspace.path, value)}
         />
       </SettingsRow>
-      {errors[workspace.path] && (
-        <p role="alert" className="pb-3 text-meta leading-5 text-state-fg-danger">
-          {errors[workspace.path]}
+      <Show when={errors()[workspace.path]}>
+        <p role="alert" class="pb-3 text-meta leading-5 text-state-fg-danger">
+          {errors()[workspace.path]}
         </p>
-      )}
+      </Show>
     </>
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      {workspaces.map((workspace) =>
-        single ? (
-          <div key={workspace.path} className="flex flex-col gap-8">
-            <section className="flex flex-col gap-4">
-              <h2 className="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
-                {t("connectionSection")}
-              </h2>
-              <div className="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
-                {connectionRow(workspace)}
-              </div>
-            </section>
-            <section className="flex flex-col gap-4">
-              <h2 className="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
-                {t("preferences")}
-              </h2>
-              <div className="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
-                {shellRow(workspace)}
-              </div>
-            </section>
-          </div>
-        ) : (
-          <section key={workspace.path} aria-label={workspace.name || workspace.path} className="flex flex-col gap-4">
-            <div className="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
-              <div className="border-b-[0.5px] border-border-base">{connectionRow(workspace)}</div>
-              {shellRow(workspace)}
+    <div class="flex flex-col gap-8">
+      <For each={props.workspaces}>
+        {(workspace) => (
+          <Show
+            when={single()}
+            fallback={
+              <section aria-label={workspace.name || workspace.path} class="flex flex-col gap-4">
+                <div class="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
+                  <div class="border-b-[0.5px] border-border-base">{connectionRow(workspace)}</div>
+                  {shellRow(workspace)}
+                </div>
+              </section>
+            }
+          >
+            <div class="flex flex-col gap-8">
+              <section class="flex flex-col gap-4">
+                <h2 class="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
+                  {t("connectionSection")}
+                </h2>
+                <div class="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
+                  {connectionRow(workspace)}
+                </div>
+              </section>
+              <section class="flex flex-col gap-4">
+                <h2 class="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">{t("preferences")}</h2>
+                <div class="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
+                  {shellRow(workspace)}
+                </div>
+              </section>
             </div>
-          </section>
-        ),
-      )}
+          </Show>
+        )}
+      </For>
 
-      {workspaces.length === 0 && (
-        <div className="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
+      <Show when={props.workspaces.length === 0}>
+        <div class="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
           <SettingsRow title={t("noServers")} description={t("noServersDesc")}>
-            <Button variant="neutral" size="sm" onClick={() => onAdd?.()} className="gap-2">
-              <Plus className="size-4" />
+            <Button variant="neutral" size="sm" onClick={() => props.onAdd?.()} class="gap-2">
+              <Plus class="size-4" />
               {t("addServer")}
             </Button>
           </SettingsRow>
         </div>
-      )}
+      </Show>
     </div>
   );
 }

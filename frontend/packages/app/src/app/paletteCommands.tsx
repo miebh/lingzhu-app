@@ -1,4 +1,3 @@
-import type { Dispatch, SetStateAction } from "react";
 import type { SidePanelTabID } from "../lib/sidePanel";
 import type { SideTab } from "../lib/sessionTabs";
 import { relativeTime } from "../lib/history";
@@ -37,8 +36,8 @@ export interface PaletteContext {
     newChat: (path: string) => unknown;
     open: (path: string, sessionID: string) => unknown;
   };
-  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
-  setPanelOpen: Dispatch<SetStateAction<boolean>>;
+  setSidebarOpen: (value: boolean | ((current: boolean) => boolean)) => void;
+  setPanelOpen: (value: boolean | ((current: boolean) => boolean)) => void;
   /** Opens the context tab, or closes the panel when it already shows it. */
   focusComposer: () => void;
   toggleAutoApprove: () => void;

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { ExternalLink, FileText, Images, Save } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -24,17 +25,19 @@ function dataURL(item: MediaItem): string {
 }
 
 /** Read-only gallery of image and PDF attachments from tool results. */
-export function MediaDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function MediaDialog(props: Props) {
   const tr = useT();
-  const [items, setItems] = useState<MediaItem[]>([]);
-  const [selected, setSelected] = useState<string>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [truncated, setTruncated] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [items, setItems] = createSignal<MediaItem[]>([]);
+  const [selected, setSelected] = createSignal<string>();
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [truncated, setTruncated] = createSignal(false);
+  const [saving, setSaving] = createSignal(false);
+  const [notice, setNotice] = createSignal("");
 
   const load = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     setLoading(true);
     setError("");
@@ -42,7 +45,7 @@ export function MediaDialog({ open, workspace, sessionID, title, onOpenChange }:
       const list = await api.media(workspace, sessionID, 100);
       setItems(list.media);
       setTruncated(list.truncated);
-      setSelected((current) =>
+      update(setSelected, selected, (current) =>
         current && list.media.some((item) => item.id === current) ? current : list.media[0]?.id,
       );
     } catch (err) {
@@ -52,8 +55,10 @@ export function MediaDialog({ open, workspace, sessionID, title, onOpenChange }:
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
+      void props.sessionID;
       void load();
     } else {
       setItems([]);
@@ -63,16 +68,16 @@ export function MediaDialog({ open, workspace, sessionID, title, onOpenChange }:
       setSaving(false);
       setNotice("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace, sessionID]);
+  });
 
   const saveIndex = async () => {
-    if (!sessionID || items.length === 0) return;
+    const sessionID = props.sessionID;
+    if (!sessionID || items().length === 0) return;
     setSaving(true);
     try {
       const path = await api.saveTextFile(
-        mediaExportName(sessionID, items.length),
-        serializeMedia({ sessionId: sessionID, items, truncated }),
+        mediaExportName(sessionID, items().length),
+        serializeMedia({ sessionId: sessionID, items: items(), truncated: truncated() }),
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -86,7 +91,7 @@ export function MediaDialog({ open, workspace, sessionID, title, onOpenChange }:
     }
   };
 
-  const current = useMemo(() => items.find((item) => item.id === selected), [items, selected]);
+  const current = createMemo(() => items().find((item) => item.id === selected()));
 
   const openExternal = (item: MediaItem) => {
     try {
@@ -104,120 +109,130 @@ export function MediaDialog({ open, workspace, sessionID, title, onOpenChange }:
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
             <DialogTitle>Media</DialogTitle>
-            <DialogDescription className="truncate">
-              {title ? `${title} · ` : ""}
+            <DialogDescription class="truncate">
+              {props.title ? `${props.title} · ` : ""}
               {tr("dialogMediaHint")}
             </DialogDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={saving || items.length === 0}
+              disabled={saving() || items().length === 0}
               onClick={() => void saveIndex()}
             >
               <Save />
-              {saving ? "Saving…" : "Save index"}
+              {saving() ? "Saving…" : "Save index"}
             </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load()} />
+            <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
         </div>
 
-        <ErrorBanner error={error} />
-        <NoticeBanner notice={notice} mono />
+        <ErrorBanner error={error()} />
+        <NoticeBanner notice={notice()} mono />
 
-        <div className="mt-4 flex min-h-0 flex-1 gap-3">
-          <div className="w-64 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
-            {items.length === 0 ? (
-              <p className="px-2 py-1 text-meta text-text-faint">
-                {loading ? "Loading…" : "No media in this session."}
-              </p>
-            ) : (
-              items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSelected(item.id)}
-                  className={`interactive flex w-full items-center gap-2 px-2 py-1.5 text-left text-meta ${
-                    selected === item.id
-                      ? "bg-bg-layer-02 text-text-base"
-                      : "text-text-muted hover:text-text-base"
-                  }`}
-                >
-                  {item.mime === "application/pdf" ? (
-                    <FileText className="size-3.5 shrink-0 text-text-faint" />
-                  ) : (
-                    <Images className="size-3.5 shrink-0 text-text-faint" />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{item.name || item.id}</span>
-                    <span className="block truncate text-caption text-text-faint">
-                      {item.mime} · {formatBytes(item.size)}
+        <div class="mt-4 flex min-h-0 flex-1 gap-3">
+          <div class="w-64 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
+            <Show
+              when={items().length > 0}
+              fallback={
+                <p class="px-2 py-1 text-meta text-text-faint">
+                  {loading() ? "Loading…" : "No media in this session."}
+                </p>
+              }
+            >
+              <For each={items()}>
+                {(item) => (
+                  <button
+                    type="button"
+                    onClick={() => setSelected(item.id)}
+                    class={`interactive flex w-full items-center gap-2 px-2 py-1.5 text-left text-meta ${
+                      selected() === item.id
+                        ? "bg-bg-layer-02 text-text-base"
+                        : "text-text-muted hover:text-text-base"
+                    }`}
+                  >
+                    {item.mime === "application/pdf" ? (
+                      <FileText class="size-3.5 shrink-0 text-text-faint" />
+                    ) : (
+                      <Images class="size-3.5 shrink-0 text-text-faint" />
+                    )}
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate">{item.name || item.id}</span>
+                      <span class="block truncate text-caption text-text-faint">
+                        {item.mime} · {formatBytes(item.size)}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ))
-            )}
+                  </button>
+                )}
+              </For>
+            </Show>
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
-            {current ? (
-              <>
-                <div className="flex shrink-0 items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
-                  <span className="min-w-0 flex-1 truncate font-mono">
-                    {current.name || current.id}
-                  </span>
-                  <span className="shrink-0">
-                    {current.mime} · {formatBytes(current.size)} · {formatDateTime(current.at)}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    onClick={() => openExternal(current)}
-                  >
-                    <ExternalLink />
-                    Open
-                  </Button>
-                </div>
-                {current.mime.startsWith("image/") ? (
-                  <div className="min-h-0 flex-1 overflow-auto bg-[repeating-conic-gradient(#0002_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
-                    <img
-                      src={dataURL(current)}
-                      alt={current.name || current.id}
-                      className="mx-auto max-h-full max-w-full object-contain"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-                    <FileText className="size-10 text-text-faint" />
-                    <p className="text-meta text-text-muted">
-                      PDF attachment ({formatBytes(current.size)})
-                    </p>
-                    <Button type="button" variant="outline" size="sm" onClick={() => openExternal(current)}>
+          <div class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
+            <Show
+              when={current()}
+              fallback={<p class="p-3 text-meta text-text-faint">Select media to preview it.</p>}
+            >
+              {(item) => (
+                <>
+                  <div class="flex shrink-0 items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
+                    <span class="min-w-0 flex-1 truncate font-mono">
+                      {item().name || item().id}
+                    </span>
+                    <span class="shrink-0">
+                      {item().mime} · {formatBytes(item().size)} · {formatDateTime(item().at)}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => openExternal(item())}
+                    >
                       <ExternalLink />
-                      {tr("dialogOpenPdf")}
+                      Open
                     </Button>
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="p-3 text-meta text-text-faint">Select media to preview it.</p>
-            )}
+                  <Show
+                    when={item().mime.startsWith("image/")}
+                    fallback={
+                      <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+                        <FileText class="size-10 text-text-faint" />
+                        <p class="text-meta text-text-muted">
+                          PDF attachment ({formatBytes(item().size)})
+                        </p>
+                        <Button type="button" variant="outline" size="sm" onClick={() => openExternal(item())}>
+                          <ExternalLink />
+                          {tr("dialogOpenPdf")}
+                        </Button>
+                      </div>
+                    }
+                  >
+                    <div class="min-h-0 flex-1 overflow-auto bg-[repeating-conic-gradient(#0002_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
+                      <img
+                        src={dataURL(item())}
+                        alt={item().name || item().id}
+                        class="mx-auto max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  </Show>
+                </>
+              )}
+            </Show>
           </div>
         </div>
 
-        {truncated && (
-          <p className="mt-2 shrink-0 text-caption text-text-faint">
+        <Show when={truncated()}>
+          <p class="mt-2 shrink-0 text-caption text-text-faint">
             {tr("dialogFirst100Attachments")}
           </p>
-        )}
+        </Show>
       </DialogContent>
     </Dialog>
   );

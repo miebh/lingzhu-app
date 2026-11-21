@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { useShallow } from "zustand/react/shallow";
+import { createMemo, createRoot, onMount, type Accessor, type JSX } from "solid-js";
 import { useDialogBindings } from "./useDialogBindings";
 import { useSessionActions } from "./useSessionActions";
 import { useSessionTabs } from "./useSessionTabs";
@@ -25,148 +24,250 @@ import {
 /**
  * Shell composition state: layout, panel, dialogs, tabs and workspace data.
  * Chat/active-session data deliberately stays out; consumers subscribe to it
- * with their own selectors so streaming tokens never re-render this tree.
+ * with their own selectors so streaming tokens never re-run this tree.
+ *
+ * The object is built once in a root scope: every field is a getter, so reading
+ * `shell.activePath` inside JSX tracks the underlying store. Nested groups are
+ * getter objects too, so destructuring `const { view } = shell` stays live.
  */
+export interface Shell {
+  preferences: ReturnType<ReturnType<typeof usePreferences>>;
+  savePreferences: ReturnType<typeof usePreferencesStore.getState>["save"];
+  catalog: ReturnType<ReturnType<typeof useCatalog>>;
+  view: {
+    tab: "chat" | "settings";
+    settingsOpen: boolean;
+    settingsSection: ReturnType<typeof useViewStore.getState>["settingsSection"];
+    select: ReturnType<typeof useViewStore.getState>["select"];
+    showChat: () => void;
+    homeOpen: boolean;
+    showHome: () => void;
+    closeHome: () => void;
+    openSettings: (section?: ReturnType<typeof useViewStore.getState>["settingsSection"]) => void;
+    selectSettingsSection: (section: ReturnType<typeof useViewStore.getState>["settingsSection"]) => void;
+    closeSettings: () => void;
+  };
+  workspaceList: Array<{
+    path: string;
+    name: string;
+    addr: string;
+    connected: boolean;
+    starting?: boolean;
+    error: string;
+    icon?: string;
+    color?: string;
+  }>;
+  workspaceRecords: ReturnType<ReturnType<typeof useWorkspaces>>;
+  activePath: string | undefined;
+  sessionsByWorkspace: ReturnType<ReturnType<typeof useSessionsByWorkspace>>;
+  loadingSessions: Record<string, boolean>;
+  sessionsLoading: boolean;
+  workspaceSessionCounts: Record<string, number>;
+  workspaceActions: {
+    select: (path: string) => void;
+    refresh: () => Promise<void>;
+    loadSessions: (path: string) => Promise<void>;
+    connect: () => Promise<unknown>;
+    disconnect: (path: string) => Promise<void>;
+    renameSession: (workspace: string, sessionID: string, title: string) => Promise<boolean>;
+    deleteSession: (workspace: string, sessionID: string) => Promise<boolean>;
+    deleteSessions: (workspace: string, sessionIDs: string[]) => Promise<string[]>;
+  };
+  chatActions: {
+    open: (workspace: string, sessionID: string) => Promise<void>;
+    newChat: (workspace: string) => Promise<void>;
+    send: (...args: any[]) => Promise<void>;
+    runShell: (command: string) => Promise<void>;
+    startSession: (...args: any[]) => Promise<void>;
+    stop: () => Promise<void>;
+    refresh: (workspace: string, sessionID: string) => Promise<void>;
+    loadOlder: (workspace: string, sessionID: string) => void;
+    selectModel: (providerID: string, modelID: string) => Promise<void>;
+    selectAgent: (agentID: string) => Promise<void>;
+    reply: (requestID: string, decision: string, message?: string) => Promise<void>;
+    answerQuestion: (requestID: string, response: any) => Promise<void>;
+    discard: (workspace: string, sessionID: string) => void;
+    setTitle: (workspace: string, sessionID: string, title: string) => void;
+  };
+  activeId: string | undefined;
+  home: ReturnType<ReturnType<typeof useChatHome>>;
+  projectSelection: string | undefined;
+  setProjectSelection: (value?: string) => void;
+  homeProject: string | undefined;
+  setHomeProject: (value?: string | ((current?: string) => string | undefined)) => void;
+  settingsProject: string | undefined;
+  setSettingsProject: (value?: string) => void;
+  selectionReset: number;
+  sideTabsWidth: number;
+  setSideTabsWidth: (value: number) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (value: boolean | ((current: boolean) => boolean)) => void;
+  mobile: boolean;
+  setMobile: (value: boolean) => void;
+  mobileDrawerOpen: boolean;
+  setMobileDrawerOpen: (value: boolean) => void;
+  panel: {
+    panelOpen: boolean;
+    setPanelOpen: (value: boolean | ((current: boolean) => boolean)) => void;
+    panelTabs: SidePanelTabID[];
+    setPanelTabs: (tabs: SidePanelTabID[]) => void;
+    panelTab: SidePanelTabID;
+    setPanelTab: (tab: SidePanelTabID) => void;
+    panelTabsView: SidePanelTab[];
+    openSidePanel: (tab?: SidePanelTabID) => void;
+    addPanelTab: (id: SidePanelTabID) => void;
+    openFileInPanel: (path: string) => void;
+    closePanelTab: (id: SidePanelTabID) => void;
+  };
+  dialogs: ReturnType<typeof useDialogBindings>;
+  activeWorkspace: Shell["workspaceList"][number] | undefined;
+  activeKey: string | undefined;
+  homeWorkspace: Shell["workspaceList"][number] | undefined;
+  providers: NonNullable<Catalog["providers"]>;
+  modelDisplayName: (providerID?: string, modelID?: string) => string;
+  agents: ReturnType<typeof useWorkspaceAgents>;
+  activeTabKey: string | undefined;
+  tabs: ReturnType<typeof useSessionTabs>;
+  sessionActions: ReturnType<typeof useSessionActions>;
+  activeSideTab: string | undefined;
+  keybinds: Record<string, string>;
+  quote: { text: string; nonce: number } | undefined;
+  quoteMessage: ((text: string) => void) | undefined;
+  clearQuote: () => void;
+  restorePrompt: { text: string; nonce: number } | undefined;
+  restoreText: (text: string) => void;
+  openProjectSettings: (path: string) => void;
+}
+
 const EMPTY_PROVIDERS: NonNullable<Catalog["providers"]> = [];
 
-export function useShell() {
+function getterObject<T extends object>(build: () => T): T {
+  const target = {} as T;
+  const sample = build();
+  for (const key of Object.keys(sample) as Array<keyof T>) {
+    Object.defineProperty(target, key, {
+      enumerable: true,
+      configurable: false,
+      get: () => build()[key],
+    });
+  }
+  return target;
+}
+
+function buildShell(): Shell {
+  onMount(() => watchViewport());
   const preferences = usePreferences();
-  const savePreferences = usePreferencesStore((state) => state.save);
+  const savePreferences = usePreferencesStore.getState().save;
   const catalog = useCatalog();
 
-  const view = useViewStore(
-    useShallow((state) => ({
+  const viewState = useViewStore((state) => ({
+    tab: state.tab,
+    settingsOpen: state.settingsOpen,
+    settingsSection: state.settingsSection,
+    homeOpen: state.homeOpen,
+    select: state.select,
+    showChat: state.showChat,
+    showHome: state.showHome,
+    closeHome: state.closeHome,
+    openSettings: state.openSettings,
+    selectSettingsSection: state.selectSettingsSection,
+    closeSettings: state.closeSettings,
+  }));
+  const view = getterObject(() => {
+    const state = viewState();
+    return {
       tab: state.tab,
       settingsOpen: state.settingsOpen,
       settingsSection: state.settingsSection,
+      homeOpen: state.homeOpen,
       select: state.select,
       showChat: state.showChat,
-      homeOpen: state.homeOpen,
       showHome: state.showHome,
       closeHome: state.closeHome,
       openSettings: state.openSettings,
       selectSettingsSection: state.selectSettingsSection,
       closeSettings: state.closeSettings,
-    })),
-  );
+    };
+  });
 
   const workspaceRecords = useWorkspaces();
-  // Project labels come from preferences, which `normalizePreferences` rebuilds
-  // as fresh objects on every load and save. Reading them through refs keeps the
-  // list identity stable, so effects keyed on the list do not re-run each render.
-  const projectNames = useRef(preferences.projectNames);
-  const projectIcons = useRef(preferences.projectIcons);
-  const projectColors = useRef(preferences.projectColors);
-  projectNames.current = preferences.projectNames;
-  projectIcons.current = preferences.projectIcons;
-  projectColors.current = preferences.projectColors;
-  const workspaceList = useMemo(
-    () =>
-      workspaceRecords.map((workspace) => ({
-        ...workspace,
-        name: projectNames.current[workspace.path] || workspace.name,
-        icon: projectIcons.current[workspace.path] || undefined,
-        color: projectColors.current[workspace.path] || undefined,
-      })),
-    [workspaceRecords],
-  );
+  const workspaceList = createMemo(() => {
+    const prefs = preferences();
+    return workspaceRecords().map((workspace) => ({
+      ...workspace,
+      name: prefs.projectNames[workspace.path] || workspace.name,
+      icon: prefs.projectIcons[workspace.path] || undefined,
+      color: prefs.projectColors[workspace.path] || undefined,
+    }));
+  });
 
   const activePath = useActivePath();
   const sessionsByWorkspace = useSessionsByWorkspace();
   const loadingSessions = useWorkspaceStore((state) => state.loadingSessions);
   const sessionsLoading = useSessionsLoading();
-  const workspaceSessionCounts = Object.fromEntries(
-    Object.entries(sessionsByWorkspace).map(([path, list]) => [path, (list ?? []).length]),
-  );
-  const workspaceActions = useWorkspaceStore(
-    useShallow((state) => ({
-      select: state.select,
-      refresh: state.refresh,
-      loadSessions: state.loadSessions,
-      connect: state.connect,
-      disconnect: state.disconnect,
-      renameSession: state.renameSession,
-      deleteSession: state.deleteSession,
-      deleteSessions: state.deleteSessions,
-    })),
-  );
-  const chatActions = useChatStore(
-    useShallow((state) => ({
-      open: state.open,
-      newChat: state.newChat,
-      send: state.send,
-      runShell: state.runShell,
-      startSession: state.startSession,
-      stop: state.stop,
-      refresh: state.refresh,
-      loadOlder: state.loadOlder,
-      selectModel: state.selectModel,
-      selectAgent: state.selectAgent,
-      reply: state.reply,
-      answerQuestion: state.answerQuestion,
-      discard: state.discard,
-      setTitle: state.setTitle,
-    })),
-  );
 
-  const ui = useUiStore(
-    useShallow((state) => ({
-      mobile: state.mobile,
-      sidebarOpen: state.sidebarOpen,
-      setSidebarOpen: state.setSidebarOpen,
-      sideTabsWidth: state.sideTabsWidth,
-      setSideTabsWidth: state.setSideTabsWidth,
-      mobileDrawerOpen: state.mobileDrawerOpen,
-      setMobileDrawerOpen: state.setMobileDrawerOpen,
-      projectSelection: state.projectSelection,
-      setProjectSelection: state.setProjectSelection,
-      homeProject: state.homeProject,
-      setHomeProject: state.setHomeProject,
-      settingsProject: state.settingsProject,
-      setSettingsProject: state.setSettingsProject,
-      selectionReset: state.selectionReset,
-      resetSelection: state.resetSelection,
-      quote: state.quote,
-      quoteText: state.quoteText,
-      clearQuote: state.clearQuote,
-      restorePrompt: state.restorePrompt,
-      restoreText: state.restoreText,
-      setMobile: state.setMobile,
-      panelOpen: state.panelOpen,
-      setPanelOpen: state.setPanelOpen,
-      panelTabs: state.panelTabs,
-      setPanelTabs: state.setPanelTabs,
-      panelTab: state.panelTab,
-      setPanelTab: state.setPanelTab,
-      openSidePanel: state.openSidePanel,
-      addPanelTab: state.addPanelTab,
-      openFileInPanel: state.openFileInPanel,
-      closePanelTab: state.closePanelTab,
-    })),
-  );
-  const {
-    mobile,
-    sidebarOpen,
-    setSidebarOpen,
-    sideTabsWidth,
-    setSideTabsWidth,
-    mobileDrawerOpen,
-    setMobileDrawerOpen,
-    projectSelection,
-    setProjectSelection,
-    homeProject,
-    setHomeProject,
-    settingsProject,
-    setSettingsProject,
-    selectionReset,
-    quote,
-    quoteText,
-    clearQuote,
-    restoreText,
-  } = ui;
+  const workspaceActions = useWorkspaceStore((state) => ({
+    select: state.select,
+    refresh: state.refresh,
+    loadSessions: state.loadSessions,
+    connect: state.connect,
+    disconnect: state.disconnect,
+    renameSession: state.renameSession,
+    deleteSession: state.deleteSession,
+    deleteSessions: state.deleteSessions,
+  }));
 
-  // Panel state lives in the UI store, so every useShell() caller reads and
-  // writes the same panel instead of owning a private copy.
+  const chatActions = useChatStore((state) => ({
+    open: state.open,
+    newChat: state.newChat,
+    send: state.send,
+    runShell: state.runShell,
+    startSession: state.startSession,
+    stop: state.stop,
+    refresh: state.refresh,
+    loadOlder: state.loadOlder,
+    selectModel: state.selectModel,
+    selectAgent: state.selectAgent,
+    reply: state.reply,
+    answerQuestion: state.answerQuestion,
+    discard: state.discard,
+    setTitle: state.setTitle,
+  }));
+
+  const ui = useUiStore((state) => ({
+    mobile: state.mobile,
+    sidebarOpen: state.sidebarOpen,
+    setSidebarOpen: state.setSidebarOpen,
+    sideTabsWidth: state.sideTabsWidth,
+    setSideTabsWidth: state.setSideTabsWidth,
+    mobileDrawerOpen: state.mobileDrawerOpen,
+    setMobileDrawerOpen: state.setMobileDrawerOpen,
+    projectSelection: state.projectSelection,
+    setProjectSelection: state.setProjectSelection,
+    homeProject: state.homeProject,
+    setHomeProject: state.setHomeProject,
+    settingsProject: state.settingsProject,
+    setSettingsProject: state.setSettingsProject,
+    selectionReset: state.selectionReset,
+    resetSelection: state.resetSelection,
+    quote: state.quote,
+    quoteText: state.quoteText,
+    clearQuote: state.clearQuote,
+    restorePrompt: state.restorePrompt,
+    restoreText: state.restoreText,
+    setMobile: state.setMobile,
+    panelOpen: state.panelOpen,
+    setPanelOpen: state.setPanelOpen,
+    panelTabs: state.panelTabs,
+    setPanelTabs: state.setPanelTabs,
+    panelTab: state.panelTab,
+    setPanelTab: state.setPanelTab,
+    openSidePanel: state.openSidePanel,
+    addPanelTab: state.addPanelTab,
+    openFileInPanel: state.openFileInPanel,
+    closePanelTab: state.closePanelTab,
+  }));
+
   const tabView = (id: SidePanelTabID): SidePanelTab => {
     if (isFilePanelTab(id)) {
       const path = id.slice(5);
@@ -175,38 +276,48 @@ export function useShell() {
     }
     return {
       id,
-      label: id === "review" ? t("review") : id === "files" ? t("files") : id === "details" ? t("details") : t("plugins"),
+      label:
+        id === "review"
+          ? t("review")
+          : id === "files"
+            ? t("files")
+            : id === "details"
+              ? t("details")
+              : t("plugins"),
     };
   };
-  const panelTabsView: SidePanelTab[] = ui.panelTabs.map(tabView);
-  const panel = {
-    panelOpen: ui.panelOpen,
-    setPanelOpen: ui.setPanelOpen,
-    panelTabs: ui.panelTabs,
-    setPanelTabs: ui.setPanelTabs,
-    panelTab: ui.panelTab,
-    setPanelTab: ui.setPanelTab,
-    panelTabsView,
-    openSidePanel: ui.openSidePanel,
-    addPanelTab: ui.addPanelTab,
-    openFileInPanel: ui.openFileInPanel,
-    closePanelTab: ui.closePanelTab,
-  };
+
+  const panel = getterObject(() => {
+    const state = ui();
+    return {
+      panelOpen: state.panelOpen,
+      setPanelOpen: state.setPanelOpen,
+      panelTabs: state.panelTabs,
+      setPanelTabs: state.setPanelTabs,
+      panelTab: state.panelTab,
+      setPanelTab: state.setPanelTab,
+      panelTabsView: state.panelTabs.map(tabView),
+      openSidePanel: state.openSidePanel,
+      addPanelTab: state.addPanelTab,
+      openFileInPanel: state.openFileInPanel,
+      closePanelTab: state.closePanelTab,
+    };
+  });
+
   const dialogs = useDialogBindings();
   const activeId = useActiveChatID();
   const home = useChatHome();
 
-  useEffect(() => watchViewport(), []);
+  const activeWorkspace = createMemo(() => workspaceList().find((workspace) => workspace.path === activePath()));
+  const activeKey = createMemo(() => {
+    const id = activeId();
+    const path = activePath();
+    return id && path ? chatKey(path, id) : undefined;
+  });
+  const homeWorkspace = createMemo(
+    () => activeWorkspace() ?? workspaceList().find((workspace) => workspace.path === home().path),
+  );
 
-  const activeWorkspace = workspaceList.find((workspace) => workspace.path === activePath);
-  const activeKey = activeId && activePath ? chatKey(activePath, activeId) : undefined;
-  const homeWorkspace = activeWorkspace ?? workspaceList.find((workspace) => workspace.path === home.path);
-
-  // `useSeenSessions`, `useSessionPrefetch` and the tab sync all write stores.
-  // `useShell` is a plain hook called by every surface, so those effects run in
-  // `ShellBridges` once instead of once per caller.
-
-  const activeTabKey = activePath && activeId ? chatKey(activePath, activeId) : undefined;
   const tabs = useSessionTabs({
     activePath,
     activeId,
@@ -214,98 +325,101 @@ export function useShell() {
   });
 
   const sessionActions = useSessionActions({
-    restorePrompt: restoreText,
+    restorePrompt: ui().restoreText,
     removeSessionTabs: tabs.removeSessionTabs,
-    onSelectionReset: ui.resetSelection,
+    onSelectionReset: ui().resetSelection,
   });
 
   const agents = useWorkspaceAgents(homeWorkspace);
-  // A stable empty array keeps the memoized transcript rows from seeing a new
-  // `providers` prop before the catalog loads.
-  const providers = useMemo(() => catalog?.providers ?? EMPTY_PROVIDERS, [catalog]);
 
-  // The transcript memoizes its rows on this callback, so it has to keep its
-  // identity until the catalog itself changes.
-  const modelDisplayName = useCallback(
-    (providerID?: string, modelID?: string) => {
-      if (!modelID) return "";
-      const [base, variant] = modelID.split("::");
-      const name =
-        providers.find((provider) => provider.id === providerID)?.models.find((model) => model.id === base)?.name ??
-        base;
-      return variant ? `${name} ${variant.charAt(0).toUpperCase()}${variant.slice(1)}` : name;
-    },
-    [providers],
+  const providers = createMemo(() => catalog()?.providers ?? EMPTY_PROVIDERS);
+  const modelDisplayName = (providerID?: string, modelID?: string) => {
+    if (!modelID) return "";
+    const [base, variant] = modelID.split("::");
+    const name =
+      providers().find((provider) => provider.id === providerID)?.models.find((model) => model.id === base)?.name ??
+      base;
+    return variant ? `${name} ${variant.charAt(0).toUpperCase()}${variant.slice(1)}` : name;
+  };
+
+  const keybinds = createMemo(() => effectiveKeybinds(preferences().keybinds));
+  const activeSideTab = createMemo(() => (view.tab === "settings" ? "settings" : activeKey()));
+  const workspaceSessionCounts = createMemo(() =>
+    Object.fromEntries(
+      Object.entries(sessionsByWorkspace()).map(([path, list]) => [path, (list ?? []).length]),
+    ),
   );
 
-  // A connected workspace that Home has not loaded yet starts loading so the
-  // recent list is complete even when the project tree is closed. `useShell` is
-  // a plain hook called by every surface, so this lives in `useSessionPrefetch`
-  // and runs once from `ShellBridges` instead of once per caller.
-
-  const activeSideTab = view.tab === "settings" ? "settings" : activeTabKey;
-  const keybinds = effectiveKeybinds(preferences.keybinds);
-
   const openProjectSettings = (path: string) => {
-    setSettingsProject(path);
+    ui().setSettingsProject(path);
     view.selectSettingsSection("projects");
     view.openSettings();
   };
 
-  return {
-    preferences,
+  return getterObject<Shell>(() => ({
+    preferences: preferences(),
     savePreferences,
-    catalog,
+    catalog: catalog(),
     view,
-    workspaceList,
-    workspaceRecords,
-    activePath,
-    sessionsByWorkspace,
-    loadingSessions,
-    sessionsLoading,
-    workspaceSessionCounts,
-    workspaceActions,
-    chatActions,
-    activeId,
-    home,
-    projectSelection,
-    setProjectSelection,
-    homeProject,
-    setHomeProject,
-    settingsProject,
-    setSettingsProject,
-    selectionReset,
-    sideTabsWidth,
-    setSideTabsWidth,
-    sidebarOpen,
-    setSidebarOpen,
-    mobile,
-    setMobile: ui.setMobile,
-    mobileDrawerOpen,
-    setMobileDrawerOpen,
+    workspaceList: workspaceList(),
+    workspaceRecords: workspaceRecords(),
+    activePath: activePath(),
+    sessionsByWorkspace: sessionsByWorkspace(),
+    loadingSessions: loadingSessions(),
+    sessionsLoading: sessionsLoading(),
+    workspaceSessionCounts: workspaceSessionCounts(),
+    workspaceActions: workspaceActions(),
+    chatActions: chatActions(),
+    activeId: activeId(),
+    home: home(),
+    projectSelection: ui().projectSelection,
+    setProjectSelection: ui().setProjectSelection,
+    homeProject: ui().homeProject,
+    setHomeProject: ui().setHomeProject,
+    settingsProject: ui().settingsProject,
+    setSettingsProject: ui().setSettingsProject,
+    selectionReset: ui().selectionReset,
+    sideTabsWidth: ui().sideTabsWidth,
+    setSideTabsWidth: ui().setSideTabsWidth,
+    sidebarOpen: ui().sidebarOpen,
+    setSidebarOpen: ui().setSidebarOpen,
+    mobile: ui().mobile,
+    setMobile: ui().setMobile,
+    mobileDrawerOpen: ui().mobileDrawerOpen,
+    setMobileDrawerOpen: ui().setMobileDrawerOpen,
     panel,
     dialogs,
-    activeWorkspace,
-    activeKey,
-    homeWorkspace,
-    providers,
+    activeWorkspace: activeWorkspace(),
+    activeKey: activeKey(),
+    homeWorkspace: homeWorkspace(),
+    providers: providers(),
     modelDisplayName,
     agents,
-    activeTabKey,
+    activeTabKey: activeKey(),
     tabs,
     sessionActions,
-    activeSideTab,
-    keybinds,
-    quote,
-    quoteMessage: quoteText,
-    clearQuote,
-    restorePrompt: ui.restorePrompt,
-    restoreText,
+    activeSideTab: activeSideTab(),
+    keybinds: keybinds(),
+    quote: ui().quote,
+    quoteMessage: ui().quoteText,
+    clearQuote: ui().clearQuote,
+    restorePrompt: ui().restorePrompt,
+    restoreText: ui().restoreText,
     openProjectSettings,
-  };
+  }));
+}
+
+let shell: Shell | undefined;
+
+/** The shell state, built once for the lifetime of the window. */
+export function useShell(): Shell {
+  shell ??= createRoot(buildShell);
+  return shell;
 }
 
 /** Kept as a no-op boundary so the app root keeps a single composition point. */
-export function ShellProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+export function ShellProvider(props: { children?: JSX.Element }) {
+  return <>{props.children}</>;
 }
+
+export type { Accessor };

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -76,7 +76,7 @@ describe("closing the last session tab", () => {
 
   test("a durable last tab closes on the first click and stays closed", async () => {
     const user = userEvent.setup();
-    render(<AppShell />);
+    render(() => <AppShell />);
     const homeState = () => screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("false");
 

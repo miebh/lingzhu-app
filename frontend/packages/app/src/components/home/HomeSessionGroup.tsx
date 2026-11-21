@@ -1,3 +1,4 @@
+import { For } from "solid-js";
 import type { HomeSessionRow as HomeSessionRowData } from "@lingzhu/ui/types";
 import { HomeSessionRow } from "./HomeSessionRow";
 
@@ -19,25 +20,26 @@ interface Props {
 }
 
 /** A date bucket: a sticky section header followed by its session rows. */
-export function HomeSessionGroup({ group, openKeys, hideProjectName, onOpenSession, onRowContextMenu }: Props) {
+export function HomeSessionGroup(props: Props) {
   return (
-    <div className="flex min-w-0 flex-col pt-1 md:pt-3">
+    <div class="flex min-w-0 flex-col pt-1 md:pt-3">
       <div
         data-component="home-session-group-header"
-        className="pointer-events-none sticky top-[68px] z-10 flex h-7 min-w-0 items-center justify-between bg-bg-base ps-1.5 md:top-[84px] md:ps-3 lg:top-[108px]"
+        class="pointer-events-none sticky top-[68px] z-10 flex h-7 min-w-0 items-center justify-between bg-bg-base ps-1.5 md:top-[84px] md:ps-3 lg:top-[108px]"
       >
-        <div className={SECTION_LABEL}>{group.title}</div>
+        <div class={SECTION_LABEL}>{props.group.title}</div>
       </div>
-      {group.rows.map((row) => (
-        <HomeSessionRow
-          key={row.key}
-          row={row}
-          open={openKeys?.has(row.key) ?? false}
-          hideProjectName={hideProjectName}
-          onOpen={() => onOpenSession(row.path, row.sessionID)}
-          onRowContextMenu={onRowContextMenu}
-        />
-      ))}
+      <For each={props.group.rows}>
+        {(row) => (
+          <HomeSessionRow
+            row={row}
+            open={props.openKeys?.has(row.key) ?? false}
+            hideProjectName={props.hideProjectName}
+            onOpen={() => props.onOpenSession(row.path, row.sessionID)}
+            onRowContextMenu={props.onRowContextMenu}
+          />
+        )}
+      </For>
     </div>
   );
 }

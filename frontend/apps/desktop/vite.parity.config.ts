@@ -1,6 +1,6 @@
 import path from "node:path";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import solid from "vite-plugin-solid";
 import { sharedAliases } from "./vite.shared";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -10,7 +10,7 @@ export default defineConfig({
   resolve: {
     alias: sharedAliases,
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [solid(), tailwindcss()],
   build: {
     outDir: path.resolve(import.meta.dirname, "../../dist-parity"),
     emptyOutDir: true,

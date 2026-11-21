@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { Check, ChevronDown, Ellipsis, GitBranch, RefreshCw, Trash2 } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import {
@@ -28,19 +28,20 @@ interface Props {
 }
 
 /** Git worktrees across every project, with a project filter and a row menu. */
-export function WorktreesSection({ workspace, workspaces, sessionCounts }: Props) {
+export function WorktreesSection(props: Props) {
   const tr = useT();
-  const [scope, setScope] = useState<string>(workspace ?? "all");
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<Entry>();
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const removable = entries.filter((entry) => !entry.worktree.main);
+  const [scope, setScope] = createSignal<string>(props.workspace ?? "all");
+  const [entries, setEntries] = createSignal<Entry[]>([]);
+  const [counts, setCounts] = createSignal<Record<string, number>>({});
+  const [error, setError] = createSignal("");
+  const [loading, setLoading] = createSignal(false);
+  const [removeTarget, setRemoveTarget] = createSignal<Entry>();
+  const [bulkOpen, setBulkOpen] = createSignal(false);
+  const removable = createMemo(() => entries().filter((entry) => !entry.worktree.main));
 
   const load = async () => {
-    const targets = scope === "all" ? workspaces : workspaces.filter((item) => item.path === scope);
+    const targets =
+      scope() === "all" ? props.workspaces : props.workspaces.filter((item) => item.path === scope());
     if (targets.length === 0) {
       setEntries([]);
       return;
@@ -73,10 +74,11 @@ export function WorktreesSection({ workspace, workspaces, sessionCounts }: Props
     }
   };
 
-  useEffect(() => {
+  createEffect(() => {
+    scope();
+    props.workspaces;
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, workspaces]);
+  });
 
   const remove = async (target: Entry) => {
     setRemoveTarget(undefined);
@@ -91,7 +93,7 @@ export function WorktreesSection({ workspace, workspaces, sessionCounts }: Props
   const removeAll = async () => {
     setBulkOpen(false);
     try {
-      for (const entry of removable) {
+      for (const entry of removable()) {
         await api.removeWorktree(entry.project, entry.worktree.path, false);
       }
       await load();
@@ -100,50 +102,63 @@ export function WorktreesSection({ workspace, workspaces, sessionCounts }: Props
     }
   };
 
-  const scopeLabel =
-    scope === "all" ? "All projects" : workspaces.find((item) => item.path === scope)?.name || scope;
+  const scopeLabel = () =>
+    scope() === "all" ? "All projects" : props.workspaces.find((item) => item.path === scope())?.name || scope();
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex min-h-7 items-center justify-between gap-3">
-        <span className="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
-          {t("worktreeCount", { count: entries.length })}
+    <div class="flex flex-col gap-6">
+      <div class="flex min-h-7 items-center justify-between gap-3">
+        <span class="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
+          {t("worktreeCount", { count: entries().length })}
         </span>
-        <div className="flex items-center gap-2">
+        <div class="flex items-center gap-2">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="max-w-48 gap-1.5 text-text-muted hover:text-text-base">
-                <span className="min-w-0 truncate">{scopeLabel}</span>
-                <ChevronDown className="size-3.5 shrink-0" />
-              </Button>
+            <DropdownMenuTrigger
+              variant="ghost"
+              size="sm"
+              class="max-w-48 gap-1.5 text-text-muted hover:text-text-base"
+              as={Button}
+            >
+              <span class="min-w-0 truncate">{scopeLabel()}</span>
+              <ChevronDown class="size-3.5 shrink-0" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="end" className="w-52">
+            <DropdownMenuContent side="bottom" align="end" class="w-52">
               <DropdownMenuItem onSelect={() => setScope("all")}>
-                {scope === "all" ? <Check /> : <span className="size-3.5" />}
+                <Show when={scope() === "all"} fallback={<span class="size-3.5" />}>
+                  <Check />
+                </Show>
                 {tr("dialogAllProjects")}
               </DropdownMenuItem>
-              {workspaces.map((item) => (
-                <DropdownMenuItem key={item.path} onSelect={() => setScope(item.path)}>
-                  {scope === item.path ? <Check /> : <span className="size-3.5" />}
-                  <span className="min-w-0 flex-1 truncate">{item.name || item.path}</span>
-                </DropdownMenuItem>
-              ))}
+              <For each={props.workspaces}>
+                {(item) => (
+                  <DropdownMenuItem onSelect={() => setScope(item.path)}>
+                    <Show when={scope() === item.path} fallback={<span class="size-3.5" />}>
+                      <Check />
+                    </Show>
+                    <span class="min-w-0 flex-1 truncate">{item.name || item.path}</span>
+                  </DropdownMenuItem>
+                )}
+              </For>
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-xs" aria-label={t("worktreeActions")} className="text-text-faint hover:text-text-base">
-                <Ellipsis />
-              </Button>
+            <DropdownMenuTrigger
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t("worktreeActions")}
+              class="text-text-faint hover:text-text-base"
+              as={Button}
+            >
+              <Ellipsis />
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="end" className="w-48">
-              <DropdownMenuItem disabled={loading} onSelect={() => void load()}>
-                <RefreshCw className={loading ? "animate-spin" : undefined} />
+            <DropdownMenuContent side="bottom" align="end" class="w-48">
+              <DropdownMenuItem disabled={loading()} onSelect={() => void load()}>
+                <RefreshCw class={loading() ? "animate-spin" : undefined} />
                 {t("refresh")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 destructive
-                disabled={removable.length === 0}
+                disabled={removable().length === 0}
                 onSelect={() => setBulkOpen(true)}
               >
                 <Trash2 />
@@ -154,58 +169,64 @@ export function WorktreesSection({ workspace, workspaces, sessionCounts }: Props
         </div>
       </div>
 
-      {error && (
-        <p role="alert" className="text-meta leading-5 text-state-fg-danger">
-          {error}
+      <Show when={error()}>
+        <p role="alert" class="text-meta leading-5 text-state-fg-danger">
+          {error()}
         </p>
-      )}
+      </Show>
 
-      <div className="overflow-hidden rounded-lg bg-bg-layer-01 px-4 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
-        {entries.length === 0 && (
+      <div class="overflow-hidden rounded-lg bg-bg-layer-01 px-4 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
+        <Show when={entries().length === 0}>
           <SettingsRow title={t("noWorktreesYet")} description={t("noWorktreesDesc")}>
             <span />
           </SettingsRow>
-        )}
-        {entries.map((entry) => (
-          <div
-            key={`${entry.project}\u0000${entry.worktree.path}`}
-            className="flex min-h-14 flex-wrap items-center gap-3 border-b-[0.5px] border-border-base py-4 last:border-0"
-          >
-            <GitBranch className="size-4 shrink-0 text-icon-muted" />
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="min-w-0 truncate text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
-                {entry.worktree.branch || entry.worktree.path}
-              </span>
-              <span className="min-w-0 truncate font-mono text-caption leading-4 text-text-faint">
-                {entry.worktree.path}
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center gap-3 text-caption text-text-muted">
-              <span className="font-mono">{formatBytes(entry.worktree.size ?? 0)}</span>
-              <span>{t("sessionCount", { count: counts[entry.worktree.path] ?? sessionCounts?.[entry.worktree.path] ?? 0 })}</span>
-              <span className="text-text-faint">{entry.projectName}</span>
-              {entry.worktree.main ? (
-                <span>{tr("mainWorktree")}</span>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={t("removeServer", { name: entry.worktree.branch || entry.worktree.path })}
-                  onClick={() => setRemoveTarget(entry)}
-                  className="text-text-faint hover:text-state-fg-danger"
+        </Show>
+        <For each={entries()}>
+          {(entry) => (
+            <div class="flex min-h-14 flex-wrap items-center gap-3 border-b-[0.5px] border-border-base py-4 last:border-0">
+              <GitBranch class="size-4 shrink-0 text-icon-muted" />
+              <div class="flex min-w-0 flex-1 flex-col gap-1">
+                <span class="min-w-0 truncate text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
+                  {entry.worktree.branch || entry.worktree.path}
+                </span>
+                <span class="min-w-0 truncate font-mono text-caption leading-4 text-text-faint">
+                  {entry.worktree.path}
+                </span>
+              </div>
+              <div class="flex shrink-0 items-center gap-3 text-caption text-text-muted">
+                <span class="font-mono">{formatBytes(entry.worktree.size ?? 0)}</span>
+                <span>
+                  {t("sessionCount", {
+                    count: counts()[entry.worktree.path] ?? props.sessionCounts?.[entry.worktree.path] ?? 0,
+                  })}
+                </span>
+                <span class="text-text-faint">{entry.projectName}</span>
+                <Show
+                  when={entry.worktree.main}
+                  fallback={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={t("removeServer", { name: entry.worktree.branch || entry.worktree.path })}
+                      onClick={() => setRemoveTarget(entry)}
+                      class="text-text-faint hover:text-state-fg-danger"
+                    >
+                      <Trash2 />
+                    </Button>
+                  }
                 >
-                  <Trash2 />
-                </Button>
-              )}
+                  <span>{tr("mainWorktree")}</span>
+                </Show>
+              </div>
             </div>
-          </div>
-        ))}
+          )}
+        </For>
       </div>
 
       <ConfirmDialog
-        open={bulkOpen}
+        open={bulkOpen()}
         title={t("deleteWorktreesTitle")}
-        description={t("deleteWorktreesDesc", { count: removable.length })}
+        description={t("deleteWorktreesDesc", { count: removable().length })}
         confirmLabel={t("removeAll")}
         destructive
         onOpenChange={setBulkOpen}
@@ -213,13 +234,22 @@ export function WorktreesSection({ workspace, workspaces, sessionCounts }: Props
       />
 
       <ConfirmDialog
-        open={!!removeTarget}
+        open={!!removeTarget()}
         title={t("removeWorktreeTitle")}
-        description={removeTarget ? t("removeWorktreeDesc", { name: removeTarget.worktree.branch || removeTarget.worktree.path }) : ""}
+        description={
+          removeTarget()
+            ? t("removeWorktreeDesc", {
+                name: removeTarget()!.worktree.branch || removeTarget()!.worktree.path,
+              })
+            : ""
+        }
         confirmLabel={t("removeAction")}
         destructive
         onOpenChange={(open) => !open && setRemoveTarget(undefined)}
-        onConfirm={() => removeTarget && void remove(removeTarget)}
+        onConfirm={() => {
+          const target = removeTarget();
+          if (target) void remove(target);
+        }}
       />
     </div>
   );

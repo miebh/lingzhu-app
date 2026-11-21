@@ -1,7 +1,7 @@
 # lingzhu-app
 
-Desktop client for the [lingzhu](../lingzhu) agent, built with Wails v3, React 19, Tailwind CSS and
-shadcn/ui.
+Desktop client for the [lingzhu](../lingzhu) agent, built with Wails v3, SolidJS 1.9, Tailwind CSS and
+Kobalte.
 
 The app does not import the core. It starts `lingzhu serve` as a sidecar process (or reuses one that is
 already running) and talks to it over HTTP + SSE. Only a core the app started is stopped when the app quits.
@@ -98,15 +98,15 @@ frontend/apps/desktop/bindings  Generated from Go; not committed, run `wails3 ge
   stroke, two soft dark shadows, a bottom inner highlight), a 13px / weight-440 draft surface, a 180px
   scrollport without a visible scrollbar, and one 44px control row (`+`, context readings, 28px square
   submit key that turns into Stop while a turn runs).
-- Components come from shadcn/ui (radix-nova preset). `packages/ui/src/theme.css` maps shadcn's semantic
-  tokens (`--background`, `--border`, `--primary`, `--muted-foreground`…) onto the same roles, so
-  `npx shadcn@latest add <component>` inherits the same look. Add new primitives under
-  `packages/ui/src` and import them from `@lingzhu/ui/*`.
+- Primitives come from Kobalte (`@kobalte/core`) with the shared styling in `packages/ui/src`. Add new
+  primitives under `packages/ui/src` and import them from `@lingzhu/ui/*`; dialog, menu, tooltip and
+  switch have thin wrappers so call sites do not depend on Kobalte directly.
 - Transient outcomes surface as a top-center `Toast`; surface-bound failures stay in place. Rename,
   delete and workspace removal use `Dialog` instead of `window.prompt` / `window.confirm`.
-- Frontend state lives in Zustand stores under `packages/app/src/store` (notify, preferences, catalog,
-  view, workspaces, chat). Stores are module singletons, so the tree has no provider chain; components
-  subscribe to the slices they use, and one store reads another through `getState()`.
+- Frontend state lives in vanilla stores under `packages/app/src/store` (notify, preferences, catalog,
+  view, workspaces, chat). Stores are module singletons, so the tree has no provider chain; a Solid
+  binding (`store/create.ts`) turns each selector into an accessor that follows store updates. One
+  store reads another through `getState()`.
 - Chrome (sidebar, header, tool triggers, permission dock, dialogs) is not selectable; message bodies,
   tool output, permission resources and inputs stay selectable.
 - `LINGZHU_DEBUG=1` starts WebView2 with the DevTools endpoint on port 9222, so any CDP client

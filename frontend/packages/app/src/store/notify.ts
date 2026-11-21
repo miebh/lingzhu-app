@@ -1,4 +1,5 @@
-import { create } from "zustand";
+import { type Accessor } from "solid-js";
+import { createStore } from "./create";
 import type { NoticeTarget, ToastTone } from "@lingzhu/ui/types";
 import { isCancellation } from "../lib/errors";
 
@@ -22,7 +23,7 @@ interface NotifyStore {
 let nextID = 0;
 
 /** Single transient notice slot shared by every store and surface. */
-export const useNotifyStore = create<NotifyStore>((set) => ({
+export const useNotifyStore = createStore<NotifyStore>((set) => ({
   notice: undefined,
   push: (notice) => {
     nextID += 1;
@@ -51,7 +52,7 @@ export function notifySession(notice: { title: string; body?: string; tone?: Toa
   });
 }
 
-export function useNotice(): Notice | undefined {
+export function useNotice(): Accessor<Notice | undefined> {
   return useNotifyStore((state) => state.notice);
 }
 

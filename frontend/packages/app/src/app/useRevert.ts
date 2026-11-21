@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
+import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
 import { api } from "../lib/api";
 import { t } from "@lingzhu/ui/i18n";
 import { useChatStore } from "../store/chat";
 import { notify } from "../store/notify";
 
 interface Options {
-  workspace?: string;
-  sessionID?: string;
+  workspace: Accessor<string | undefined>;
+  sessionID: Accessor<string | undefined>;
   /** A completed turn adds checklist rows, so availability reloads with it. */
-  entryCount: number;
+  entryCount: Accessor<number>;
   restorePrompt: (text: string) => void;
 }
 
@@ -17,8 +17,13 @@ interface Options {
  * tail of the conversation and the prompt returns to the composer.
  */
 export function useRevert({ workspace, sessionID, entryCount, restorePrompt }: Options) {
-  const refresh = useChatStore((state) => state.refresh);
-  const [can, setCan] = useState({ undo: false, redo: false });
+  const [can, setCan] = createSignal({ undo: false, redo: false });
+  // The shell getters are coarse, so each projection is memoised: the effect
+  // below should re-check availability when the session or its message count
+  // changes, not on every streamed token.
+  const path = createMemo(() => workspace());
+  const id = createMemo(() => sessionID());
+  const total = createMemo(() => entryCount());
 
   const load = async (path: string, id: string) => {
     try {
@@ -32,13 +37,16 @@ export function useRevert({ workspace, sessionID, entryCount, restorePrompt }: O
     }
   };
 
-  useEffect(() => {
-    if (!workspace || !sessionID) {
+  createEffect(() => {
+    const currentPath = path();
+    const currentId = id();
+    total();
+    if (!currentPath || !currentId) {
       setCan({ undo: false, redo: false });
       return;
     }
-    void load(workspace, sessionID);
-  }, [workspace, sessionID, entryCount]);
+    void load(currentPath, currentId);
+  });
 
   /** Reverts the newest turn with a snapshot and returns its prompt to the composer. */
   const undoLatestTurn = async (path: string, id: string, restoreText?: string) => {
@@ -51,7 +59,7 @@ export function useRevert({ workspace, sessionID, entryCount, restorePrompt }: O
       return;
     }
     await api.revertSession(path, id, turn.seq);
-    await refresh(path, id);
+    await useChatStore.getState().refresh(path, id);
     await load(path, id);
     if (restoreText) restorePrompt(restoreText);
   };
@@ -69,7 +77,7 @@ export function useRevert({ workspace, sessionID, entryCount, restorePrompt }: O
       return;
     }
     await api.revertSession(path, id, turn.seq);
-    await refresh(path, id);
+    await useChatStore.getState().refresh(path, id);
     await load(path, id);
     restorePrompt(text);
   };
@@ -82,9 +90,15 @@ export function useRevert({ workspace, sessionID, entryCount, restorePrompt }: O
       return;
     }
     await api.reapplySession(path, id);
-    await refresh(path, id);
+    await useChatStore.getState().refresh(path, id);
     await load(path, id);
   };
 
-  return { revertCan: can, loadRevertAvailability: load, undoLatestTurn, revertToMessage, redoLatestTurn };
+  return {
+    revertCan: can,
+    loadRevertAvailability: load,
+    undoLatestTurn,
+    revertToMessage,
+    redoLatestTurn,
+  };
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
@@ -33,7 +33,7 @@ const tool = (id: string, name: string, argumentsJson = "{}", extra: Partial<Tim
 describe("tool timeline parity", () => {
   test("an MCP tool card shows its raw tool name", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -51,7 +51,7 @@ describe("tool timeline parity", () => {
 
   test("an interrupted tool renders as cancelled, not an error", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -71,7 +71,7 @@ describe("tool timeline parity", () => {
 
   test("compact folds reads and shell into one Used summary", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             tool("1", "read", '{"path":"src/a.ts"}'),
@@ -87,7 +87,7 @@ describe("tool timeline parity", () => {
   test("everything separates a thought and renders file changes as an accordion", async () => {
     const diff = "--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n";
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -110,7 +110,7 @@ describe("tool timeline parity", () => {
     });
 
     const { rerender } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="everything" chat={chat([subagent])} runningSubagents={new Set(["sub_1"])} />
       </TooltipProvider>,
     );
@@ -126,7 +126,7 @@ describe("tool timeline parity", () => {
 
   test("an edit without a result diff previews its own change", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -153,7 +153,7 @@ describe("tool timeline parity", () => {
     }));
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([shell])}
@@ -171,7 +171,7 @@ describe("tool timeline parity", () => {
 
   test("execute details share one number gutter between code and output", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -197,7 +197,7 @@ describe("tool timeline parity", () => {
 
   test("a list row shows its directory and expands to the raw listing", async () => {
     const { rerender } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="everything" chat={chat([tool("1", "list", '{"path":"/repo"}', { done: false })])} />
       </TooltipProvider>,
     );
@@ -218,7 +218,7 @@ describe("tool timeline parity", () => {
 
   test("loaded instruction paths shorten against the workspace", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           workspace="/repo"
           detail="everything"
@@ -237,7 +237,7 @@ describe("tool timeline parity", () => {
 
   test("compact folds a notice into the tool group", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             tool("1", "grep", '{"pattern":"todo"}'),
@@ -258,7 +258,7 @@ describe("tool timeline parity", () => {
 
   test("a failed tool renders the transparent error card with its summary", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([tool("1", "shell", '{"command":"false"}', { failed: true, output: "Error: boom" })])}
@@ -272,7 +272,7 @@ describe("tool timeline parity", () => {
 
   test("execute renders nested calls from result metadata", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -316,7 +316,7 @@ describe("tool timeline parity", () => {
     ]);
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="everything" chat={chat(entries)} />
       </TooltipProvider>,
     );
@@ -329,7 +329,7 @@ describe("tool timeline parity", () => {
   test("execute localizes its chrome", async () => {
     setLanguage("zh");
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -363,7 +363,7 @@ describe("tool timeline parity", () => {
   test("tool timeline localizes read and shell", async () => {
     setLanguage("zh");
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -381,7 +381,7 @@ describe("tool timeline parity", () => {
 
   test("edit diagnostics and loaded file metadata are rendered", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -484,7 +484,7 @@ describe("tool timeline parity", () => {
     expect(failed?.tool?.failed).toBe(true);
 
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="compact" chat={chat(entries)} />
       </TooltipProvider>,
     );
@@ -530,7 +530,7 @@ describe("tool timeline parity", () => {
 
     // Separated notices keep the standalone "Loaded ..." row.
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="everything" chat={next.s1} />
       </TooltipProvider>,
     );
@@ -553,7 +553,7 @@ describe("tool timeline parity", () => {
     );
 
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="compact" chat={next.s1} />
       </TooltipProvider>,
     );
@@ -600,7 +600,7 @@ describe("tool timeline parity", () => {
     expect(next.s1.entries.map((entry) => entry.role)).toEqual(["notice", "notice"]);
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={next.s1} />
       </TooltipProvider>,
     );
@@ -634,7 +634,7 @@ describe("tool timeline parity", () => {
     expect(notice?.sources).toEqual(["agents", "environment"]);
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={next.s1} detail="everything" />
       </TooltipProvider>,
     );
@@ -675,7 +675,7 @@ describe("tool timeline parity", () => {
     expect(entries.map((entry) => entry.role)).toEqual(["notice"]);
 
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat(entries)} />
       </TooltipProvider>,
     );
@@ -691,7 +691,7 @@ describe("tool timeline parity", () => {
   test("advanced placement switches update the persisted detail map", async () => {
     const save = vi.fn();
     render(
-      <TimelineSection
+      () => <TimelineSection
         preferences={{
           preferences: { ...defaultPreferences, appearance: { ...defaultPreferences.appearance } },
           save,
@@ -708,7 +708,7 @@ describe("tool timeline parity", () => {
 
   test("a subagent renders as a task card that opens its child session", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           onOpenSession={() => undefined}
@@ -736,7 +736,7 @@ describe("tool timeline parity", () => {
       text: `reply ${index}`,
     }));
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat(entries)} />
       </TooltipProvider>,
     );
@@ -771,7 +771,7 @@ describe("tool timeline parity", () => {
       });
     }
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="compact" chat={chat(entries)} />
       </TooltipProvider>,
     );
@@ -794,7 +794,7 @@ describe("tool timeline parity", () => {
     const body = Array.from({ length: 300 }, (_, index) => `+const value${index} = ${index};`).join("\n");
     const diff = `--- a/a.ts\n+++ b/a.ts\n@@ -1 +1,300 @@\n${body}\n`;
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([tool("large-diff", "edit", '{"path":"a.ts"}', { diff })])}
@@ -810,7 +810,7 @@ describe("tool timeline parity", () => {
 
   test("write renders only its file row while edit keeps the tool header", async () => {
     const { rerender } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -841,7 +841,7 @@ describe("tool timeline parity", () => {
 
   test("question answers come from result metadata", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -859,7 +859,7 @@ describe("tool timeline parity", () => {
   test("websearch provider title and overflow count follow the reference", async () => {
     const output = Array.from({ length: 12 }, (_, index) => `https://example.com/${index}`).join("\n");
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([tool("1", "websearch", '{"query":"today"}', { output, metadata: { provider: "brave" } })])}
@@ -880,7 +880,7 @@ describe("tool timeline parity", () => {
       column: index + 1,
     }));
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -899,7 +899,7 @@ describe("tool timeline parity", () => {
 
   test("execute shows a runtime failure on the failing call row", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -925,7 +925,7 @@ describe("tool timeline parity", () => {
 
   test("the shell console is a scrollable region with the reference copy label", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([tool("shell-scroll", "shell", '{"command":"echo hi"}', { output: "hi" })])}
@@ -939,7 +939,7 @@ describe("tool timeline parity", () => {
   test("session header shows the worktree and opens an ancestor", async () => {
     const onOpenSession = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <SessionHeader
           workspace="lingzhu"
           worktree="feature/parity"
@@ -961,7 +961,7 @@ describe("tool timeline parity", () => {
 
   test("a top-level session header shows its worktree", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <SessionHeader workspace="lingzhu" worktree="feature/parity" title="Main task" />
       </TooltipProvider>,
     );
@@ -972,7 +972,7 @@ describe("tool timeline parity", () => {
 describe("assistant markdown surfaces", () => {
   test("a fenced block highlights through the shared syntax roles", () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -995,7 +995,7 @@ describe("assistant markdown surfaces", () => {
 
   test("a mermaid fence renders a diagram and hides its source", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([

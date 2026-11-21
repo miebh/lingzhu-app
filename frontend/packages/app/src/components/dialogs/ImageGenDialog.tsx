@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { ExternalLink, ImagePlus, Save, Trash2 } from "@lingzhu/ui/icons";
 import { Loader } from "@lingzhu/ui/loader";
 import { Button } from "@lingzhu/ui/button";
@@ -22,19 +22,19 @@ interface Props {
 }
 
 /** Generates one image from a prompt and previews the inline result. */
-export function ImageGenDialog({ open, workspace, name, onOpenChange }: Props) {
+export function ImageGenDialog(props: Props) {
   const tr = useT();
-  const [status, setStatus] = useState<ImageStatus>();
-  const [prompt, setPrompt] = useState("");
-  const [size, setSize] = useState("");
-  const [result, setResult] = useState<GeneratedImage>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [status, setStatus] = createSignal<ImageStatus>();
+  const [prompt, setPrompt] = createSignal("");
+  const [size, setSize] = createSignal("");
+  const [result, setResult] = createSignal<GeneratedImage>();
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+  const [notice, setNotice] = createSignal("");
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!props.open) {
       setPrompt("");
       setSize("");
       setResult(undefined);
@@ -44,6 +44,7 @@ export function ImageGenDialog({ open, workspace, name, onOpenChange }: Props) {
       setNotice("");
       return;
     }
+    const workspace = props.workspace;
     if (!workspace) return;
     let alive = true;
     api
@@ -54,14 +55,14 @@ export function ImageGenDialog({ open, workspace, name, onOpenChange }: Props) {
         setSize(value.size || "");
       })
       .catch(() => undefined);
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [open, workspace]);
+    });
+  });
 
   const generate = async () => {
-    if (!workspace) return;
-    const text = prompt.trim();
+    if (!props.workspace) return;
+    const text = prompt().trim();
     if (!text) {
       setError("Prompt is required.");
       return;
@@ -69,7 +70,7 @@ export function ImageGenDialog({ open, workspace, name, onOpenChange }: Props) {
     setLoading(true);
     setError("");
     try {
-      setResult(await api.generateImage(workspace, text, size.trim()));
+      setResult(await api.generateImage(props.workspace, text, size().trim()));
     } catch (err) {
       setResult(undefined);
       setError(messageOf(err));
@@ -79,12 +80,13 @@ export function ImageGenDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const saveResult = async () => {
-    if (!result) return;
+    const current = result();
+    if (!current) return;
     setSaving(true);
     try {
       const path = await api.saveBase64File(
-        imageExportName(result.prompt, result.extension),
-        result.data,
+        imageExportName(current.prompt, current.extension),
+        current.data,
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -99,14 +101,15 @@ export function ImageGenDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const openResult = () => {
-    if (!result) return;
+    const current = result();
+    if (!current) return;
     try {
-      const binary = atob(result.data);
+      const binary = atob(current.data);
       const bytes = new Uint8Array(binary.length);
       for (let index = 0; index < binary.length; index += 1) {
         bytes[index] = binary.charCodeAt(index);
       }
-      const url = URL.createObjectURL(new Blob([bytes], { type: result.mediaType }));
+      const url = URL.createObjectURL(new Blob([bytes], { type: current.mediaType }));
       window.open(url, "_blank", "noopener,noreferrer");
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
@@ -115,113 +118,122 @@ export function ImageGenDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <ImagePlus className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <ImagePlus class="size-4 text-text-faint" />
               {tr("dialogImageGeneration")}
             </DialogTitle>
-            <DialogDescription className="truncate">{name || workspace}</DialogDescription>
+            <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
-          {status && (
-            <span
-              className={`shrink-0 rounded-xs border border-border-base px-1.5 py-0.5 text-caption ${
-                status.configured ? "text-state-fg-success" : "text-state-fg-warning"
-              }`}
-            >
-              {status.model || "no model"} · {status.configured ? "configured" : "not configured"}
-            </span>
-          )}
+          <Show when={status()}>
+            {(current) => (
+              <span
+                class={`shrink-0 rounded-xs border border-border-base px-1.5 py-0.5 text-caption ${
+                  current().configured ? "text-state-fg-success" : "text-state-fg-warning"
+                }`}
+              >
+                {current().model || "no model"} · {current().configured ? "configured" : "not configured"}
+              </span>
+            )}
+          </Show>
         </div>
 
-        {status?.configured === false && (
-          <p className="mt-3 rounded-md border border-border-base bg-bg-layer-01 px-3 py-2 text-meta text-text-muted">
+        <Show when={status()?.configured === false}>
+          <p class="mt-3 rounded-md border border-border-base bg-bg-layer-01 px-3 py-2 text-meta text-text-muted">
             Image generation is not configured. Set the image endpoint and API key in the config file.
           </p>
-        )}
-        <ErrorBanner error={error} />
-        <NoticeBanner notice={notice} mono shrink />
+        </Show>
+        <ErrorBanner error={error()} />
+        <NoticeBanner notice={notice()} mono shrink />
 
-        <div className="mt-4 flex min-h-0 flex-1 flex-col gap-2">
-          <div className="flex shrink-0 items-center gap-2">
+        <div class="mt-4 flex min-h-0 flex-1 flex-col gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <Input
-              value={size}
+              value={size()}
               aria-label={tr("imageGenImageSize")}
               placeholder={tr("dialogImageSizePlaceholder")}
-              onChange={(event) => setSize(event.target.value)}
-              className="w-44 select-text font-mono"
+              onInput={(event) => setSize(event.currentTarget.value)}
+              class="w-44 select-text font-mono"
             />
             <Button
               type="button"
               size="sm"
-              className="ml-auto"
-              disabled={loading || status?.configured === false}
+              class="ml-auto"
+              disabled={loading() || status()?.configured === false}
               onClick={() => void generate()}
             >
-              {loading ? <Loader /> : <ImagePlus />}
-              {loading ? "Generating…" : "Generate"}
+              {loading() ? <Loader /> : <ImagePlus />}
+              {loading() ? "Generating…" : "Generate"}
             </Button>
           </div>
 
           <Textarea
-            value={prompt}
+            value={prompt()}
             aria-label={tr("imageGenImagePrompt")}
             placeholder={tr("imageGenDescribeTheImageToGenerate")}
-            onChange={(event) => setPrompt(event.target.value)}
-            className="min-h-20 shrink-0 select-text"
+            onInput={(event) => setPrompt(event.currentTarget.value)}
+            class="min-h-20 shrink-0 select-text"
           />
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-layer-01">
-            {result ? (
-              <>
-                <div className="flex shrink-0 items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
-                  <span className="min-w-0 flex-1 truncate">
-                    {result.mediaType} · {formatBytes(result.size)}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    disabled={saving}
-                    onClick={() => void saveResult()}
-                  >
-                    <Save />
-                    {saving ? "Saving…" : "Save file"}
-                  </Button>
-                  <Button type="button" variant="outline" size="xs" onClick={openResult}>
-                    <ExternalLink />
-                    Open
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-xs"
-                    aria-label={tr("imageGenClearImage")}
-                    onClick={() => setResult(undefined)}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto bg-[repeating-conic-gradient(#0002_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
-                  <img
-                    src={`data:${result.mediaType};base64,${result.data}`}
-                    alt={result.prompt}
-                    className="mx-auto max-h-full max-w-full object-contain"
-                  />
-                </div>
-                {result.revisedPrompt && (
-                  <p className="shrink-0 border-t border-border-base px-3 py-1.5 text-caption text-text-faint">
-                    Revised prompt: {result.revisedPrompt}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="p-3 text-meta text-text-faint">
-                {loading ? "Generating image…" : "Generated images appear here."}
-              </p>
-            )}
+          <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-layer-01">
+            <Show
+              when={result()}
+              fallback={
+                <p class="p-3 text-meta text-text-faint">
+                  {loading() ? "Generating image…" : "Generated images appear here."}
+                </p>
+              }
+            >
+              {(current) => (
+                <>
+                  <div class="flex shrink-0 items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
+                    <span class="min-w-0 flex-1 truncate">
+                      {current().mediaType} · {formatBytes(current().size)}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={saving()}
+                      onClick={() => void saveResult()}
+                    >
+                      <Save />
+                      {saving() ? "Saving…" : "Save file"}
+                    </Button>
+                    <Button type="button" variant="outline" size="xs" onClick={openResult}>
+                      <ExternalLink />
+                      Open
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-xs"
+                      aria-label={tr("imageGenClearImage")}
+                      onClick={() => setResult(undefined)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                  <div class="min-h-0 flex-1 overflow-auto bg-[repeating-conic-gradient(#0002_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
+                    <img
+                      src={`data:${current().mediaType};base64,${current().data}`}
+                      alt={current().prompt}
+                      class="mx-auto max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                  <Show when={current().revisedPrompt}>
+                    {(revised) => (
+                      <p class="shrink-0 border-t border-border-base px-3 py-1.5 text-caption text-text-faint">
+                        Revised prompt: {revised()}
+                      </p>
+                    )}
+                  </Show>
+                </>
+              )}
+            </Show>
           </div>
         </div>
       </DialogContent>

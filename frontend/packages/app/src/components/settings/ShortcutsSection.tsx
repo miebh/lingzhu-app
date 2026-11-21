@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { RotateCcw, Search } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Input } from "@lingzhu/ui/input";
@@ -42,19 +42,19 @@ interface Props {
 }
 
 /** Global keybinds grouped like the reference, with search, capture and reset. */
-export function ShortcutsSection({ preferences }: Props) {
-  const prefs = preferences.preferences;
-  const [recording, setRecording] = useState<string>();
-  const [query, setQuery] = useState("");
+export function ShortcutsSection(props: Props) {
+  const prefs = () => props.preferences.preferences;
+  const [recording, setRecording] = createSignal<string>();
+  const [query, setQuery] = createSignal("");
 
-  const effective = effectiveKeybinds(prefs.keybinds);
+  const effective = createMemo(() => effectiveKeybinds(prefs().keybinds));
   const titleFor = (action: (typeof KEYBIND_ACTIONS)[number]) => {
     const key = ACTION_KEYS[action.id];
     return key ? t(key as never) : action.label;
   };
 
   const saveBinding = (action: string, binding: string | undefined) => {
-    const keybinds = { ...prefs.keybinds };
+    const keybinds = { ...prefs().keybinds };
     if (binding === undefined) {
       delete keybinds[action];
     } else {
@@ -63,11 +63,15 @@ export function ShortcutsSection({ preferences }: Props) {
       }
       keybinds[action] = binding;
     }
-    preferences.save({ ...prefs, keybinds });
+    props.preferences.save({ ...prefs(), keybinds });
   };
 
-  useEffect(() => {
-    if (!recording) return;
+  createEffect(() => {
+    const active = recording();
+    if (!active) return;
+    const cancel = () => {
+      setRecording(undefined);
+    };
     const onKey = (event: KeyboardEvent) => {
       event.preventDefault();
       event.stopPropagation();
@@ -76,142 +80,143 @@ export function ShortcutsSection({ preferences }: Props) {
         return;
       }
       if (event.key === "Backspace" || event.key === "Delete") {
-        saveBinding(recording, undefined);
+        saveBinding(active, undefined);
         setRecording(undefined);
         return;
       }
       const binding = keybindFromEvent(event);
       if (!binding) return;
-      saveBinding(recording, binding);
+      saveBinding(active, binding);
       setRecording(undefined);
     };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("pointerdown", cancel, true);
-    return () => {
+    onCleanup(() => {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("pointerdown", cancel, true);
-    };
+    });
+  });
 
-    function cancel() {
-      setRecording(undefined);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording, prefs.keybinds]);
-
-  const groups: { title: string; actions: typeof KEYBIND_ACTIONS }[] = [];
-  {
-    const needle = query.trim().toLowerCase();
+  const groups = createMemo(() => {
+    const result: { title: string; actions: typeof KEYBIND_ACTIONS }[] = [];
+    const needle = query().trim().toLowerCase();
     for (const action of KEYBIND_ACTIONS) {
-      const binding = formatKeybind(effective[action.id]) ?? "";
+      const binding = formatKeybind(effective()[action.id]) ?? "";
       if (needle && !`${titleFor(action)} ${binding}`.toLowerCase().includes(needle)) continue;
-      let group = groups.find((item) => item.title === action.group);
+      let group = result.find((item) => item.title === action.group);
       if (!group) {
         group = { title: action.group, actions: [] };
-        groups.push(group);
+        result.push(group);
       }
       group.actions.push(action);
     }
-  }
+    return result;
+  });
 
-  const overrides = Object.keys(prefs.keybinds).length;
+  const overrides = () => Object.keys(prefs().keybinds).length;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-faint" />
+    <div class="flex flex-col gap-6">
+      <div class="flex items-center gap-2">
+        <div class="relative min-w-0 flex-1">
+          <Search class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-text-faint" />
           <Input
-            value={query}
+            value={query()}
             aria-label={t("searchShortcuts")}
             placeholder={t("searchShortcuts")}
-            spellCheck={false}
-            autoComplete="off"
-            onChange={(event) => setQuery(event.target.value)}
-            className="h-9 rounded-[6px] bg-bg-layer-02/60 ps-10 pe-3 hover:bg-bg-layer-02 focus-visible:bg-bg-layer-02"
+            spellcheck={false}
+            autocomplete="off"
+            onInput={(event) => setQuery(event.currentTarget.value)}
+            class="h-9 rounded-[6px] bg-bg-layer-02/60 ps-10 pe-3 hover:bg-bg-layer-02 focus-visible:bg-bg-layer-02"
           />
         </div>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          disabled={overrides === 0}
-          onClick={() => preferences.save({ ...prefs, keybinds: {} })}
-          className="shrink-0 gap-1.5 text-text-muted hover:text-text-base"
+          disabled={overrides() === 0}
+          onClick={() => props.preferences.save({ ...prefs(), keybinds: {} })}
+          class="shrink-0 gap-1.5 text-text-muted hover:text-text-base"
         >
-          <RotateCcw className="size-4" />
+          <RotateCcw class="size-4" />
           {t("resetAction")}
         </Button>
       </div>
 
-      {groups.map((group) => (
-        <section key={group.title} className="flex flex-col gap-4">
-          <h2 className="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">{t(GROUP_KEYS[group.title] as never) || group.title}</h2>
-          <div className="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
-            {group.actions.map((action) => {
-              const overridden = prefs.keybinds[action.id] !== undefined;
-              const active = recording === action.id;
-              const binding = formatKeybind(effective[action.id]);
-              return (
-                <div
-                  key={action.id}
-                  className="flex min-h-12 items-center justify-between gap-4 border-b-[0.5px] border-border-base py-3 last:border-0"
-                >
-                  <span className="min-w-0 flex-1 truncate text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
-                    {titleFor(action)}
-                  </span>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {active && binding && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          saveBinding(action.id, undefined);
-                          setRecording(undefined);
-                        }}
-                        className="text-state-fg-danger hover:text-state-fg-danger"
-                      >
-                        {t("unbind")}
-                      </Button>
-                    )}
-                    {!active && overridden && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={t("resetBinding", { name: titleFor(action) })}
-                        onClick={() => saveBinding(action.id, undefined)}
-                        className="text-text-faint hover:text-text-base"
-                      >
-                        <RotateCcw className="size-3.5" />
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant={binding ? "ghost" : "ghost"}
-                      size="sm"
-                      aria-pressed={active}
-                      aria-label={t("changeBinding", { name: titleFor(action) })}
-                      onClick={() => setRecording(active ? undefined : action.id)}
-                      className={`min-w-20 justify-center font-mono text-[12px] ${
-                        active ? "bg-bg-layer-03 text-text-base outline-2 outline-border-focus" : "text-text-muted"
-                      }`}
-                    >
-                      {active ? t("pressKeys") : binding ?? t("unassigned")}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+      <For each={groups()}>
+        {(group) => (
+          <section class="flex flex-col gap-4">
+            <h2 class="text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
+              {t(GROUP_KEYS[group.title] as never) || group.title}
+            </h2>
+            <div class="overflow-hidden rounded-lg bg-bg-layer-01 px-5 shadow-[inset_0_0_0_0.5px_var(--color-border-muted)]">
+              <For each={group.actions}>
+                {(action) => {
+                  const overridden = () => prefs().keybinds[action.id] !== undefined;
+                  const active = () => recording() === action.id;
+                  const binding = () => formatKeybind(effective()[action.id]);
+                  return (
+                    <div class="flex min-h-12 items-center justify-between gap-4 border-b-[0.5px] border-border-base py-3 last:border-0">
+                      <span class="min-w-0 flex-1 truncate text-body font-[530] leading-4 tracking-[-0.04px] text-text-base">
+                        {titleFor(action)}
+                      </span>
+                      <div class="flex shrink-0 items-center gap-1">
+                        <Show when={active() && binding()}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              saveBinding(action.id, undefined);
+                              setRecording(undefined);
+                            }}
+                            class="text-state-fg-danger hover:text-state-fg-danger"
+                          >
+                            {t("unbind")}
+                          </Button>
+                        </Show>
+                        <Show when={!active() && overridden()}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={t("resetBinding", { name: titleFor(action) })}
+                            onClick={() => saveBinding(action.id, undefined)}
+                            class="text-text-faint hover:text-text-base"
+                          >
+                            <RotateCcw class="size-3.5" />
+                          </Button>
+                        </Show>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-pressed={active()}
+                          aria-label={t("changeBinding", { name: titleFor(action) })}
+                          onClick={() => setRecording(active() ? undefined : action.id)}
+                          class={`min-w-20 justify-center font-mono text-[12px] ${
+                            active()
+                              ? "bg-bg-layer-03 text-text-base outline-2 outline-border-focus"
+                              : "text-text-muted"
+                          }`}
+                        >
+                          {active() ? t("pressKeys") : binding() ?? t("unassigned")}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }}
+              </For>
+            </div>
+          </section>
+        )}
+      </For>
 
-      {groups.length === 0 && (
-        <p className="py-12 text-center text-body font-[440] leading-4 text-text-muted">
-          {t("noShortcutsMatch", { query: query.trim() })}
+      <Show when={groups().length === 0}>
+        <p class="py-12 text-center text-body font-[440] leading-4 text-text-muted">
+          {t("noShortcutsMatch", { query: query().trim() })}
         </p>
-      )}
+      </Show>
     </div>
   );
 }

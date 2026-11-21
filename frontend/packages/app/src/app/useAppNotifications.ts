@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { useShallow } from "zustand/react/shallow";
+import { createEffect, createMemo, type Accessor } from "solid-js";
 import { chatKey } from "@lingzhu/ui/domain/chat";
 import { api } from "../lib/api";
 import { notifySession } from "../store/notify";
@@ -20,32 +19,44 @@ type Snapshot = { running: boolean; pending: number; questions: number };
  * the in-app card for a foreground window, and keeps the approval and question
  * channels, which need no timer.
  */
-export function useAppNotifications(activePath?: string, activeId?: string) {
-  const notifyState = useRef<Record<string, Snapshot>>({});
-  const audio = useRef<AudioContext | undefined>(undefined);
-  const signature = useChatStore(
-    useShallow((state) =>
-      Object.entries(state.chats).map(
+export function useAppNotifications(
+  activePath: Accessor<string | undefined>,
+  activeId: Accessor<string | undefined>,
+) {
+  let notifyState: Record<string, Snapshot> = {};
+  let audio: AudioContext | undefined;
+  // The shell getters are coarse, so the two ids are memoised: the effects
+  // below should wake on a session change, not on a streamed token.
+  const watchedPath = createMemo(() => activePath());
+  const watchedId = createMemo(() => activeId());
+  // Only run/pending/question counts can change a notice. The keyed string
+  // keeps a streamed token from re-running the notice loop below.
+  const signature = useChatStore((state) =>
+    Object.entries(state.chats)
+      .map(
         ([key, chat]) => `${key}:${chat.running ? 1 : 0}:${chat.pending.length}:${chat.questions.length}`,
-      ),
-    ),
+      )
+      .join("|"),
   );
 
   // The Go watcher reports runs for sessions the user is not looking at, so it
   // has to know which one is on screen.
-  useEffect(() => {
-    if (!activePath || !activeId) {
+  createEffect(() => {
+    const path = watchedPath();
+    const id = watchedId();
+    if (!path || !id) {
       void api.setWatchedSession("", "").catch(() => undefined);
       return;
     }
-    void api.setWatchedSession(activePath, activeId).catch(() => undefined);
-  }, [activePath, activeId]);
+    void api.setWatchedSession(path, id).catch(() => undefined);
+  });
 
   // The toast is raised by Go from the event stream, so it cannot read the
   // message catalog itself: hand it the current wording, which also re-sends
   // when the user switches language.
   const language = usePreferencesStore((state) => state.preferences.appearance.language);
-  useEffect(() => {
+  createEffect(() => {
+    language();
     void api
       .setNoticeCopy({
         finished: t("notifyFinishedBody"),
@@ -53,13 +64,14 @@ export function useAppNotifications(activePath?: string, activeId?: string) {
         clickToOpen: t("noticeClickToOpen"),
       })
       .catch(() => undefined);
-  }, [language]);
+  });
 
   const playSound = (kind: NoticeKind) => {
     if (!usePreferencesStore.getState().preferences.sounds[kind]) return;
     if (typeof AudioContext === "undefined") return;
     try {
-      const context = (audio.current ??= new AudioContext());
+      audio ??= new AudioContext();
+      const context = audio;
       const tone = usePreferencesStore.getState().preferences.sounds.tones[kind] ?? "soft";
       const frequency = { soft: 520, bright: 880, low: 300, chime: 660 }[tone] ?? 520;
       const oscillator = context.createOscillator();
@@ -98,14 +110,17 @@ export function useAppNotifications(activePath?: string, activeId?: string) {
     });
   };
 
-  useEffect(() => {
+  createEffect(() => {
+    // Subscribe to the session status signature and to the conversation on
+    // screen; the store snapshot is read untracked below.
+    signature();
+    const path = watchedPath();
+    const id = watchedId();
     const preferences = usePreferencesStore.getState().preferences.notifications;
     const next: Record<string, Snapshot> = {};
-    const foreground = document.hasFocus() && activePath && activeId ? chatKey(activePath, activeId) : undefined;
-    // The store snapshot is read at effect time; the signature dependency is
-    // what makes this re-run, so the hook never subscribes to chat objects.
+    const foreground = document.hasFocus() && path && id ? chatKey(path, id) : undefined;
     for (const [key, chat] of Object.entries(useChatStore.getState().chats)) {
-      const previous = notifyState.current[key];
+      const previous = notifyState[key];
       next[key] = { running: chat.running, pending: chat.pending.length, questions: chat.questions.length };
       if (!previous || key === foreground) continue;
       const title = chat.title || t("notifySessionFallback");
@@ -120,6 +135,6 @@ export function useAppNotifications(activePath?: string, activeId?: string) {
       // A finished run is the Go watcher's job; this hook would only report it
       // once the window regained focus.
     }
-    notifyState.current = next;
-  }, [signature, activePath, activeId]);
+    notifyState = next;
+  });
 }

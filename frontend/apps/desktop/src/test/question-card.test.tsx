@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { QuestionCard } from "@/components/session/QuestionCard";
@@ -14,7 +14,7 @@ describe("question dock", () => {
   test("several questions advance one step at a time", async () => {
     const onReply = vi.fn();
     render(
-      <QuestionCard
+      () => <QuestionCard
         onReply={onReply}
         requests={[
           request([
@@ -46,7 +46,7 @@ describe("question dock", () => {
   test("a single question answers in place without a progress row", async () => {
     const onReply = vi.fn();
     render(
-      <QuestionCard
+      () => <QuestionCard
         onReply={onReply}
         requests={[request([{ header: "Only", question: "Pick one", options: [{ label: "Alpha", description: "" }] }])]}
       />,
@@ -61,7 +61,7 @@ describe("question dock", () => {
 
   test("the progress row marks the current and answered steps", async () => {
     render(
-      <QuestionCard
+      () => <QuestionCard
         onReply={() => undefined}
         requests={[
           request([
@@ -88,7 +88,7 @@ describe("question dock", () => {
   test("a typed answer takes precedence over a picked option", async () => {
     const onReply = vi.fn();
     render(
-      <QuestionCard
+      () => <QuestionCard
         onReply={onReply}
         requests={[request([{ header: "Only", question: "Pick one", options: [{ label: "Alpha", description: "" }] }])]}
       />,
@@ -104,7 +104,7 @@ describe("question dock", () => {
     const onReply = vi.fn();
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     render(
-      <QuestionCard
+      () => <QuestionCard
         onReply={onReply}
         requests={[
           request([

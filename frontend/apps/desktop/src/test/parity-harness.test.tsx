@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
@@ -132,7 +132,7 @@ test("compact tool groups keep the reference sticky header", async () => {
     entries.push(tool(`grep-${index}`, "grep", `{"pattern":"x${index}"}`));
   }
   const { container } = render(
-    <TooltipProvider>
+    () => <TooltipProvider>
       <Messages detail="compact" chat={chat(entries)} />
     </TooltipProvider>,
   );
@@ -152,7 +152,7 @@ test("compact tool groups keep the reference sticky header", async () => {
 test("representative tools mount the production surfaces with reference geometry", async () => {
   setPierreAvailable(true);
   const { container } = render(
-    <TooltipProvider>
+    () => <TooltipProvider>
       <Messages
         detail="everything"
         chat={chat([

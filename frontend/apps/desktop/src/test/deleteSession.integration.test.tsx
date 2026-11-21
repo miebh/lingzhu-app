@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -92,7 +92,7 @@ describe("the full session delete sequence", () => {
       .mockResolvedValueOnce("draft-b");
 
     const user = userEvent.setup();
-    render(<AppShell />);
+    render(() => <AppShell />);
     const rail = screen.getByRole("complementary", { name: "Side tabs" });
 
     const newSession = () => within(rail).getByRole("button", { name: /New session/, expanded: false });
@@ -118,7 +118,7 @@ describe("the full session delete sequence", () => {
     useViewStore.setState({ tab: "chat", homeOpen: false, settingsOpen: false });
 
     const user = userEvent.setup();
-    render(<AppShell />);
+    render(() => <AppShell />);
     const homeState = () => screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("false");
 
@@ -135,7 +135,7 @@ describe("the full session delete sequence", () => {
     useChatStore.setState({ chats: {}, activeByWorkspace: {} });
     useViewStore.setState({ tab: "chat", homeOpen: false, settingsOpen: false });
 
-    render(<AppShell />);
+    render(() => <AppShell />);
     const homeState = () => screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("false");
 
@@ -149,7 +149,7 @@ describe("the full session delete sequence", () => {
 
   test("delete the only session, create one, delete it again", async () => {
     const user = userEvent.setup();
-    render(<AppShell />);
+    render(() => <AppShell />);
     const homeState = () =>
       screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("true");
@@ -157,7 +157,7 @@ describe("the full session delete sequence", () => {
     await deleteTab(/Only session/);
     await user.click(await screen.findByRole("button", { name: "Delete" }, { timeout: 5000 }));
     expect(screen.queryByRole("tablist", { name: "Open tabs" })).toBeNull();
-    expect(homeState()).toBe("true");
+    await waitFor(() => expect(homeState()).toBe("true"));
 
     const rail = screen.getByRole("complementary", { name: "Side tabs" });
     await user.click(within(rail).getByRole("button", { name: /New session/ }));
@@ -168,7 +168,7 @@ describe("the full session delete sequence", () => {
     await deleteTab(/New session/);
     // A draft delete is immediate: no core call and no confirmation dialog.
     expect(screen.queryByRole("tablist", { name: "Open tabs" })).toBeNull();
-    expect(homeState()).toBe("true");
+    await waitFor(() => expect(homeState()).toBe("true"));
     expect(api.remove).toHaveBeenCalledTimes(1);
     expect(api.remove).toHaveBeenCalledWith("/w", "s1");
   });
@@ -188,7 +188,7 @@ describe("the full session delete sequence", () => {
     useChatStore.setState({ chats: {}, activeByWorkspace: {} });
     useViewStore.setState({ tab: "chat", homeOpen: true, settingsOpen: false });
 
-    render(<AppShell />);
+    render(() => <AppShell />);
 
     await waitFor(() =>
       expect(JSON.parse(localStorage.getItem("lingzhu.sessionTabs") ?? "[]")).toEqual([

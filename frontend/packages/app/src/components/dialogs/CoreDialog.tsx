@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal } from "solid-js";
+import type { JSX } from "solid-js";
 import { Bot, Copy, RotateCw, Save, Server, SlashSquare, Terminal } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -19,12 +20,12 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-function PathRow({ label, value }: { label: string; value?: string }) {
-  const [copied, setCopied] = useState(false);
+function PathRow(props: { label: string; value?: string }) {
+  const [copied, setCopied] = createSignal(false);
   const copy = async () => {
-    if (!value) return;
+    if (!props.value) return;
     try {
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(props.value);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -32,69 +33,67 @@ function PathRow({ label, value }: { label: string; value?: string }) {
     }
   };
   return (
-    <div className="flex items-start justify-between gap-2 border-b border-border-base px-3 py-1.5 text-meta last:border-b-0">
-      <span className="shrink-0 text-text-faint">{label}</span>
-      <span className="min-w-0 flex-1 break-all text-right font-mono text-text-muted select-text">
-        {value || "—"}
+    <div class="flex items-start justify-between gap-2 border-b border-border-base px-3 py-1.5 text-meta last:border-b-0">
+      <span class="shrink-0 text-text-faint">{props.label}</span>
+      <span class="min-w-0 flex-1 break-all text-right font-mono text-text-muted select-text">
+        {props.value || "—"}
       </span>
-      {value && (
+      <Show when={props.value}>
         <Button
           type="button"
           variant="outline"
           size="icon-xs"
-          aria-label={copied ? `${label} copied` : `Copy ${label}`}
-          title={copied ? "Copied" : undefined}
+          aria-label={copied() ? `${props.label} copied` : `Copy ${props.label}`}
+          title={copied() ? "Copied" : undefined}
           onClick={() => void copy()}
         >
           <Copy />
         </Button>
-      )}
+      </Show>
     </div>
   );
 }
 
-function Section({
-  icon,
-  title,
-  detail,
-  children,
-}: {
-  icon: React.ReactNode;
+function Section(props: {
+  icon: JSX.Element;
   title: string;
   detail?: string;
-  children: React.ReactNode;
+  children: JSX.Element;
 }) {
   return (
-    <section className="min-w-0 rounded-md border border-border-base">
-      <div className="flex items-center gap-2 border-b border-border-base px-3 py-2">
-        <span className="text-text-faint">{icon}</span>
-        <span className="text-body text-text-base">{title}</span>
-        {detail && <span className="ml-auto text-caption text-text-faint">{detail}</span>}
+    <section class="min-w-0 rounded-md border border-border-base">
+      <div class="flex items-center gap-2 border-b border-border-base px-3 py-2">
+        <span class="text-text-faint">{props.icon}</span>
+        <span class="text-body text-text-base">{props.title}</span>
+        <Show when={props.detail}>
+          <span class="ml-auto text-caption text-text-faint">{props.detail}</span>
+        </Show>
       </div>
-      {children}
+      {props.children}
     </section>
   );
 }
 
 /** Read-only core app/config view plus editable step budget. */
-export function CoreDialog({ open, workspace, name, onOpenChange }: Props) {
+export function CoreDialog(props: Props) {
   const tr = useT();
-  const [info, setInfo] = useState<AppInfo>();
-  const [config, setConfig] = useState<CoreConfig>();
-  const [agents, setAgents] = useState<AgentCatalog>();
-  const [commands, setCommands] = useState<SlashCommand[]>([]);
-  const [health, setHealth] = useState<CoreHealth>();
-  const [healthError, setHealthError] = useState("");
-  const [maxSteps, setMaxSteps] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [confirmRestart, setConfirmRestart] = useState(false);
-  const [restarting, setRestarting] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [info, setInfo] = createSignal<AppInfo>();
+  const [config, setConfig] = createSignal<CoreConfig>();
+  const [agents, setAgents] = createSignal<AgentCatalog>();
+  const [commands, setCommands] = createSignal<SlashCommand[]>([]);
+  const [health, setHealth] = createSignal<CoreHealth>();
+  const [healthError, setHealthError] = createSignal("");
+  const [maxSteps, setMaxSteps] = createSignal("");
+  const [loading, setLoading] = createSignal(false);
+  const [saving, setSaving] = createSignal(false);
+  const [exporting, setExporting] = createSignal(false);
+  const [confirmRestart, setConfirmRestart] = createSignal(false);
+  const [restarting, setRestarting] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
 
   const load = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setLoading(true);
     setError("");
@@ -102,7 +101,7 @@ export function CoreDialog({ open, workspace, name, onOpenChange }: Props) {
     setHealthError("");
     api
       .health(workspace)
-      .then(setHealth)
+      .then((value) => setHealth(value))
       .catch((err) => setHealthError(messageOf(err)));
     try {
       const [appInfo, coreConfig, catalog, commandList] = await Promise.all([
@@ -123,8 +122,9 @@ export function CoreDialog({ open, workspace, name, onOpenChange }: Props) {
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setInfo(undefined);
@@ -141,16 +141,24 @@ export function CoreDialog({ open, workspace, name, onOpenChange }: Props) {
       setConfirmRestart(false);
       setRestarting(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
   const saveSummary = async () => {
-    if (!workspace || (!info && !config && !agents && !health)) return;
+    const workspace = props.workspace;
+    if (!workspace || (!info() && !config() && !agents() && !health())) return;
     setExporting(true);
     try {
       const path = await api.saveTextFile(
         coreExportName(workspace),
-        serializeCore({ workspace, health, healthError, info, config, agents, commands }),
+        serializeCore({
+          workspace,
+          health: health(),
+          healthError: healthError(),
+          info: info(),
+          config: config(),
+          agents: agents(),
+          commands: commands(),
+        }),
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -165,6 +173,7 @@ export function CoreDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const restartCore = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setConfirmRestart(false);
     setRestarting(true);
@@ -182,8 +191,9 @@ export function CoreDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const saveSteps = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
-    const parsed = Number(maxSteps);
+    const parsed = Number(maxSteps());
     if (!Number.isFinite(parsed) || parsed < 0) {
       setError("Max steps must be a non-negative number.");
       return;
@@ -204,189 +214,206 @@ export function CoreDialog({ open, workspace, name, onOpenChange }: Props) {
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Server className="size-4 text-text-faint" />
-              Core
-            </DialogTitle>
-            <DialogDescription className="truncate">{name || workspace}</DialogDescription>
+      <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+        <DialogContent size="wide" height="body" class="flex flex-col">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <DialogTitle class="flex items-center gap-2">
+                <Server class="size-4 text-text-faint" />
+                Core
+              </DialogTitle>
+              <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={exporting() || (!info() && !config() && !agents() && !health())}
+                onClick={() => void saveSummary()}
+              >
+                <Save />
+                {exporting() ? "Saving…" : "Save file"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={restarting()}
+                onClick={() => setConfirmRestart(true)}
+              >
+                <RotateCw class={restarting() ? "motion-safe:animate-spin" : undefined} />
+                {restarting() ? "Restarting…" : "Restart core"}
+              </Button>
+              <RefreshButton loading={loading()} onRefresh={() => void load()} />
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={exporting || (!info && !config && !agents && !health)}
-              onClick={() => void saveSummary()}
-            >
-              <Save />
-              {exporting ? "Saving…" : "Save file"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={restarting}
-              onClick={() => setConfirmRestart(true)}
-            >
-              <RotateCw className={restarting ? "motion-safe:animate-spin" : undefined} />
-              {restarting ? "Restarting…" : "Restart core"}
-            </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load()} />
-          </div>
-        </div>
 
-        <ErrorBanner error={error} />
-        <NoticeBanner notice={notice} shrink />
+          <ErrorBanner error={error()} />
+          <NoticeBanner notice={notice()} shrink />
 
-        <div className="mt-4 grid min-h-0 flex-1 gap-3 overflow-auto md:grid-cols-2">
-          <div className="flex min-w-0 flex-col gap-3">
-            <Section icon={<Server className="size-4" />} title={tr("coreApplication")}>
-              <div className="flex items-center justify-between gap-4 border-b border-border-base px-3 py-1.5 text-meta">
-                <span className="shrink-0 text-text-faint">Health</span>
-                <span
-                  className={`font-mono text-right ${
-                    health
-                      ? "text-state-fg-success"
-                      : healthError
-                        ? "text-state-fg-danger"
-                        : "text-text-faint"
-                  }`}
-                  title={healthError || undefined}
-                >
-                  {health ? `reachable · ${health.status}` : healthError ? "unreachable" : "checking…"}
-                </span>
-              </div>
-              <DetailRow dense label="Version" value={info?.version} />
-              <DetailRow dense label="Built" value={info?.built || "Unknown"} />
-              <PathRow label="Core config" value={info?.configPath} />
-              <PathRow label="App database" value={info?.databasePath} />
-              <PathRow label="Data directory" value={info?.dataDir} />
-              <PathRow label="App data" value={info?.appDataDir} />
-              <PathRow label="Core log" value={info?.logPath} />
-            </Section>
+          <div class="mt-4 grid min-h-0 flex-1 gap-3 overflow-auto md:grid-cols-2">
+            <div class="flex min-w-0 flex-col gap-3">
+              <Section icon={<Server class="size-4" />} title={tr("coreApplication")}>
+                <div class="flex items-center justify-between gap-4 border-b border-border-base px-3 py-1.5 text-meta">
+                  <span class="shrink-0 text-text-faint">Health</span>
+                  <span
+                    class={`font-mono text-right ${
+                      health()
+                        ? "text-state-fg-success"
+                        : healthError()
+                          ? "text-state-fg-danger"
+                          : "text-text-faint"
+                    }`}
+                    title={healthError() || undefined}
+                  >
+                    {health() ? `reachable · ${health()!.status}` : healthError() ? "unreachable" : "checking…"}
+                  </span>
+                </div>
+                <DetailRow dense label="Version" value={info()?.version} />
+                <DetailRow dense label="Built" value={info()?.built || "Unknown"} />
+                <PathRow label="Core config" value={info()?.configPath} />
+                <PathRow label="App database" value={info()?.databasePath} />
+                <PathRow label="Data directory" value={info()?.dataDir} />
+                <PathRow label="App data" value={info()?.appDataDir} />
+                <PathRow label="Core log" value={info()?.logPath} />
+              </Section>
 
-            <Section icon={<Terminal className="size-4" />} title={tr("coreEffectiveCoreConfig")}>
-              <PathRow label="Config path" value={config?.path} />
-              <DetailRow dense label="Workdir" value={config?.workdir} />
-              <DetailRow dense label="Provider" value={config?.provider} />
-              <DetailRow dense label="Model" value={config?.model} />
-              <DetailRow dense label="Default agent" value={config?.defaultAgent} />
-              <DetailRow dense label="Shell" value={config?.shell?.join(" ")} />
-              <DetailRow dense label="Context window" value={config?.contextWindow ? String(config.contextWindow) : ""} />
-              <DetailRow dense label="Compact keep" value={config?.compactKeep ? String(config.compactKeep) : ""} />
-              <div className="flex items-center gap-2 border-b border-border-base px-3 py-1.5 text-meta">
-                <span className="shrink-0 text-text-faint">Max steps (0 = no limit)</span>
-                <Input
-                  value={maxSteps}
-                  aria-label={tr("coreMaxSteps")}
-                  onChange={(event) => setMaxSteps(event.target.value)}
-                  className="ml-auto h-control-xs w-24 select-text text-right font-mono"
+              <Section icon={<Terminal class="size-4" />} title={tr("coreEffectiveCoreConfig")}>
+                <PathRow label="Config path" value={config()?.path} />
+                <DetailRow dense label="Workdir" value={config()?.workdir} />
+                <DetailRow dense label="Provider" value={config()?.provider} />
+                <DetailRow dense label="Model" value={config()?.model} />
+                <DetailRow dense label="Default agent" value={config()?.defaultAgent} />
+                <DetailRow dense label="Shell" value={config()?.shell?.join(" ")} />
+                <DetailRow
+                  dense
+                  label="Context window"
+                  value={config()?.contextWindow ? String(config()!.contextWindow) : ""}
                 />
-                <Button type="button" size="xs" disabled={saving} onClick={() => void saveSteps()}>
-                  {saving ? "Saving…" : "Save"}
-                </Button>
-              </div>
-              <div className="px-3 py-2">
-                <p className="text-caption text-text-faint">Permissions</p>
-                {config?.permission && config.permission.length > 0 ? (
-                  <ul className="mt-1 flex flex-col gap-1">
-                    {config.permission.map((rule, index) => (
-                      <li key={`${rule.action}:${rule.resource}:${index}`} className="font-mono text-caption text-text-muted">
-                        {rule.action} {rule.resource} · {rule.effect}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-caption text-text-faint">No explicit rules.</p>
-                )}
-              </div>
-            </Section>
-          </div>
+                <DetailRow
+                  dense
+                  label="Compact keep"
+                  value={config()?.compactKeep ? String(config()!.compactKeep) : ""}
+                />
+                <div class="flex items-center gap-2 border-b border-border-base px-3 py-1.5 text-meta">
+                  <span class="shrink-0 text-text-faint">Max steps (0 = no limit)</span>
+                  <Input
+                    value={maxSteps()}
+                    aria-label={tr("coreMaxSteps")}
+                    onInput={(event) => setMaxSteps(event.currentTarget.value)}
+                    class="ml-auto h-control-xs w-24 select-text text-right font-mono"
+                  />
+                  <Button type="button" size="xs" disabled={saving()} onClick={() => void saveSteps()}>
+                    {saving() ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+                <div class="px-3 py-2">
+                  <p class="text-caption text-text-faint">Permissions</p>
+                  <Show
+                    when={config()?.permission && config()!.permission!.length > 0}
+                    fallback={<p class="mt-1 text-caption text-text-faint">No explicit rules.</p>}
+                  >
+                    <ul class="mt-1 flex flex-col gap-1">
+                      <For each={config()?.permission ?? []}>
+                        {(rule) => (
+                          <li class="font-mono text-caption text-text-muted">
+                            {rule.action} {rule.resource} · {rule.effect}
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </Show>
+                </div>
+              </Section>
+            </div>
 
-          <div className="flex min-w-0 flex-col gap-3">
-            <Section
-              icon={<Bot className="size-4" />}
-              title={tr("coreAgents")}
-              detail={agents ? `${agents.agents.length} · default ${agents.default}` : undefined}
-            >
-              {!agents || agents.agents.length === 0 ? (
-                <p className="p-3 text-meta text-text-faint">{loading ? "Loading…" : "No agents."}</p>
-              ) : (
-                agents.agents.map((agent) => (
-                  <div key={agent.id} className="border-b border-border-base px-3 py-1.5 last:border-b-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-meta text-text-base">{agent.name || agent.id}</span>
-                      <span className="font-mono text-caption text-text-faint">{agent.id}</span>
-                      {agent.id === agents.default && (
-                        <span className="rounded-xs border border-border-base px-1 text-caption text-state-fg-success">
-                          default
-                        </span>
-                      )}
-                      <span className="ml-auto text-caption text-text-faint">
-                        {agent.mode}
-                        {agent.model ? ` · ${agent.model}` : ""}
-                      </span>
-                    </div>
-                    {agent.description && (
-                      <p className="mt-0.5 text-caption text-text-faint select-text">{agent.description}</p>
+            <div class="flex min-w-0 flex-col gap-3">
+              <Section
+                icon={<Bot class="size-4" />}
+                title={tr("coreAgents")}
+                detail={agents() ? `${agents()!.agents.length} · default ${agents()!.default}` : undefined}
+              >
+                <Show
+                  when={agents() && agents()!.agents.length > 0}
+                  fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No agents."}</p>}
+                >
+                  <For each={agents()?.agents ?? []}>
+                    {(agent) => (
+                      <div class="border-b border-border-base px-3 py-1.5 last:border-b-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="text-meta text-text-base">{agent.name || agent.id}</span>
+                          <span class="font-mono text-caption text-text-faint">{agent.id}</span>
+                          <Show when={agent.id === agents()!.default}>
+                            <span class="rounded-xs border border-border-base px-1 text-caption text-state-fg-success">
+                              default
+                            </span>
+                          </Show>
+                          <span class="ml-auto text-caption text-text-faint">
+                            {agent.mode}
+                            {agent.model ? ` · ${agent.model}` : ""}
+                          </span>
+                        </div>
+                        <Show when={agent.description}>
+                          <p class="mt-0.5 text-caption text-text-faint select-text">{agent.description}</p>
+                        </Show>
+                      </div>
                     )}
-                  </div>
-                ))
-              )}
-            </Section>
+                  </For>
+                </Show>
+              </Section>
 
-            <Section
-              icon={<SlashSquare className="size-4" />}
-              title={tr("coreSlashCommands")}
-              detail={`${commands.length}`}
-            >
-              {commands.length === 0 ? (
-                <p className="p-3 text-meta text-text-faint">{loading ? "Loading…" : "No commands."}</p>
-              ) : (
-                commands.map((command) => (
-                  <div key={`${command.plugin}:${command.name}`} className="border-b border-border-base px-3 py-1.5 last:border-b-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-meta text-text-base">/{command.name}</span>
-                      {command.plugin && (
-                        <span className="rounded-xs border border-border-base px-1 text-caption text-text-faint">
-                          {command.plugin}
-                        </span>
-                      )}
-                      {command.description && (
-                        <span className="min-w-0 flex-1 truncate text-caption text-text-faint">
-                          {command.description}
-                        </span>
-                      )}
-                    </div>
-                    {command.template && (
-                      <p className="mt-0.5 truncate font-mono text-caption text-text-faint" title={command.template}>
-                        {command.template}
-                      </p>
+              <Section
+                icon={<SlashSquare class="size-4" />}
+                title={tr("coreSlashCommands")}
+                detail={`${commands().length}`}
+              >
+                <Show
+                  when={commands().length > 0}
+                  fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No commands."}</p>}
+                >
+                  <For each={commands()}>
+                    {(command) => (
+                      <div class="border-b border-border-base px-3 py-1.5 last:border-b-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="font-mono text-meta text-text-base">/{command.name}</span>
+                          <Show when={command.plugin}>
+                            <span class="rounded-xs border border-border-base px-1 text-caption text-text-faint">
+                              {command.plugin}
+                            </span>
+                          </Show>
+                          <Show when={command.description}>
+                            <span class="min-w-0 flex-1 truncate text-caption text-text-faint">
+                              {command.description}
+                            </span>
+                          </Show>
+                        </div>
+                        <Show when={command.template}>
+                          <p class="mt-0.5 truncate font-mono text-caption text-text-faint" title={command.template}>
+                            {command.template}
+                          </p>
+                        </Show>
+                      </div>
                     )}
-                  </div>
-                ))
-              )}
-            </Section>
+                  </For>
+                </Show>
+              </Section>
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
 
-    <ConfirmDialog
-      open={confirmRestart}
-      title={tr("coreRestartCore")}
-      description={`Restart the core for "${name || workspace}"? Running turns and terminals are interrupted, but session data is kept.`}
-      confirmLabel="Restart"
-      destructive
-      onOpenChange={(next) => {
-        if (!next) setConfirmRestart(false);
-      }}
-      onConfirm={() => void restartCore()}
-    />
+      <ConfirmDialog
+        open={confirmRestart()}
+        title={tr("coreRestartCore")}
+        description={`Restart the core for "${props.name || props.workspace}"? Running turns and terminals are interrupted, but session data is kept.`}
+        confirmLabel="Restart"
+        destructive
+        onOpenChange={(next) => {
+          if (!next) setConfirmRestart(false);
+        }}
+        onConfirm={() => void restartCore()}
+      />
     </>
   );
 }

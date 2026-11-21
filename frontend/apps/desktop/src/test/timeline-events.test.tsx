@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "./solid-testing";
 import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
@@ -24,7 +24,7 @@ function tool(id: string, name: string, args: string, extra: Partial<TimelineEnt
 describe("search tools", () => {
   test("a glob row shows its pattern and expands to the raw list", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([tool("g1", "glob", '{"pattern":"**/*.ts","path":"src"}', { output: "src/a.ts\nsrc/b.ts" })])}
@@ -43,7 +43,7 @@ describe("search tools", () => {
 
   test("a grep row expands to its output", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -68,7 +68,7 @@ describe("search tools", () => {
 describe("background notices", () => {
   test("a finished shell report keeps its own notice row", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -94,7 +94,7 @@ describe("background notices", () => {
 
   test("a failed report marks its own row", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -120,7 +120,7 @@ describe("background notices", () => {
 
   test("a cancelled shell report reads as cancelled", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="everything"
           chat={chat([
@@ -148,7 +148,7 @@ describe("background notices", () => {
 describe("nested rails", () => {
   test("a group rail uses the fixed inset", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail="compact"
           chat={chat([

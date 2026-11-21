@@ -1,36 +1,36 @@
-import { useMemo } from "react";
-import { useShallow } from "zustand/react/shallow";
+import type { Accessor } from "solid-js";
+import { createMemo } from "solid-js";
 import { chatKey } from "@lingzhu/ui/domain/chat";
-import {
-  useChatMap,
-  useChatStore,
-  useActiveChat,
-  useActiveChatField,
-  useAtHome,
-  useAnyChatRunning,
-} from "../store/chat";
+import { useChatStore } from "../store/chat";
 import { useTabsStore } from "../store/tabs";
 import { useWorkspaceStore, useSessionsByWorkspace, useWorkspaces } from "../store/workspaces";
 import { usePreferences } from "../store/preferences";
 import { buildHomeRows } from "./derive";
 import { unreadKeys } from "./useSeenSessions";
 
-export { useActiveChat, useActiveChatField, useAtHome, useAnyChatRunning, useChatMap };
+export {
+  useActiveChat,
+  useActiveChatField,
+  useAtHome,
+  useAnyChatRunning,
+  useChatMap,
+} from "../store/chat";
 
 /** Unread session keys, derived from seen stamps and the session rows. */
-export function useUnreadKeys(activeKey?: string) {
+export function useUnreadKeys(activeKey: Accessor<string | undefined>) {
   const seen = useTabsStore((state) => state.seen);
   const sessions = useSessionsByWorkspace();
-  // Subscribing to the session signature re-renders the caller when a row's
-  // timestamp changes; the memo reads the snapshot from the store.
-  useWorkspaceStore(
-    useShallow((state) =>
-      Object.entries(state.sessionsByWorkspace).flatMap(([path, list]) =>
-        (list ?? []).map((session) => `${chatKey(path, session.id)}:${session.updated}`),
-      ),
+  // Subscribing to the session signature wakes the memo when a row's timestamp
+  // changes; the memo reads the snapshot from the store.
+  const signature = useWorkspaceStore((state) =>
+    Object.entries(state.sessionsByWorkspace).flatMap(([path, list]) =>
+      (list ?? []).map((session) => `${chatKey(path, session.id)}:${session.updated}`),
     ),
   );
-  return useMemo(() => unreadKeys(seen, sessions, activeKey), [seen, sessions, activeKey]);
+  return createMemo(() => {
+    signature();
+    return unreadKeys(seen(), sessions(), activeKey());
+  });
 }
 
 /** Home's recent rows; rebuilt only when a title, status or timestamp changes. */
@@ -40,14 +40,13 @@ export function useHomeRows() {
   const preferences = usePreferences();
   // The signature keeps the memo in step with chat status changes without
   // subscribing the caller to every chat object.
-  const signature = useChatStore(
-    useShallow((state) =>
-      Object.values(state.chats).map((chat) => `${chat.title ?? ""}:${chat.draft ? 1 : 0}:${chat.running ? 1 : 0}`),
+  const signature = useChatStore((state) =>
+    Object.values(state.chats).map(
+      (chat) => `${chat.title ?? ""}:${chat.draft ? 1 : 0}:${chat.running ? 1 : 0}`,
     ),
   );
-  return useMemo(
-    () => buildHomeRows(sessions, useChatStore.getState().chats, workspaceList, preferences),
-    [sessions, workspaceList, preferences, signature.join("\u0002")],
-  );
+  return createMemo(() => {
+    signature();
+    return buildHomeRows(sessions(), useChatStore.getState().chats, workspaceList(), preferences());
+  });
 }
-

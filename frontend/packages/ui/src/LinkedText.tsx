@@ -1,18 +1,19 @@
+import { For } from "solid-js";
 import { linkSegments } from "@lingzhu/ui/linked-text";
 
 /** Plain text with every http(s) URL rendered as an external link. */
-export function LinkedText({ text }: { text: string }) {
+export function LinkedText(props: { text: string }) {
   return (
-    <>
-      {linkSegments(text).map((segment, index) =>
+    <For each={linkSegments(props.text)}>
+      {(segment) =>
         segment.href ? (
-          <a key={index} data-slot="linked-text-link" href={segment.href} target="_blank" rel="noopener noreferrer">
+          <a data-slot="linked-text-link" href={segment.href} target="_blank" rel="noopener noreferrer">
             {segment.text}
           </a>
         ) : (
-          <span key={index}>{segment.text}</span>
-        ),
-      )}
-    </>
+          <span>{segment.text}</span>
+        )
+      }
+    </For>
   );
 }

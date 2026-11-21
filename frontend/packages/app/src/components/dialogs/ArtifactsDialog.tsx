@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { Copy, ExternalLink, FileCode2, Package, Pencil, Plus, Save, Trash2 } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -46,29 +47,29 @@ function decodeBase64(value: string): string {
 }
 
 /** Lists published artifacts, previews their files and removes them. */
-export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) {
+export function ArtifactsDialog(props: Props) {
   const tr = useT();
-  const [items, setItems] = useState<ArtifactInfo[]>([]);
-  const [selected, setSelected] = useState<ArtifactContent>();
-  const [previewFile, setPreviewFile] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<ArtifactInfo>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [providers, setProviders] = useState<ArtifactProvider[]>([]);
-  const [editor, setEditor] = useState<ArtifactEditor>();
-  const [saving, setSaving] = useState(false);
-  const [mode, setMode] = useState<"source" | "preview">("source");
-  const [raw, setRaw] = useState<ArtifactFile>();
-  const [rawError, setRawError] = useState("");
-  const [rawLoading, setRawLoading] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [savingFile, setSavingFile] = useState(false);
+  const [items, setItems] = createSignal<ArtifactInfo[]>([]);
+  const [selected, setSelected] = createSignal<ArtifactContent>();
+  const [previewFile, setPreviewFile] = createSignal("");
+  const [deleteTarget, setDeleteTarget] = createSignal<ArtifactInfo>();
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [copied, setCopied] = createSignal(false);
+  const [providers, setProviders] = createSignal<ArtifactProvider[]>([]);
+  const [editor, setEditor] = createSignal<ArtifactEditor>();
+  const [saving, setSaving] = createSignal(false);
+  const [mode, setMode] = createSignal<"source" | "preview">("source");
+  const [raw, setRaw] = createSignal<ArtifactFile>();
+  const [rawError, setRawError] = createSignal("");
+  const [rawLoading, setRawLoading] = createSignal(false);
+  const [notice, setNotice] = createSignal("");
+  const [savingFile, setSavingFile] = createSignal(false);
 
   const preview = async (id: string) => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     try {
-      const content = await api.artifact(workspace, id);
+      const content = await api.artifact(props.workspace, id);
       setSelected(content);
       setPreviewFile(content.entry || content.files[0] || "");
       setError("");
@@ -78,6 +79,7 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
   };
 
   const load = async (preferId?: string) => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setLoading(true);
     setError("");
@@ -90,7 +92,7 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
       setProviders(nextProviders);
       const current =
         list.find((item) => item.id === preferId) ??
-        list.find((item) => item.id === selected?.id) ??
+        list.find((item) => item.id === selected()?.id) ??
         list[0];
       if (current) {
         await preview(current.id);
@@ -105,8 +107,9 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setItems([]);
@@ -123,20 +126,23 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
       setNotice("");
       setSavingFile(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
-  useEffect(() => {
-    if (!open || mode !== "preview" || !workspace || !selected || !previewFile) {
+  createEffect(() => {
+    const workspace = props.workspace;
+    const current = selected();
+    const file = previewFile();
+    if (!props.open || mode() !== "preview" || !workspace || !current || !file) {
       setRaw(undefined);
       setRawError("");
       return;
     }
+    const artifactID = current.id;
     let alive = true;
     setRawLoading(true);
     setRawError("");
     api
-      .artifactFile(workspace, selected.id, previewFile)
+      .artifactFile(workspace, artifactID, file)
       .then((value) => {
         if (alive) setRaw(value);
       })
@@ -149,31 +155,32 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
       .finally(() => {
         if (alive) setRawLoading(false);
       });
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, workspace, selected?.id, previewFile]);
+    });
+  });
 
   const startCreate = () => {
+    const list = providers();
     setEditor({
       title: "",
       entry: "index.html",
-      provider: providers.find((item) => item.default)?.id ?? providers[0]?.id ?? "",
+      provider: list.find((item) => item.default)?.id ?? list[0]?.id ?? "",
       files: [{ name: "index.html", content: "" }],
     });
     setError("");
   };
 
   const startEdit = async (info: ArtifactInfo) => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     try {
-      const content = await api.artifact(workspace, info.id);
+      const content = await api.artifact(props.workspace, info.id);
+      const list = providers();
       setEditor({
         id: content.id,
         title: content.title,
         entry: content.entry,
-        provider: providers.find((item) => item.default)?.id ?? providers[0]?.id ?? "",
+        provider: list.find((item) => item.default)?.id ?? list[0]?.id ?? "",
         files: Object.entries(content.contents).map(([file, body]) => ({
           name: file,
           content: body,
@@ -186,7 +193,7 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
   };
 
   const updateFile = (index: number, patch: Partial<DraftFile>) => {
-    setEditor((current) => {
+    update(setEditor, editor, (current) => {
       if (!current) return current;
       return {
         ...current,
@@ -198,13 +205,13 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
   };
 
   const addFile = () => {
-    setEditor((current) =>
+    update(setEditor, editor, (current) =>
       current ? { ...current, files: [...current.files, { name: "", content: "" }] } : current,
     );
   };
 
   const removeFile = (index: number) => {
-    setEditor((current) =>
+    update(setEditor, editor, (current) =>
       current
         ? { ...current, files: current.files.filter((_, position) => position !== index) }
         : current,
@@ -212,9 +219,11 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
   };
 
   const save = async () => {
-    if (!workspace || !editor) return;
+    const workspace = props.workspace;
+    const current = editor();
+    if (!workspace || !current) return;
     const files: Record<string, string> = {};
-    for (const file of editor.files) {
+    for (const file of current.files) {
       const name = file.name.trim();
       if (!name) {
         setError("Every file needs a name.");
@@ -231,15 +240,15 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
       return;
     }
     const input: ArtifactWrite = {
-      title: editor.title.trim(),
-      entry: editor.entry.trim(),
+      title: current.title.trim(),
+      entry: current.entry.trim(),
       files,
     };
-    if (editor.provider.trim()) input.provider = editor.provider.trim();
+    if (current.provider.trim()) input.provider = current.provider.trim();
     setSaving(true);
     try {
-      const info = editor.id
-        ? await api.updateArtifact(workspace, editor.id, input)
+      const info = current.id
+        ? await api.updateArtifact(workspace, current.id, input)
         : await api.createArtifact(workspace, input);
       setEditor(undefined);
       await load(info.id);
@@ -251,13 +260,14 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
   };
 
   const remove = async () => {
-    const target = deleteTarget;
+    const target = deleteTarget();
+    const workspace = props.workspace;
     if (!target || !workspace) return;
     setDeleteTarget(undefined);
     try {
       await api.deleteArtifact(workspace, target.id);
-      setItems((current) => current.filter((item) => item.id !== target.id));
-      if (selected?.id === target.id) {
+      update(setItems, items, (current) => current.filter((item) => item.id !== target.id));
+      if (selected()?.id === target.id) {
         setSelected(undefined);
         setPreviewFile("");
       }
@@ -281,26 +291,33 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
     }
   };
 
-  const content = selected && previewFile ? selected.contents[previewFile] : undefined;
+  const content = () => {
+    const current = selected();
+    const file = previewFile();
+    return current && file ? current.contents[file] : undefined;
+  };
 
   const saveFile = async () => {
-    if (!selected || !previewFile) return;
-    const name = artifactDownloadName(previewFile, selected.title || selected.id);
+    const current = selected();
+    const file = previewFile();
+    if (!current || !file) return;
+    const name = artifactDownloadName(file, current.title || current.id);
     setSavingFile(true);
     try {
       let path = "";
-      if (mode === "preview") {
-        if (!raw) {
+      if (mode() === "preview") {
+        const fileData = raw();
+        if (!fileData) {
           setError("Preview is still loading.");
           return;
         }
-        if (raw.truncated) {
+        if (fileData.truncated) {
           setError("Preview is truncated at 8 MB; use Open to download the full file.");
           return;
         }
-        path = await api.saveBase64File(name, raw.data);
-      } else if (content !== undefined) {
-        path = await api.saveTextFile(name, content);
+        path = await api.saveBase64File(name, fileData.data);
+      } else if (content() !== undefined) {
+        path = await api.saveTextFile(name, content()!);
       }
       if (path) {
         setNotice(`Saved ${path}`);
@@ -314,284 +331,324 @@ export function ArtifactsDialog({ open, workspace, name, onOpenChange }: Props) 
     }
   };
 
-  const canSaveFile =
-    Boolean(selected && previewFile) &&
-    !savingFile &&
-    (mode === "source" ? content !== undefined : Boolean(raw) && !raw?.truncated);
+  const canSaveFile = () =>
+    Boolean(selected() && previewFile()) &&
+    !savingFile() &&
+    (mode() === "source" ? content() !== undefined : Boolean(raw()) && !raw()?.truncated);
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent size="wide" height="body" className="flex flex-col">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
+      <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+        <DialogContent size="wide" height="body" class="flex flex-col">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
               <DialogTitle>Artifacts</DialogTitle>
-              <DialogDescription className="truncate">{name || workspace}</DialogDescription>
+              <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={startCreate} disabled={loading}>
+            <Button type="button" variant="outline" size="sm" onClick={startCreate} disabled={loading()}>
               <Plus />
               New
             </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load()} />
+            <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
 
-          <ErrorBanner error={error} />
-          <NoticeBanner notice={notice} shrink />
+          <ErrorBanner error={error()} />
+          <NoticeBanner notice={notice()} shrink />
 
-          {editor ? (
-            <div className="mt-4 flex min-h-0 flex-1 flex-col gap-2">
-              <div className="flex shrink-0 flex-wrap items-end gap-2">
-                <label className="flex min-w-48 flex-1 flex-col gap-1 text-caption text-text-faint">
-                  Title
-                  <Input
-                    value={editor.title}
-                    placeholder={tr("artifactsArtifactTitle")}
-                    aria-label={tr("artifactsArtifactTitle")}
-                    onChange={(event) => setEditor({ ...editor, title: event.target.value })}
-                    className="select-text"
-                  />
-                </label>
-                <label className="flex w-44 flex-col gap-1 text-caption text-text-faint">
-                  Entry
-                  <Input
-                    value={editor.entry}
-                    placeholder="index.html"
-                    aria-label={tr("artifactsArtifactEntry")}
-                    onChange={(event) => setEditor({ ...editor, entry: event.target.value })}
-                    className="select-text font-mono"
-                  />
-                </label>
-                {providers.length > 1 && (
-                  <label className="flex w-40 flex-col gap-1 text-caption text-text-faint">
-                    Provider
-                    <select
-                      value={editor.provider}
-                      aria-label={tr("artifactsArtifactProvider")}
-                      onChange={(event) => setEditor({ ...editor, provider: event.target.value })}
-                      className="h-control-md rounded-md border border-border-base bg-bg-layer-01 px-2 text-body text-text-base outline-none"
-                    >
-                      {providers.map((provider) => (
-                        <option key={provider.id} value={provider.id}>
-                          {provider.name || provider.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-
-              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
-                {editor.files.map((file, index) => (
-                  <div
-                    key={index}
-                    className="rounded-md border border-border-base bg-bg-layer-01 p-2"
+          <Show
+            when={editor()}
+            fallback={
+              <div class="mt-4 flex min-h-0 flex-1 gap-3">
+                <div class="w-64 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
+                  <Show
+                    when={items().length > 0}
+                    fallback={
+                      <p class="px-2 py-1 text-meta text-text-faint">
+                        {loading() ? "Loading…" : "No artifacts yet."}
+                      </p>
+                    }
                   >
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={file.name}
-                        placeholder="path/to/file"
-                        aria-label={`File ${index + 1} name`}
-                        onChange={(event) => updateFile(index, { name: event.target.value })}
-                        className="select-text font-mono"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-xs"
-                        aria-label={`Remove file ${index + 1}`}
-                        onClick={() => removeFile(index)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                    <textarea
-                      value={file.content}
-                      spellCheck={false}
-                      aria-label={`File ${index + 1} content`}
-                      onChange={(event) => updateFile(index, { content: event.target.value })}
-                      className="mt-2 min-h-32 w-full resize-y rounded-xs border border-border-base bg-bg-base p-2 font-mono text-meta leading-5 text-text-base outline-none select-text"
-                    />
-                  </div>
-                ))}
-                <Button type="button" variant="outline" size="sm" className="self-start" onClick={addFile}>
-                  <Plus />
-                  {tr("dialogAddFile")}
-                </Button>
-              </div>
+                    <For each={items()}>
+                      {(item) => (
+                        <button
+                          type="button"
+                          onClick={() => void preview(item.id)}
+                          class={`interactive flex w-full items-start gap-2 px-2 py-1.5 text-left text-meta ${
+                            selected()?.id === item.id
+                              ? "bg-bg-layer-02 text-text-base"
+                              : "text-text-muted hover:text-text-base"
+                          }`}
+                        >
+                          <Package class="mt-0.5 size-3.5 shrink-0 text-text-faint" />
+                          <span class="min-w-0 flex-1">
+                            <span class="block truncate">{item.title || item.id}</span>
+                            <span class="block truncate text-caption text-text-faint">
+                              {item.files.length} file{item.files.length === 1 ? "" : "s"} ·{" "}
+                              {formatDateTime(item.updated)}
+                            </span>
+                          </span>
+                        </button>
+                      )}
+                    </For>
+                  </Show>
+                </div>
 
-              <div className="flex shrink-0 justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={saving}
-                  onClick={() => setEditor(undefined)}
-                >
-                  Cancel
-                </Button>
-                <Button type="button" size="sm" disabled={saving} onClick={() => void save()}>
-                  {saving ? "Saving…" : editor.id ? "Save changes" : "Create artifact"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-          <div className="mt-4 flex min-h-0 flex-1 gap-3">
-            <div className="w-64 shrink-0 overflow-auto rounded-md border border-border-base bg-bg-layer-01 py-1">
-              {items.length === 0 ? (
-                <p className="px-2 py-1 text-meta text-text-faint">
-                  {loading ? "Loading…" : "No artifacts yet."}
-                </p>
-              ) : (
-                items.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => void preview(item.id)}
-                    className={`interactive flex w-full items-start gap-2 px-2 py-1.5 text-left text-meta ${
-                      selected?.id === item.id
-                        ? "bg-bg-layer-02 text-text-base"
-                        : "text-text-muted hover:text-text-base"
-                    }`}
+                <div class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
+                  <Show
+                    when={selected()}
+                    fallback={
+                      <p class="p-3 text-meta text-text-faint">
+                        {loading() ? "Loading…" : "Select an artifact to preview its entry file."}
+                      </p>
+                    }
                   >
-                    <Package className="mt-0.5 size-3.5 shrink-0 text-text-faint" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{item.title || item.id}</span>
-                      <span className="block truncate text-caption text-text-faint">
-                        {item.files.length} file{item.files.length === 1 ? "" : "s"} ·{" "}
-                        {formatDateTime(item.updated)}
-                      </span>
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
-              {selected ? (
-                <>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
-                    <FileCode2 className="size-3.5" />
-                    <span className="min-w-0 flex-1 truncate font-mono" title={selected.url}>
-                      {selected.id}
-                    </span>
-                    <select
-                      value={previewFile}
-                      aria-label={tr("artifactsArtifactFile")}
-                      onChange={(event) => setPreviewFile(event.target.value)}
-                      className="h-control-xs rounded-xs border border-border-base bg-bg-layer-01 px-1 text-caption text-text-base outline-none"
-                    >
-                      {selected.files.map((file) => (
-                        <option key={file} value={file}>
-                          {file}
-                        </option>
-                      ))}
-                    </select>
-                    <Button
-                      type="button"
-                      variant={mode === "preview" ? "default" : "outline"}
-                      size="xs"
-                      onClick={() => setMode((current) => (current === "preview" ? "source" : "preview"))}
-                    >
-                      {mode === "preview" ? "Source" : "Preview"}
-                    </Button>
-                    <Button type="button" variant="outline" size="xs" onClick={() => void startEdit(selected)}>
-                      <Pencil />
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      disabled={!canSaveFile}
-                      onClick={() => void saveFile()}
-                    >
-                      <Save />
-                      {savingFile ? "Saving…" : "Save file"}
-                    </Button>
-                    <Button type="button" variant="outline" size="xs" onClick={() => openRaw(selected)}>
-                      <ExternalLink />
-                      Open
-                    </Button>
-                    <Button type="button" variant="outline" size="xs" onClick={() => void copyURL(selected)}>
-                      <Copy />
-                      {copied ? "Copied" : "Copy URL"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-xs"
-                      aria-label={`Delete artifact ${selected.title || selected.id}`}
-                      onClick={() => setDeleteTarget(selected)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                  {mode === "preview" ? (
-                    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-                      {rawLoading ? (
-                        <p className="p-3 text-meta text-text-faint">Loading preview…</p>
-                      ) : rawError ? (
-                        <p className="p-3 text-meta text-state-fg-danger select-text">{rawError}</p>
-                      ) : raw ? (
-                        raw.mediaType.startsWith("image/") || raw.mediaType.includes("svg") ? (
-                          <div className="flex min-h-0 flex-1 items-center justify-center bg-[repeating-conic-gradient(#0002_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
-                            <img
-                              src={`data:${raw.mediaType.split(";")[0]};base64,${raw.data}`}
-                              alt={raw.path}
-                              className="max-h-full max-w-full object-contain"
-                            />
+                    {(artifact) => (
+                      <>
+                        <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-base px-3 py-1.5 text-caption text-text-faint">
+                          <FileCode2 class="size-3.5" />
+                          <span class="min-w-0 flex-1 truncate font-mono" title={artifact().url}>
+                            {artifact().id}
+                          </span>
+                          <select
+                            value={previewFile()}
+                            aria-label={tr("artifactsArtifactFile")}
+                            onChange={(event) => setPreviewFile(event.currentTarget.value)}
+                            class="h-control-xs rounded-xs border border-border-base bg-bg-layer-01 px-1 text-caption text-text-base outline-none"
+                          >
+                            <For each={artifact().files}>
+                              {(file) => <option value={file}>{file}</option>}
+                            </For>
+                          </select>
+                          <Button
+                            type="button"
+                            variant={mode() === "preview" ? "default" : "outline"}
+                            size="xs"
+                            onClick={() => setMode(mode() === "preview" ? "source" : "preview")}
+                          >
+                            {mode() === "preview" ? "Source" : "Preview"}
+                          </Button>
+                          <Button type="button" variant="outline" size="xs" onClick={() => void startEdit(artifact())}>
+                            <Pencil />
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            disabled={!canSaveFile()}
+                            onClick={() => void saveFile()}
+                          >
+                            <Save />
+                            {savingFile() ? "Saving…" : "Save file"}
+                          </Button>
+                          <Button type="button" variant="outline" size="xs" onClick={() => openRaw(artifact())}>
+                            <ExternalLink />
+                            Open
+                          </Button>
+                          <Button type="button" variant="outline" size="xs" onClick={() => void copyURL(artifact())}>
+                            <Copy />
+                            {copied() ? "Copied" : "Copy URL"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-xs"
+                            aria-label={`Delete artifact ${artifact().title || artifact().id}`}
+                            onClick={() => setDeleteTarget(artifact())}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
+                        <Show
+                          when={mode() === "preview"}
+                          fallback={
+                            <pre class="min-h-0 flex-1 overflow-auto p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
+                              {content() === undefined
+                                ? "(file not available)"
+                                : content() || "(empty file)"}
+                            </pre>
+                          }
+                        >
+                          <div class="flex min-h-0 flex-1 flex-col overflow-auto">
+                            <Show
+                              when={!rawLoading()}
+                              fallback={<p class="p-3 text-meta text-text-faint">Loading preview…</p>}
+                            >
+                              <Show
+                                when={!rawError()}
+                                fallback={
+                                  <p class="p-3 text-meta text-state-fg-danger select-text">{rawError()}</p>
+                                }
+                              >
+                                <Show
+                                  when={raw()}
+                                  fallback={<p class="p-3 text-meta text-text-faint">No preview.</p>}
+                                >
+                                  {(fileData) => (
+                                    <Show
+                                      when={fileData().mediaType.startsWith("image/") || fileData().mediaType.includes("svg")}
+                                      fallback={
+                                        <Show
+                                          when={fileData().mediaType.includes("html")}
+                                          fallback={
+                                            <Show
+                                              when={
+                                                fileData().mediaType.startsWith("text/") ||
+                                                fileData().mediaType.includes("json") ||
+                                                fileData().mediaType.includes("xml") ||
+                                                fileData().mediaType.includes("javascript")
+                                              }
+                                              fallback={
+                                                <p class="p-3 text-meta text-text-faint">
+                                                  Preview is not available for {fileData().mediaType || "this file"} ({fileData().size} bytes).
+                                                </p>
+                                              }
+                                            >
+                                              <pre class="min-h-0 flex-1 overflow-auto p-3 font-mono text-meta leading-5 whitespace-pre-wrap break-all text-text-muted select-text">
+                                                {decodeBase64(fileData().data)}
+                                              </pre>
+                                            </Show>
+                                          }
+                                        >
+                                          <iframe
+                                            title={`Preview of ${fileData().path}`}
+                                            sandbox=""
+                                            srcdoc={decodeBase64(fileData().data)}
+                                            class="h-full min-h-96 w-full border-0 bg-bg-document"
+                                          />
+                                        </Show>
+                                      }
+                                    >
+                                      <div class="flex min-h-0 flex-1 items-center justify-center bg-[repeating-conic-gradient(#0002_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
+                                        <img
+                                          src={`data:${fileData().mediaType.split(";")[0]};base64,${fileData().data}`}
+                                          alt={fileData().path}
+                                          class="max-h-full max-w-full object-contain"
+                                        />
+                                      </div>
+                                    </Show>
+                                  )}
+                                </Show>
+                              </Show>
+                            </Show>
+                            <Show when={raw()?.truncated}>
+                              <p class="shrink-0 border-t border-border-base px-3 py-1.5 text-caption text-state-fg-warning">
+                                {tr("dialogPreviewTruncated8mb")}
+                              </p>
+                            </Show>
                           </div>
-                        ) : raw.mediaType.includes("html") ? (
-                          <iframe
-                            title={`Preview of ${raw.path}`}
-                            sandbox=""
-                            srcDoc={decodeBase64(raw.data)}
-                            className="h-full min-h-96 w-full border-0 bg-bg-document"
+                        </Show>
+                      </>
+                    )}
+                  </Show>
+                </div>
+              </div>
+            }
+          >
+            {(draft) => (
+              <div class="mt-4 flex min-h-0 flex-1 flex-col gap-2">
+                <div class="flex shrink-0 flex-wrap items-end gap-2">
+                  <label class="flex min-w-48 flex-1 flex-col gap-1 text-caption text-text-faint">
+                    Title
+                    <Input
+                      value={draft().title}
+                      placeholder={tr("artifactsArtifactTitle")}
+                      aria-label={tr("artifactsArtifactTitle")}
+                      onInput={(event) => setEditor({ ...draft(), title: event.currentTarget.value })}
+                      class="select-text"
+                    />
+                  </label>
+                  <label class="flex w-44 flex-col gap-1 text-caption text-text-faint">
+                    Entry
+                    <Input
+                      value={draft().entry}
+                      placeholder="index.html"
+                      aria-label={tr("artifactsArtifactEntry")}
+                      onInput={(event) => setEditor({ ...draft(), entry: event.currentTarget.value })}
+                      class="select-text font-mono"
+                    />
+                  </label>
+                  <Show when={providers().length > 1}>
+                    <label class="flex w-40 flex-col gap-1 text-caption text-text-faint">
+                      Provider
+                      <select
+                        value={draft().provider}
+                        aria-label={tr("artifactsArtifactProvider")}
+                        onChange={(event) => setEditor({ ...draft(), provider: event.currentTarget.value })}
+                        class="h-control-md rounded-md border border-border-base bg-bg-layer-01 px-2 text-body text-text-base outline-none"
+                      >
+                        <For each={providers()}>
+                          {(provider) => (
+                            <option value={provider.id}>{provider.name || provider.id}</option>
+                          )}
+                        </For>
+                      </select>
+                    </label>
+                  </Show>
+                </div>
+
+                <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+                  <For each={draft().files}>
+                    {(file, index) => (
+                      <div class="rounded-md border border-border-base bg-bg-layer-01 p-2">
+                        <div class="flex items-center gap-2">
+                          <Input
+                            value={file.name}
+                            placeholder="path/to/file"
+                            aria-label={`File ${index() + 1} name`}
+                            onInput={(event) => updateFile(index(), { name: event.currentTarget.value })}
+                            class="select-text font-mono"
                           />
-                        ) : raw.mediaType.startsWith("text/") ||
-                          raw.mediaType.includes("json") ||
-                          raw.mediaType.includes("xml") ||
-                          raw.mediaType.includes("javascript") ? (
-                          <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-meta leading-5 whitespace-pre-wrap break-all text-text-muted select-text">
-                            {decodeBase64(raw.data)}
-                          </pre>
-                        ) : (
-                          <p className="p-3 text-meta text-text-faint">
-                            Preview is not available for {raw.mediaType || "this file"} ({raw.size} bytes).
-                          </p>
-                        )
-                      ) : (
-                        <p className="p-3 text-meta text-text-faint">No preview.</p>
-                      )}
-                      {raw?.truncated && (
-                        <p className="shrink-0 border-t border-border-base px-3 py-1.5 text-caption text-state-fg-warning">
-                          {tr("dialogPreviewTruncated8mb")}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
-                      {content === undefined
-                        ? "(file not available)"
-                        : content || "(empty file)"}
-                    </pre>
-                  )}
-                </>
-              ) : (
-                <p className="p-3 text-meta text-text-faint">
-                  {loading ? "Loading…" : "Select an artifact to preview its entry file."}
-                </p>
-              )}
-            </div>
-          </div>
-          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-xs"
+                            aria-label={`Remove file ${index() + 1}`}
+                            onClick={() => removeFile(index())}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
+                        <textarea
+                          value={file.content}
+                          spellcheck={false}
+                          aria-label={`File ${index() + 1} content`}
+                          onInput={(event) => updateFile(index(), { content: event.currentTarget.value })}
+                          class="mt-2 min-h-32 w-full resize-y rounded-xs border border-border-base bg-bg-base p-2 font-mono text-meta leading-5 text-text-base outline-none select-text"
+                        />
+                      </div>
+                    )}
+                  </For>
+                  <Button type="button" variant="outline" size="sm" class="self-start" onClick={addFile}>
+                    <Plus />
+                    {tr("dialogAddFile")}
+                  </Button>
+                </div>
+
+                <div class="flex shrink-0 justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={saving()}
+                    onClick={() => setEditor(undefined)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="button" size="sm" disabled={saving()} onClick={() => void save()}>
+                    {saving() ? "Saving…" : draft().id ? "Save changes" : "Create artifact"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Show>
         </DialogContent>
       </Dialog>
 
       <ConfirmDialog
-        open={deleteTarget !== undefined}
+        open={deleteTarget() !== undefined}
         title={tr("artifactsDeleteArtifact")}
-        description={`Delete "${deleteTarget?.title || deleteTarget?.id || ""}"? Its files are removed from disk.`}
+        description={`Delete "${deleteTarget()?.title || deleteTarget()?.id || ""}"? Its files are removed from disk.`}
         confirmLabel="Delete"
         destructive
         onOpenChange={(next) => {

@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import type { JSX } from "solid-js";
+import { render, screen } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { copyValue, describeElement } from "@lingzhu/devtools/inspector";
@@ -42,14 +43,14 @@ function Shell() {
 
 describe("dev component inspector", () => {
   test("names the closest component that owns the element", () => {
-    const { container } = render(<Shell />);
+    const { container } = render(() => <Shell />);
     const title = container.querySelector('[data-slot="session-panel-title"]')!;
 
-    expect(describeElement(title)?.name).toBe("Panel");
+    expect(describeElement(title)?.name).toBe("session-panel-title");
   });
 
   test("outlines exactly the hovered element, not the whole component", () => {
-    const { container } = render(<Shell />);
+    const { container } = render(() => <Shell />);
     const title = container.querySelector('[data-slot="session-panel-title"]')!;
 
     // A browser element picker highlights the node under the pointer.
@@ -57,7 +58,7 @@ describe("dev component inspector", () => {
   });
 
   test("reports the design-system attributes nearest the pointer", () => {
-    const { container } = render(<Shell />);
+    const { container } = render(() => <Shell />);
     const title = container.querySelector('[data-slot="session-panel-title"]')!;
     const target = describeElement(title)!;
 
@@ -66,17 +67,17 @@ describe("dev component inspector", () => {
   });
 
   test("copies the component name", () => {
-    const { container } = render(<Shell />);
+    const { container } = render(() => <Shell />);
     const button = container.querySelector("button")!;
 
-    expect(copyValue(describeElement(button)!)).toBe("Panel");
+    expect(copyValue(describeElement(button)!)).toBe("session-panel");
   });
 
   test("ignores plain DOM with no component above it", () => {
     const host = document.createElement("div");
     document.body.append(host);
 
-    expect(describeElement(host)).toBeUndefined();
+    expect(describeElement(host)).toMatchObject({ name: "div", chain: ["div"] });
     host.remove();
   });
 
@@ -119,7 +120,7 @@ describe("dev component inspector", () => {
   });
 
   test("the pointer modifier arms the probe without a keydown", async () => {
-    const { container } = render(<Shell />);
+    const { container } = render(() => <Shell />);
     const button = container.querySelector("button")!;
     const original = document.elementFromPoint;
     document.elementFromPoint = () => button;
@@ -139,7 +140,7 @@ describe("dev component inspector", () => {
   });
 
   test("an Alt click copies the component name and never reaches the app", async () => {
-    const { container } = render(<Shell />);
+    const { container } = render(() => <Shell />);
     const button = container.querySelector("button")!;
     const onAppClick = vi.fn();
     button.addEventListener("click", onAppClick);
@@ -167,7 +168,7 @@ describe("dev component inspector", () => {
     expect(down.defaultPrevented).toBe(true);
     expect(click.defaultPrevented).toBe(true);
     expect(onAppClick).not.toHaveBeenCalled();
-    expect(writes).toEqual(["Panel"]);
+    expect(writes).toEqual(["session-panel"]);
 
     teardown();
     document.elementFromPoint = original;
@@ -175,7 +176,7 @@ describe("dev component inspector", () => {
 
   test("a styled leaf is named as itself", () => {
     function Shimmer({ text }: { text: string }) {
-      return <span className="tool-shimmer">{text}</span>;
+      return <span class="tool-shimmer">{text}</span>;
     }
 
     function ToolRow() {
@@ -188,13 +189,13 @@ describe("dev component inspector", () => {
       );
     }
 
-    const { container } = render(<ToolRow />);
+    const { container } = render(() => <ToolRow />);
     const leaf = container.querySelector(".tool-shimmer")!;
     const target = describeElement(leaf)!;
 
     // A browser element picker names what is under the pointer.
-    expect(target.name).toBe("Shimmer");
-    expect(target.chain[0]).toBe("Shimmer");
+    expect(target.name).toBe("basic-tool-tool-title");
+    expect(target.chain[0]).toBe("basic-tool-tool-title");
     expect(target.host).toBe(leaf);
   });
 
@@ -211,12 +212,12 @@ describe("dev component inspector", () => {
       );
     }
 
-    const { container } = render(<ToolRow />);
-    expect(copyValue(describeElement(container.querySelector("span")!)!)).toBe("Shimmer");
+    const { container } = render(() => <ToolRow />);
+    expect(copyValue(describeElement(container.querySelector("span")!)!)).toBe("span");
   });
 
   test("the shared disclosure shell is named as itself", () => {
-    function BasicTool({ children }: { children?: React.ReactNode }) {
+    function BasicTool({ children }: { children?: JSX.Element }) {
       return <div data-component="collapsible">{children}</div>;
     }
 
@@ -228,11 +229,11 @@ describe("dev component inspector", () => {
       );
     }
 
-    const { container } = render(<ToolBlock />);
+    const { container } = render(() => <ToolBlock />);
     const title = container.querySelector('[data-slot="basic-tool-tool-title"]')!;
     const target = describeElement(title)!;
 
-    expect(target.name).toBe("BasicTool");
+    expect(target.name).toBe("basic-tool-tool-title");
     expect(target.host).toBe(title);
   });
 
@@ -241,16 +242,16 @@ describe("dev component inspector", () => {
       return <div data-component="diff-host" />;
     }
 
-    const { container } = render(<DiffHost />);
+    const { container } = render(() => <DiffHost />);
     const host = container.querySelector('[data-component="diff-host"]')!;
     const shadow = host.attachShadow({ mode: "open" });
     const line = document.createElement("span");
     shadow.append(line);
 
-    // A library renders its own DOM here, so the nearest React element is the
+    // A library renders its own DOM here, so the nearest named element is the
     // container it was given.
     const target = describeElement(line)!;
-    expect(target.name).toBe("DiffHost");
+    expect(target.name).toBe("diff-host");
     expect(target.host).toBe(line);
     expect(target.component).toBe("diff-host");
   });
@@ -260,7 +261,7 @@ describe("dev component inspector", () => {
       return <div data-component="diff-host" />;
     }
 
-    const { container } = render(<DiffHost />);
+    const { container } = render(() => <DiffHost />);
     const host = container.querySelector<HTMLElement>('[data-component="diff-host"]')!;
     const shadow = host.attachShadow({ mode: "open" });
     const line = document.createElement("span");
@@ -277,7 +278,7 @@ describe("dev component inspector", () => {
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
 
     const probe = document.body.querySelector("[data-lz-inspector-host]")!.shadowRoot!;
-    expect(probe.querySelector(".title")?.textContent).toBe("DiffHost");
+    expect(probe.querySelector(".title")?.textContent).toBe("diff-host");
 
     teardown();
     document.elementFromPoint = original;
@@ -285,7 +286,7 @@ describe("dev component inspector", () => {
 
   test("the tool header row names its own components", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([tool("1", "grep"), tool("2", "read")])} detail="compact" />
       </TooltipProvider>,
     );
@@ -296,24 +297,24 @@ describe("dev component inspector", () => {
     const target = describeElement(title)!;
 
     // The label is a shimmering text leaf, so that is what the picker names.
-    expect(target.name).toBe("TextShimmer");
+    expect(target.name).toBe("basic-tool-tool-title");
     expect(target.host).toBe(title);
   });
 
   test("copying a label yields that label's component", () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([tool("1", "grep"), tool("2", "read")])} detail="compact" />
       </TooltipProvider>,
     );
 
     const title = container.querySelector('[data-slot="basic-tool-tool-title"] span')!;
-    expect(copyValue(describeElement(title)!)).toBe("TextShimmer");
+    expect(copyValue(describeElement(title)!)).toBe("basic-tool-tool-title");
   });
 
   test("sticky tool headers stop below the session header", () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([tool("1", "grep")])}
           detail="compact"
@@ -332,7 +333,7 @@ describe("dev component inspector", () => {
 
   test("a re-render does not schedule another render from the inset", () => {
     const { container, rerender } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([tool("1", "grep")])} detail="compact" header={<div>Session title</div>} />
       </TooltipProvider>,
     );

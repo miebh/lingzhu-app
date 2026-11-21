@@ -1,4 +1,5 @@
-import { create } from "zustand";
+import { type Accessor } from "solid-js";
+import { createStore } from "./create";
 import type { BatchExportItem } from "../lib/batchExport";
 import type { SessionInfo, SessionSelection } from "@lingzhu/ui/types";
 
@@ -82,7 +83,7 @@ interface DialogStore {
   patch: <K extends DialogID>(id: K, props: Partial<DialogEntryFor<K>["props"]>) => void;
 }
 
-export const useDialogStore = create<DialogStore>((set) => ({
+export const useDialogStore = createStore<DialogStore>((set) => ({
   entries: {},
 
   open: (entry) => set((state) => ({ entries: { ...state.entries, [entry.id]: entry } })),
@@ -109,11 +110,11 @@ export const useDialogStore = create<DialogStore>((set) => ({
 }));
 
 /** Reads one dialog payload reactively; used by the dialog slot components. */
-export function useDialogEntry<K extends DialogID>(id: K): DialogEntryFor<K> | undefined {
-  return useDialogStore((state) => state.entries[id]) as DialogEntryFor<K> | undefined;
+export function useDialogEntry<K extends DialogID>(id: K): Accessor<DialogEntryFor<K> | undefined> {
+  return useDialogStore((state) => state.entries[id]) as Accessor<DialogEntryFor<K> | undefined>;
 }
 
-/** Stable helpers for callers outside React, such as stores and command builders. */
+/** Stable helpers for callers outside components, such as stores and command builders. */
 export function openDialog(entry: DialogEntry) {
   useDialogStore.getState().open(entry);
 }

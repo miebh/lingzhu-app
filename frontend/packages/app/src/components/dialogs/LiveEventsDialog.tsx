@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { Activity, Pause, Play, Save, Trash2 } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -38,17 +39,17 @@ function preview(data: Record<string, unknown>): string {
  * already follows for chat state, so opening the panel starts no extra SSE
  * connection; only live events are shown, history lives in Search events.
  */
-export function LiveEventsDialog({ open, workspace, name, onOpenChange, onOpenSession }: Props) {
+export function LiveEventsDialog(props: Props) {
   const tr = useT();
-  const [events, setEvents] = useState<CoreEvent[]>([]);
-  const [paused, setPaused] = useState(false);
-  const [frozen, setFrozen] = useState<CoreEvent[]>();
-  const [filter, setFilter] = useState("");
-  const [saved, setSaved] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [events, setEvents] = createSignal<CoreEvent[]>([]);
+  const [paused, setPaused] = createSignal(false);
+  const [frozen, setFrozen] = createSignal<CoreEvent[]>();
+  const [filter, setFilter] = createSignal("");
+  const [saved, setSaved] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!props.open) {
       setEvents([]);
       setPaused(false);
       setFrozen(undefined);
@@ -57,42 +58,46 @@ export function LiveEventsDialog({ open, workspace, name, onOpenChange, onOpenSe
       setSaving(false);
       return;
     }
+    const workspace = props.workspace;
     if (!workspace) return;
     const off = api.onEvent((event) => {
       if (event.workspace !== workspace) return;
-      setEvents((current) => [event, ...current].slice(0, MAX_EVENTS));
+      update(setEvents, events, (current) => [event, ...current].slice(0, MAX_EVENTS));
     });
-    return off;
-  }, [open, workspace]);
+    onCleanup(off);
+  });
 
   const togglePause = () => {
-    if (paused) {
+    if (paused()) {
       setPaused(false);
       setFrozen(undefined);
       return;
     }
-    setFrozen(events);
+    setFrozen(events());
     setPaused(true);
   };
 
-  const shown = frozen ?? events;
-  const needle = filter.trim().toLowerCase();
-  const visible = useMemo(() => {
-    if (!needle) return shown;
-    return shown.filter((event) => {
-      if (event.type.toLowerCase().includes(needle)) return true;
-      if (event.sessionId.toLowerCase().includes(needle)) return true;
-      return preview(event.data).toLowerCase().includes(needle);
+  const shown = () => frozen() ?? events();
+  const needle = () => filter().trim().toLowerCase();
+  const visible = createMemo(() => {
+    const term = needle();
+    const list = shown();
+    if (!term) return list;
+    return list.filter((event) => {
+      if (event.type.toLowerCase().includes(term)) return true;
+      if (event.sessionId.toLowerCase().includes(term)) return true;
+      return preview(event.data).toLowerCase().includes(term);
     });
-  }, [shown, needle]);
+  });
 
   const saveVisible = async () => {
-    if (!workspace || visible.length === 0) return;
+    const workspace = props.workspace;
+    if (!workspace || visible().length === 0) return;
     setSaving(true);
     try {
       const path = await api.saveTextFile(
-        liveEventsExportName(workspace, visible.length),
-        serializeLiveEvents({ workspace, filter: filter.trim(), events: visible }),
+        liveEventsExportName(workspace, visible().length),
+        serializeLiveEvents({ workspace, filter: filter().trim(), events: visible() }),
       );
       if (path) setSaved(path);
     } catch (err) {
@@ -103,33 +108,33 @@ export function LiveEventsDialog({ open, workspace, name, onOpenChange, onOpenSe
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Activity className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <Activity class="size-4 text-text-faint" />
               {tr("paletteLiveEvents")}
             </DialogTitle>
-            <DialogDescription className="truncate">
-              {name ? `${name} · ` : ""}
-              {paused ? "paused" : "tailing"} · {shown.length} captured
+            <DialogDescription class="truncate">
+              {props.name ? `${props.name} · ` : ""}
+              {paused() ? "paused" : "tailing"} · {shown().length} captured
             </DialogDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={saving || visible.length === 0}
+              disabled={saving() || visible().length === 0}
               onClick={() => void saveVisible()}
             >
               <Save />
-              {saving ? "Saving…" : "Save file"}
+              {saving() ? "Saving…" : "Save file"}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={togglePause}>
-              {paused ? <Play /> : <Pause />}
-              {paused ? "Resume" : "Pause"}
+              {paused() ? <Play /> : <Pause />}
+              {paused() ? "Resume" : "Pause"}
             </Button>
             <Button
               type="button"
@@ -137,7 +142,7 @@ export function LiveEventsDialog({ open, workspace, name, onOpenChange, onOpenSe
               size="sm"
               onClick={() => {
                 setEvents([]);
-                if (paused) setFrozen([]);
+                if (paused()) setFrozen([]);
               }}
             >
               <Trash2 />
@@ -146,68 +151,77 @@ export function LiveEventsDialog({ open, workspace, name, onOpenChange, onOpenSe
           </div>
         </div>
 
-        <div className="mt-3 flex shrink-0 items-center gap-2">
+        <div class="mt-3 flex shrink-0 items-center gap-2">
           <input
-            value={filter}
+            value={filter()}
             aria-label={tr("liveEventsFilterLiveEvents")}
             placeholder={tr("liveEventsFilterByTypeSessionOrPayload")}
-            onChange={(event) => setFilter(event.target.value)}
-            className="h-control-sm min-w-0 flex-1 rounded-md border border-border-base bg-bg-base px-2 text-meta text-text-base outline-none placeholder:text-text-faint select-text"
+            onInput={(event) => setFilter(event.currentTarget.value)}
+            class="h-control-sm min-w-0 flex-1 rounded-md border border-border-base bg-bg-base px-2 text-meta text-text-base outline-none placeholder:text-text-faint select-text"
           />
-          <span className="shrink-0 text-caption tabular-nums text-text-faint">
-            {visible.length}/{shown.length}
+          <span class="shrink-0 text-caption tabular-nums text-text-faint">
+            {visible().length}/{shown().length}
           </span>
         </div>
 
-        {saved && (
-          <p className="mt-2 shrink-0 truncate font-mono text-caption text-text-faint select-text">
-            {saved.startsWith("Failed: ") ? (
-              <span className="text-state-fg-danger">{saved}</span>
-            ) : (
-              <>Saved {saved}</>
-            )}
-          </p>
-        )}
-
-        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
-          {visible.length === 0 ? (
-            <p className="p-3 text-meta text-text-faint">
-              {shown.length === 0 ? "Waiting for live events…" : "No events match the filter."}
+        <Show when={saved()}>
+          {(path) => (
+            <p class="mt-2 shrink-0 truncate font-mono text-caption text-text-faint select-text">
+              {path().startsWith("Failed: ") ? (
+                <span class="text-state-fg-danger">{path()}</span>
+              ) : (
+                <>Saved {path()}</>
+              )}
             </p>
-          ) : (
-            visible.map((event) => (
-              <div
-                key={`${event.sessionId}:${event.seq}:${event.type}:${event.at}`}
-                className="border-b border-border-base px-3 py-2 last:border-b-0"
-              >
-                <div className="flex flex-wrap items-center gap-2 text-caption text-text-faint">
-                  <span className="font-mono text-text-muted">{event.type}</span>
-                  <span className="tabular-nums">#{event.seq}</span>
-                  <span>{timeLabel(event.at)}</span>
-                  {onOpenSession ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenSession(event.sessionId)}
-                      className="interactive ml-auto font-mono hover:text-text-base"
-                      title={tr("jobsOverviewOpenSession")}
-                    >
-                      {event.sessionId}
-                    </button>
-                  ) : (
-                    <span className="ml-auto font-mono">{event.sessionId}</span>
-                  )}
-                </div>
-                {preview(event.data) && (
-                  <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all font-mono text-caption leading-5 text-text-muted select-text">
-                    {preview(event.data)}
-                  </pre>
-                )}
-              </div>
-            ))
           )}
+        </Show>
+
+        <div class="mt-3 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
+          <Show
+            when={visible().length > 0}
+            fallback={
+              <p class="p-3 text-meta text-text-faint">
+                {shown().length === 0 ? "Waiting for live events…" : "No events match the filter."}
+              </p>
+            }
+          >
+            <For each={visible()}>
+              {(event) => (
+                <div class="border-b border-border-base px-3 py-2 last:border-b-0">
+                  <div class="flex flex-wrap items-center gap-2 text-caption text-text-faint">
+                    <span class="font-mono text-text-muted">{event.type}</span>
+                    <span class="tabular-nums">#{event.seq}</span>
+                    <span>{timeLabel(event.at)}</span>
+                    <Show
+                      when={props.onOpenSession}
+                      fallback={<span class="ml-auto font-mono">{event.sessionId}</span>}
+                    >
+                      {(openSession) => (
+                        <button
+                          type="button"
+                          onClick={() => openSession()(event.sessionId)}
+                          class="interactive ml-auto font-mono hover:text-text-base"
+                          title={tr("jobsOverviewOpenSession")}
+                        >
+                          {event.sessionId}
+                        </button>
+                      )}
+                    </Show>
+                  </div>
+                  <Show when={preview(event.data)}>
+                    {(body) => (
+                      <pre class="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all font-mono text-caption leading-5 text-text-muted select-text">
+                        {body()}
+                      </pre>
+                    )}
+                  </Show>
+                </div>
+              )}
+            </For>
+          </Show>
         </div>
 
-        <p className="mt-2 text-caption text-text-faint">
+        <p class="mt-2 text-caption text-text-faint">
           Live only, newest first, capped at {MAX_EVENTS}. Use Search events for durable history.
         </p>
       </DialogContent>

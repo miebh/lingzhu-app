@@ -1,6 +1,7 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@lingzhu/ui/utils"
+import type { JSX } from "solid-js";
+import { splitProps } from "solid-js";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@lingzhu/ui/utils";
 
 const inputVariants = cva(
   "w-full min-w-0 rounded-md bg-bg-base text-body leading-4 font-[440] tracking-[-0.04px] text-text-base transition-colors shadow-[var(--elevation-input)] outline-none placeholder:text-text-faint hover:shadow-[inset_0_0_0_100vmax_var(--overlay-hover),var(--elevation-input)] focus-visible:shadow-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus disabled:cursor-not-allowed disabled:opacity-50 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50 aria-invalid:shadow-[inset_0_0_0_0.5px_var(--color-state-border-danger)] data-[invalid=true]:shadow-[inset_0_0_0_0.5px_var(--color-state-border-danger)]",
@@ -15,24 +16,24 @@ const inputVariants = cva(
     defaultVariants: {
       size: "default",
     },
-  }
-)
+  },
+);
 
-function Input({
-  className,
-  type,
-  size = "default",
-  ...props
-}: Omit<React.ComponentProps<"input">, "size"> & VariantProps<typeof inputVariants>) {
+type InputProps = Omit<JSX.InputHTMLAttributes<HTMLInputElement>, "size"> &
+  VariantProps<typeof inputVariants>;
+
+function Input(props: InputProps) {
+  const [local, rest] = splitProps(props, ["class", "type", "size"]);
   return (
     <input
-      type={type}
+      type={local.type}
       data-slot="input"
-      data-size={size}
-      className={cn(inputVariants({ size }), className)}
-      {...props}
+      data-size={local.size ?? "default"}
+      class={cn(inputVariants({ size: local.size }), local.class)}
+      {...rest}
     />
-  )
+  );
 }
 
-export { Input }
+export { Input };
+export type { InputProps };

@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { For, type Component } from "solid-js";
 import { ArtifactsDialog } from "../../components/dialogs/ArtifactsDialog";
 import { CoreDialog } from "../../components/dialogs/CoreDialog";
 import { CoreModelsDialog } from "../../components/dialogs/CoreModelsDialog";
@@ -45,29 +45,42 @@ interface PathDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const PathSlot = ({
-  id,
-  component: Dialog,
-}: {
-  id: PathDialogID;
-  component: ComponentType<PathDialogProps>;
-}) => {
+const PathSlot = (props: { id: PathDialogID; component: Component<PathDialogProps> }) => {
   const shell = useShell();
-  const entry = useDialogEntry(id);
-  const path = entry?.props.path;
-  const server = entry && "server" in entry.props ? entry.props.server : undefined;
-  const resolved = shell.workspaceList.find((workspace) => workspace.path === path)?.name;
+  const Dialog = props.component;
+  const entry = useDialogEntry(props.id);
+  const path = () => entry()?.props.path;
+  const server = () => {
+    const current = entry();
+    return current && "server" in current.props ? current.props.server : undefined;
+  };
+  const resolved = () =>
+    shell.workspaceList.find((workspace) => workspace.path === path())?.name;
 
   return (
     <Dialog
-      open={entry !== undefined}
-      workspace={path}
-      name={resolved ?? (path ? workspaceName(path) : undefined)}
-      server={server}
-      onOpenChange={dismissDialog(id)}
+      open={entry() !== undefined}
+      workspace={path()}
+      name={resolved() ?? (path() ? workspaceName(path()!) : undefined)}
+      server={server()}
+      onOpenChange={dismissDialog(props.id)}
     />
   );
 };
+
+const PATH_DIALOGS: Array<[PathDialogID, Component<PathDialogProps>]> = [
+  ["source-control", SourceControlDialog],
+  ["artifacts", ArtifactsDialog],
+  ["services", ServicesDialog],
+  ["core", CoreDialog],
+  ["core-models", CoreModelsDialog],
+  ["mcp", MCPDialog],
+  ["plugins", PluginsDialog],
+  ["oauth", OAuthDialog],
+  ["web-search", WebSearchDialog],
+  ["image-gen", ImageGenDialog],
+  ["formatters", FormattersDialog],
+];
 
 /** Dialogs addressed by a workspace path only. */
 export function PathDialogs() {
@@ -91,84 +104,70 @@ export function PathDialogs() {
     void useChatStore.getState().open(path, sessionID);
   };
 
-  const dialogs: Array<[PathDialogID, ComponentType<PathDialogProps>]> = [
-    ["source-control", SourceControlDialog],
-    ["artifacts", ArtifactsDialog],
-    ["services", ServicesDialog],
-    ["core", CoreDialog],
-    ["core-models", CoreModelsDialog],
-    ["mcp", MCPDialog],
-    ["plugins", PluginsDialog],
-    ["oauth", OAuthDialog],
-    ["web-search", WebSearchDialog],
-    ["image-gen", ImageGenDialog],
-    ["formatters", FormattersDialog],
-  ];
-
   return (
     <>
-      {dialogs.map(([id, component]) => (
-        <PathSlot key={id} id={id} component={component} />
-      ))}
+      <For each={PATH_DIALOGS}>
+        {(item) => <PathSlot id={item[0]} component={item[1]} />}
+      </For>
 
       <ProjectDialog
-        open={project !== undefined}
-        workspace={project?.props.path}
-        sessionID={project?.props.path === shell.activePath ? shell.activeId : undefined}
-        name={nameOf(project?.props.path)}
+        open={project() !== undefined}
+        workspace={project()?.props.path}
+        sessionID={project()?.props.path === shell.activePath ? shell.activeId : undefined}
+        name={nameOf(project()?.props.path)}
         onOpenChange={dismissDialog("project")}
       />
       <FileTreeDialog
-        open={files !== undefined}
-        workspace={files?.props.workspace}
-        name={files ? workspaceName(files.props.workspace) : undefined}
-        initialPath={files?.props.path}
+        open={files() !== undefined}
+        workspace={files()?.props.workspace}
+        name={files() ? workspaceName(files()!.props.workspace) : undefined}
+        initialPath={files()?.props.path}
         onOpenChange={dismissDialog("files")}
       />
       <WorktreesDialog
-        open={worktrees !== undefined}
-        workspace={worktrees?.props.path}
-        name={nameOf(worktrees?.props.path)}
+        open={worktrees() !== undefined}
+        workspace={worktrees()?.props.path}
+        name={nameOf(worktrees()?.props.path)}
         startup={
-          worktrees ? shell.preferences.projectWorktreeStartup[worktrees.props.path] : undefined
+          worktrees() ? shell.preferences.projectWorktreeStartup[worktrees()!.props.path] : undefined
         }
         onOpenChange={dismissDialog("worktrees")}
         onAddWorkspace={shell.sessionActions.addWorktreeWorkspace}
       />
       <SearchDialog
-        open={search !== undefined}
-        workspace={search?.props.path}
-        name={nameOf(search?.props.path)}
+        open={search() !== undefined}
+        workspace={search()?.props.path}
+        name={nameOf(search()?.props.path)}
         onOpenChange={dismissDialog("search")}
-        onOpenSession={(sessionID) => openSession(search?.props.path, sessionID)}
+        onOpenSession={(sessionID) => openSession(search()?.props.path, sessionID)}
       />
       <LiveEventsDialog
-        open={liveEvents !== undefined}
-        workspace={liveEvents?.props.path}
-        name={nameOf(liveEvents?.props.path)}
+        open={liveEvents() !== undefined}
+        workspace={liveEvents()?.props.path}
+        name={nameOf(liveEvents()?.props.path)}
         onOpenChange={dismissDialog("live-events")}
-        onOpenSession={(sessionID) => openSession(liveEvents?.props.path, sessionID)}
+        onOpenSession={(sessionID) => openSession(liveEvents()?.props.path, sessionID)}
       />
       <JobsOverviewDialog
-        open={jobsOverview !== undefined}
-        workspace={jobsOverview?.props.path}
-        name={nameOf(jobsOverview?.props.path)}
+        open={jobsOverview() !== undefined}
+        workspace={jobsOverview()?.props.path}
+        name={nameOf(jobsOverview()?.props.path)}
         onOpenChange={dismissDialog("jobs-overview")}
-        onOpenSession={(sessionID) => openSession(jobsOverview?.props.path, sessionID)}
+        onOpenSession={(sessionID) => openSession(jobsOverview()?.props.path, sessionID)}
       />
       <SchedulesOverviewDialog
-        open={schedulesOverview !== undefined}
-        workspace={schedulesOverview?.props.path}
-        name={nameOf(schedulesOverview?.props.path)}
+        open={schedulesOverview() !== undefined}
+        workspace={schedulesOverview()?.props.path}
+        name={nameOf(schedulesOverview()?.props.path)}
         onOpenChange={dismissDialog("schedules-overview")}
-        onOpenSession={(sessionID) => openSession(schedulesOverview?.props.path, sessionID)}
+        onOpenSession={(sessionID) => openSession(schedulesOverview()?.props.path, sessionID)}
       />
       <UsageOverviewDialog
-        open={usageOverview !== undefined}
-        workspace={usageOverview?.props.path}
-        name={nameOf(usageOverview?.props.path)}
+        open={usageOverview() !== undefined}
+        workspace={usageOverview()?.props.path}
+        name={nameOf(usageOverview()?.props.path)}
         onOpenChange={dismissDialog("usage-overview")}
-        onOpenSession={(sessionID) => openSession(usageOverview?.props.path, sessionID)}
+        onOpenSession={(sessionID) => openSession(usageOverview()?.props.path, sessionID)}
       />
     </>
   );

@@ -1,35 +1,30 @@
-import { memo, type CSSProperties } from "react";
+import type { JSX } from "solid-js";
+import { For, Show } from "solid-js";
 
 /**
  * Per-character shimmer used by pending tool titles. Each character carries its
  * own delayed peak layer, so the highlight travels across the text without
  * repainting a clipped background on every frame.
  */
-export const TextShimmer = memo(function TextShimmer({
-  text,
-  active = false,
-  className,
-}: {
-  text: string;
-  active?: boolean;
-  className?: string;
-}) {
-  if (!active) return <span className={className}>{text}</span>;
+export function TextShimmer(props: { text: string; active?: boolean; class?: string }) {
   return (
-    <span data-component="text-shimmer" data-active="true" className={className}>
-      <span className="sr-only">{text}</span>
-      <span aria-hidden="true" className="inline-flex items-baseline">
-        {Array.from(text).map((char, index) => (
-          <span
-            key={`${index}-${char}`}
-            data-slot="text-shimmer-char"
-            style={{ "--shimmer-index": index } as CSSProperties}
-          >
-            <span data-slot="text-shimmer-char-base">{char}</span>
-            <span data-slot="text-shimmer-char-peak">{char}</span>
-          </span>
-        ))}
+    <Show when={props.active} fallback={<span class={props.class}>{props.text}</span>}>
+      <span data-component="text-shimmer" data-active="true" class={props.class}>
+        <span class="sr-only">{props.text}</span>
+        <span aria-hidden="true" class="inline-flex items-baseline">
+          <For each={Array.from(props.text)}>
+            {(char, index) => (
+              <span
+                data-slot="text-shimmer-char"
+                style={{ "--shimmer-index": index() } as JSX.CSSProperties}
+              >
+                <span data-slot="text-shimmer-char-base">{char}</span>
+                <span data-slot="text-shimmer-char-peak">{char}</span>
+              </span>
+            )}
+          </For>
+        </span>
       </span>
-    </span>
+    </Show>
   );
-});
+}

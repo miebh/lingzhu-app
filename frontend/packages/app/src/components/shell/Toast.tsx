@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { createEffect, createMemo, onCleanup, Show } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { ArrowRight, Check, CircleAlert, Info, X } from "@lingzhu/ui/icons";
 import type { NoticeTarget, ToastTone } from "@lingzhu/ui/types";
 import { useT } from "@lingzhu/ui/i18n";
@@ -40,12 +41,16 @@ const SURFACE: Record<ToastTone, string> = {
  * to the work. It pauses while the pointer or focus is inside, so it can be
  * read and clicked instead of disappearing under the cursor.
  */
-export function Toast({ title, body, tone = "info", target, onOpen, onDone, holdMs = 6000 }: Props) {
+export function Toast(props: Props) {
   const tr = useT();
-  const remaining = useRef(holdMs);
-  const startedAt = useRef(0);
-  const timer = useRef<number | undefined>(undefined);
-  const paused = useRef(false);
+  const remaining = { current: props.holdMs ?? 6000 };
+  const startedAt = { current: 0 };
+  const timer: { current: number | undefined } = { current: undefined };
+  const paused = { current: false };
+
+  const tone = createMemo(() => props.tone ?? "info");
+  const glyph = createMemo(() => GLYPH[tone()]);
+  const openable = createMemo(() => Boolean(props.target && props.onOpen));
 
   const clear = () => {
     if (timer.current !== undefined) window.clearTimeout(timer.current);
@@ -56,7 +61,7 @@ export function Toast({ title, body, tone = "info", target, onOpen, onDone, hold
     if (paused.current) return;
     startedAt.current = Date.now();
     clear();
-    timer.current = window.setTimeout(onDone, remaining.current);
+    timer.current = window.setTimeout(() => props.onDone(), remaining.current);
   };
 
   const pause = () => {
@@ -70,73 +75,81 @@ export function Toast({ title, body, tone = "info", target, onOpen, onDone, hold
     resume();
   };
 
-  useEffect(() => {
-    remaining.current = holdMs;
+  createEffect(() => {
+    const hold = props.holdMs ?? 6000;
+    const done = props.onDone;
+    // The title identifies the notice; a new one restarts the hold time.
+    void props.title;
+    remaining.current = hold;
     startedAt.current = Date.now();
     clear();
-    timer.current = window.setTimeout(onDone, holdMs);
-    return clear;
-  }, [holdMs, onDone, title]);
-
-  const Glyph = GLYPH[tone];
-  const openable = Boolean(target && onOpen);
+    timer.current = window.setTimeout(done, hold);
+    onCleanup(clear);
+  });
 
   const open = () => {
+    const target = props.target;
+    const onOpen = props.onOpen;
     if (!target || !onOpen) return;
     onOpen(target);
-    onDone();
+    props.onDone();
   };
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[1000] flex justify-center px-4 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:justify-end sm:px-0">
+    <div class="pointer-events-none fixed inset-x-0 bottom-6 z-[1000] flex justify-center px-4 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:justify-end sm:px-0">
       <div
         role="status"
         aria-live="polite"
-        data-tone={tone}
-        data-openable={openable ? "true" : undefined}
-        onClick={openable ? open : undefined}
+        data-tone={tone()}
+        data-openable={openable() ? "true" : undefined}
+        onClick={openable() ? open : undefined}
         onMouseEnter={pause}
         onMouseLeave={release}
         onFocus={pause}
         onBlur={release}
-        className={`notice-arrive pointer-events-auto grid w-full max-w-[360px] grid-cols-[28px_minmax(0,1fr)_20px] items-center gap-3 rounded-xl border-[0.5px] border-border-weak bg-bg-layer-01 p-3 text-start shadow-elevation-floating ${
-          openable ? "interactive cursor-pointer" : ""
+        class={`notice-arrive pointer-events-auto grid w-full max-w-[360px] grid-cols-[28px_minmax(0,1fr)_20px] items-center gap-3 rounded-xl border-[0.5px] border-border-weak bg-bg-layer-01 p-3 text-start shadow-elevation-floating ${
+          openable() ? "interactive cursor-pointer" : ""
         }`}
       >
-        <span aria-hidden="true" className={`grid size-7 place-items-center rounded-lg ${SURFACE[tone]} ${ACCENT[tone]}`}>
-          <Glyph className="size-4" />
+        <span
+          aria-hidden="true"
+          class={`grid size-7 place-items-center rounded-lg ${SURFACE[tone()]} ${ACCENT[tone()]}`}
+        >
+          <Dynamic component={glyph()} class="size-4" />
         </span>
-        <div className="flex min-w-0 flex-col gap-1">
-          <p className="min-w-0 text-body leading-5 font-[530] tracking-[-0.04px] text-text-base [overflow-wrap:anywhere]">
-            {title}
+        <div class="flex min-w-0 flex-col gap-1">
+          <p class="min-w-0 text-body leading-5 font-[530] tracking-[-0.04px] text-text-base [overflow-wrap:anywhere]">
+            {props.title}
           </p>
-          {body && (
-            <p className="line-clamp-2 text-meta leading-4 text-text-muted [overflow-wrap:anywhere]">{body}</p>
-          )}
-          {openable && (
+          <Show when={props.body}>
+            {(body) => (
+              <p class="line-clamp-2 text-meta leading-4 text-text-muted [overflow-wrap:anywhere]">{body()}</p>
+            )}
+          </Show>
+          <Show when={openable()}>
             <button
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
                 open();
               }}
-              className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-xs text-meta leading-4 font-[530] text-text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+              class="mt-0.5 inline-flex w-fit items-center gap-1 rounded-xs text-meta leading-4 font-[530] text-text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
             >
               {tr("noticeOpenSession")}
-              <ArrowRight className="size-3" />
+              <ArrowRight class="size-3" />
             </button>
-          )}
+          </Show>
         </div>
         <button
           type="button"
           aria-label={tr("jobsDismiss")}
           onClick={(event) => {
             event.stopPropagation();
-            onDone();
+            props.onDone();
           }}
-          className="interactive grid size-5 place-items-center rounded-xs text-icon-faint hover:text-icon-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+          class="interactive grid size-5 place-items-center rounded-xs text-icon-faint hover:text-icon-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
         >
-          <X className="size-3.5" />
+          <X class="size-3.5" />
         </button>
       </div>
     </div>

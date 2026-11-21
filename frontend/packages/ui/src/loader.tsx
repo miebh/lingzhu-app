@@ -1,4 +1,5 @@
-import type { SVGProps } from "react";
+import type { JSX } from "solid-js";
+import { splitProps } from "solid-js";
 import { cn } from "@lingzhu/ui/utils";
 
 /**
@@ -6,11 +7,12 @@ import { cn } from "@lingzhu/ui/utils";
  * It defaults to the muted icon tone, as the reference loader does, and a
  * caller class can override the colour.
  */
-export function Loader({ className, ...props }: SVGProps<SVGSVGElement>) {
+export function Loader(props: JSX.SvgSVGAttributes<SVGSVGElement>) {
+  const [local, rest] = splitProps(props, ["class"]);
   return (
     <svg
-      {...props}
-      className={cn("text-text-faint", className)}
+      {...rest}
+      class={cn("text-text-faint", local.class)}
       width="16"
       height="16"
       viewBox="0 0 16 16"
@@ -19,16 +21,16 @@ export function Loader({ className, ...props }: SVGProps<SVGSVGElement>) {
       data-component="loader-v2"
       aria-hidden="true"
     >
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+      <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" opacity="0.2" />
       <circle
         cx="8"
         cy="8"
         r="6"
         stroke="currentColor"
-        strokeWidth="2"
-        pathLength="100"
-        strokeDasharray="33 67"
-        strokeLinecap="round"
+        stroke-width="2"
+        path-length="100"
+        stroke-dasharray="33 67"
+        stroke-linecap="round"
         transform="rotate(-90 8 8)"
       />
     </svg>

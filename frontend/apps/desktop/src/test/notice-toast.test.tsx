@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "./solid-testing";
 import { describe, expect, test, vi } from "vitest";
 import { Toast } from "@/components/shell/Toast";
 import { notify, notifySession, useNotifyStore } from "@lingzhu/app/store/notify";
@@ -6,7 +6,7 @@ import { notify, notifySession, useNotifyStore } from "@lingzhu/app/store/notify
 describe("completion notice", () => {
   test("carries a headline and one line of detail instead of one long sentence", () => {
     render(
-      <Toast title="Fix the build finished" body="The run is done." tone="success" onDone={() => undefined} />,
+      () => <Toast title="Fix the build finished" body="The run is done." tone="success" onDone={() => undefined} />,
     );
     expect(screen.getByText("Fix the build finished")).toBeTruthy();
     expect(screen.getByText("The run is done.")).toBeTruthy();
@@ -17,7 +17,7 @@ describe("completion notice", () => {
     const open = vi.fn();
     const done = vi.fn();
     render(
-      <Toast
+      () => <Toast
         title="Fix the build finished"
         tone="success"
         target={{ workspace: "/w", sessionID: "s1" }}
@@ -34,7 +34,7 @@ describe("completion notice", () => {
     const open = vi.fn();
     const done = vi.fn();
     render(
-      <Toast
+      () => <Toast
         title="Fix the build finished"
         target={{ workspace: "/w", sessionID: "s1" }}
         onOpen={open}
@@ -47,7 +47,7 @@ describe("completion notice", () => {
   });
 
   test("a plain notice has no session affordance", () => {
-    render(<Toast title="Copied to clipboard" tone="info" onDone={() => undefined} />);
+    render(() => <Toast title="Copied to clipboard" tone="info" onDone={() => undefined} />);
     expect(screen.queryByRole("button", { name: "Open session" })).toBeNull();
     expect(screen.getByRole("status").getAttribute("data-openable")).toBeNull();
   });

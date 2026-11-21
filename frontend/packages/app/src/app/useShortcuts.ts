@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import { onCleanup, onMount, type Accessor } from "solid-js";
 import type { SideTab } from "../lib/sessionTabs";
 import { effectiveKeybinds, matchesKeybind, SESSION_SUMMARY_EVENT } from "../lib/keybinds";
 import { cycleAgentID } from "../lib/slash";
@@ -10,27 +9,27 @@ import { usePreferencesStore } from "../store/preferences";
 import { useViewStore } from "../store/view";
 
 interface Options {
-  preferences: AppPreferences;
+  preferences: Accessor<AppPreferences>;
   savePreferences: (next: AppPreferences) => void | Promise<void>;
   /** The active session's agent, or empty when there is no session. */
-  activeAgent?: string;
+  activeAgent: Accessor<string | undefined>;
   /** Whether a session is open; only its presence matters to the bindings. */
-  hasActive: boolean;
-  activeWorkspacePath?: string;
-  homeWorkspacePath?: string;
-  agents: AgentProfile[];
-  defaultAgent: string;
-  homeAgent: string;
-  setHomeAgent: Dispatch<SetStateAction<string>>;
-  sideTabs: SideTab[];
-  activeSideTab?: string;
-  atHome: boolean;
+  hasActive: Accessor<boolean>;
+  activeWorkspacePath: Accessor<string | undefined>;
+  homeWorkspacePath: Accessor<string | undefined>;
+  agents: Accessor<AgentProfile[]>;
+  defaultAgent: Accessor<string>;
+  homeAgent: Accessor<string>;
+  setHomeAgent: (value: string) => void;
+  sideTabs: Accessor<SideTab[]>;
+  activeSideTab: Accessor<string | undefined>;
+  atHome: Accessor<boolean>;
   reopenClosedTab: () => void;
   openNewTab: () => void;
   closeSideTab: (tab: SideTab) => void;
   selectSideTab: (tab: SideTab) => void;
-  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
-  setPanelOpen: Dispatch<SetStateAction<boolean>>;
+  setSidebarOpen: (value: boolean | ((current: boolean) => boolean)) => void;
+  setPanelOpen: (value: boolean | ((current: boolean) => boolean)) => void;
   openManageModels: (connect: boolean) => void;
   setMCPTarget: (path?: string) => void;
   togglePalette: () => void;
@@ -40,33 +39,17 @@ interface Options {
  * App-level keybinds, pointer zoom and the small actions they share. Both
  * listeners live here so the shell only wires the values they need.
  *
- * The listeners read the latest options from a ref and are registered once.
- * Their inputs change on every streamed token, and tearing down three window
- * listeners per token would cost more than the keypresses they serve.
+ * The listeners are registered once and read the options accessors on each
+ * event, so a streamed token never re-registers them.
  */
 export function useShortcuts(options: Options) {
-  const latest = useRef(options);
-  latest.current = options;
-
-  useEffect(() => {
+  onMount(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey)) return;
-      const {
-        preferences,
-        activeAgent,
-        hasActive,
-        activeWorkspacePath,
-        homeWorkspacePath,
-        agents,
-        defaultAgent,
-        homeAgent,
-        setHomeAgent,
-        setMCPTarget,
-        openManageModels,
-        togglePalette,
-      } = latest.current;
+      const preferences = options.preferences();
+      const agents = options.agents();
       const keybinds = effectiveKeybinds(preferences.keybinds);
-      const path = activeWorkspacePath ?? homeWorkspacePath;
+      const path = options.activeWorkspacePath() ?? options.homeWorkspacePath();
       if (matchesKeybind(event, keybinds["message.previous"])) {
         event.preventDefault();
         navigateMessage(-1);
@@ -79,13 +62,13 @@ export function useShortcuts(options: Options) {
       }
       if (matchesKeybind(event, keybinds.palette)) {
         event.preventDefault();
-        togglePalette();
+        options.togglePalette();
         return;
       }
       // The reference parks the command palette on Ctrl+P and Ctrl+K alike.
       if (!event.altKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
-        togglePalette();
+        options.togglePalette();
         return;
       }
       if (matchesKeybind(event, keybinds["settings.open"])) {
@@ -105,65 +88,50 @@ export function useShortcuts(options: Options) {
       }
       if (event.key === ";" && path && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
-        setMCPTarget(path);
+        options.setMCPTarget(path);
         return;
       }
       if (matchesKeybind(event, keybinds["model.choose"])) {
         event.preventDefault();
-        openManageModels(false);
+        options.openManageModels(false);
         return;
       }
       if (matchesKeybind(event, keybinds["agent.next"]) && agents.length > 1) {
         event.preventDefault();
         const delta = event.shiftKey ? -1 : 1;
-        if (hasActive) {
-          const next = cycleAgentID(agents, activeAgent || defaultAgent, delta);
+        if (options.hasActive()) {
+          const next = cycleAgentID(agents, options.activeAgent() || options.defaultAgent(), delta);
           if (next) void useChatStore.getState().selectAgent(next);
         } else {
-          const next = cycleAgentID(agents, homeAgent, delta);
-          if (next) setHomeAgent(next);
+          const next = cycleAgentID(agents, options.homeAgent(), delta);
+          if (next) options.setHomeAgent(next);
         }
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
 
-  // Trackpad pinch and Ctrl-scroll change the UI zoom when the setting allows it.
-  useEffect(() => {
+    // Trackpad pinch and Ctrl-scroll change the UI zoom when the setting allows it.
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return;
-      if (!latest.current.preferences.pinchZoom) return;
+      if (!options.preferences().pinchZoom) return;
       event.preventDefault();
       const current = usePreferencesStore.getState().preferences;
       const zoom = current.appearance.zoom;
       const next = Math.max(80, Math.min(150, zoom + (event.deltaY < 0 ? 10 : -10)));
       if (next === zoom) return;
-      void latest.current.savePreferences({ ...current, appearance: { ...current.appearance, zoom: next } });
+      void options.savePreferences({ ...current, appearance: { ...current.appearance, zoom: next } });
     };
     window.addEventListener("wheel", onWheel, { passive: false });
-    return () => window.removeEventListener("wheel", onWheel);
-  }, []);
 
-  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-      const {
-        preferences,
-        hasActive,
-        sideTabs,
-        activeSideTab,
-        reopenClosedTab,
-        openNewTab,
-        closeSideTab,
-        selectSideTab,
-        setSidebarOpen,
-        setPanelOpen,
-      } = latest.current;
+      const preferences = options.preferences();
+      const sideTabs = options.sideTabs();
+      const activeSideTab = options.activeSideTab();
       const keybinds = effectiveKeybinds(preferences.keybinds);
       if (matchesKeybind(event, keybinds["sidebar.toggle"])) {
         event.preventDefault();
-        setSidebarOpen((value) => !value);
+        options.setSidebarOpen((value) => !value);
         return;
       }
       if (matchesKeybind(event, keybinds["home.toggle"])) {
@@ -173,29 +141,29 @@ export function useShortcuts(options: Options) {
       }
       if (matchesKeybind(event, keybinds["tab.reopen"])) {
         event.preventDefault();
-        reopenClosedTab();
+        options.reopenClosedTab();
         return;
       }
       if (matchesKeybind(event, keybinds["tab.new"])) {
         event.preventDefault();
-        openNewTab();
+        options.openNewTab();
         return;
       }
       if (matchesKeybind(event, keybinds["tab.close"])) {
         const tab = sideTabs.find((item) => item.key === activeSideTab);
         if (!tab?.closable) return;
         event.preventDefault();
-        closeSideTab(tab);
+        options.closeSideTab(tab);
         return;
       }
       if (matchesKeybind(event, keybinds["panel.review"])) {
-        if (!hasActive) return;
+        if (!options.hasActive()) return;
         event.preventDefault();
-        setPanelOpen((value) => !value);
+        options.setPanelOpen((value) => !value);
         return;
       }
       if (matchesKeybind(event, keybinds["session.summary"])) {
-        if (!hasActive) return;
+        if (!options.hasActive()) return;
         event.preventDefault();
         window.dispatchEvent(new Event(SESSION_SUMMARY_EVENT));
         return;
@@ -206,7 +174,7 @@ export function useShortcuts(options: Options) {
         if (index < 0) return;
         event.preventDefault();
         const step = matchesKeybind(event, keybinds["tab.previous"]) ? -1 : 1;
-        selectSideTab(sideTabs[(index + step + sideTabs.length) % sideTabs.length]);
+        options.selectSideTab(sideTabs[(index + step + sideTabs.length) % sideTabs.length]);
         return;
       }
       if (/^[1-9]$/.test(event.key)) {
@@ -214,10 +182,15 @@ export function useShortcuts(options: Options) {
         const tab = sideTabs[index];
         if (!tab) return;
         event.preventDefault();
-        selectSideTab(tab);
+        options.selectSideTab(tab);
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+
+    onCleanup(() => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+    });
+  });
 }

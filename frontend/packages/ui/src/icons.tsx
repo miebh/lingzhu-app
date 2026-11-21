@@ -1,4 +1,5 @@
-import type { SVGProps } from "react";
+import type { JSX } from "solid-js";
+import { splitProps } from "solid-js";
 
 /**
  * Icon artwork copied from the reference catalog so the app draws the same
@@ -358,25 +359,25 @@ const art: Record<string, { viewBox: string; body: string }> = {
   },
 };
 
-export interface IconProps extends SVGProps<SVGSVGElement> {
+export interface IconProps extends JSX.SvgSVGAttributes<SVGSVGElement> {
   name?: string;
 }
 
 /** Renders reference artwork centered in a 16px viewport by default. */
-export function Icon({ art: artName, ...props }: IconProps & { art: string }) {
-  const { className, name: _name, ...rest } = props;
-  const value = art[artName] ?? art.plus;
+export function Icon(props: IconProps & { art: string }) {
+  const [local, rest] = splitProps(props, ["art", "class", "name"]);
+  const value = () => art[local.art] ?? art.plus;
   return (
     <svg
-      viewBox={value.viewBox}
+      viewBox={value().viewBox}
       width={16}
       height={16}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       {...rest}
-      className={className}
-      dangerouslySetInnerHTML={{ __html: value.body }}
+      class={local.class}
+      innerHTML={value().body}
     />
   );
 }

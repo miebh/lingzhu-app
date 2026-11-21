@@ -17,32 +17,34 @@ export function SpecialDialogs() {
   return (
     <>
       <SummaryDialog
-        open={summary !== undefined}
-        title={summary?.props.title}
-        text={summary?.props.text ?? ""}
-        loading={summary?.props.loading ?? false}
-        error={summary?.props.error ?? ""}
+        open={summary() !== undefined}
+        title={summary()?.props.title}
+        text={summary()?.props.text ?? ""}
+        loading={summary()?.props.loading ?? false}
+        error={summary()?.props.error ?? ""}
         onOpenChange={dismiss("summary")}
       />
 
       <RevertDialog
-        open={revert !== undefined}
-        workspace={revert?.props.workspace}
-        sessionID={revert?.props.sessionID}
-        title={revert?.props.title}
-        initialText={revert?.props.text}
+        open={revert() !== undefined}
+        workspace={revert()?.props.workspace}
+        sessionID={revert()?.props.sessionID}
+        title={revert()?.props.title}
+        initialText={revert()?.props.text}
         onOpenChange={dismiss("revert")}
         onChanged={() => {
-          if (revert) void useChatStore.getState().refresh(revert.props.workspace, revert.props.sessionID);
+          const entry = revert();
+          if (entry) void useChatStore.getState().refresh(entry.props.workspace, entry.props.sessionID);
         }}
       />
 
       <CommandPalette
-        open={palette !== undefined}
+        open={palette() !== undefined}
         workspace={shell.activePath}
-        commands={commands}
+        commands={commands()}
         onOpenFile={(path) => {
-          if (shell.activePath) openDialog({ id: "files", props: { workspace: shell.activePath, path } });
+          const workspace = shell.activePath;
+          if (workspace) openDialog({ id: "files", props: { workspace, path } });
         }}
         onOpenChange={dismiss("palette")}
       />

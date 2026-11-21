@@ -408,8 +408,8 @@ export function timelineRows(
 
 /**
  * Makes every row key unique. A row's natural key can repeat while a live turn
- * is rebuilt, and React reuses the DOM for a repeated key, which stacks the
- * second row on top of the first and overlaps the text around it.
+ * is rebuilt, and the renderer keys rows by this value, so a duplicate stacks
+ * the second row on top of the first and overlaps the text around it.
  */
 function uniqueRowKeys(rows: TimelineRow[]): TimelineRow[] {
   const seen = new Map<string, number>();

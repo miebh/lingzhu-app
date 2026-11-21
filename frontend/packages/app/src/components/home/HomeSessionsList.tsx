@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { Pencil } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { t, useLanguage } from "@lingzhu/ui/i18n";
@@ -26,10 +26,10 @@ function HomeSessionSkeleton() {
     <div
       data-component="home-session-skeleton"
       data-visible=""
-      className="flex h-10 min-w-0 items-center gap-1.5 py-3 ps-1.5 pe-3 md:ps-3"
+      class="flex h-10 min-w-0 items-center gap-1.5 py-3 ps-1.5 pe-3 md:ps-3"
     >
-      <span className="size-4 shrink-0 rounded-[4px] bg-bg-layer-02" />
-      <span className="h-3 w-[46%] shrink-0 rounded-[3px] bg-bg-layer-02" />
+      <span class="size-4 shrink-0 rounded-[4px] bg-bg-layer-02" />
+      <span class="h-3 w-[46%] shrink-0 rounded-[3px] bg-bg-layer-02" />
     </div>
   );
 }
@@ -44,122 +44,115 @@ function localDay(value: string): number {
 }
 
 /** The sessions column: search, the new-session action and the dated list. */
-export function HomeSessionsList({
-  rows,
-  openKeys,
-  hideProjectName,
-  loading,
-  activePath,
-  workspaces,
-  onOpenSession,
-  onNewSession,
-  onRowContextMenu,
-}: Props) {
-  const [query, setQuery] = useState("");
+export function HomeSessionsList(props: Props) {
+  const [query, setQuery] = createSignal("");
   const language = useLanguage();
 
   // The reference buckets by local day: today, yesterday, then everything else.
-  const groups = useMemo<HomeSessionGroupData[]>(() => {
+  const groups = createMemo<HomeSessionGroupData[]>(() => {
+    // `language` is a dependency because every title below is translated.
+    language();
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime();
     const todayRows: HomeSessionRowData[] = [];
     const yesterdayRows: HomeSessionRowData[] = [];
     const olderRows: HomeSessionRowData[] = [];
-    for (const row of rows) {
+    for (const row of props.rows) {
       const day = localDay(row.updated);
       if (day === today) todayRows.push(row);
       else if (day === yesterday) yesterdayRows.push(row);
       else olderRows.push(row);
     }
     const olderTitle = todayRows.length === 0 && yesterdayRows.length === 0 ? t("recentSessions") : t("older");
-    // `language` is a dependency because every title above is translated.
     return [
       { id: "today", title: t("today"), rows: todayRows },
       { id: "yesterday", title: t("yesterday"), rows: yesterdayRows },
       { id: "older", title: olderTitle, rows: olderRows },
     ].filter((group) => group.rows.length > 0);
-  }, [rows, language]);
+  });
 
-  const skeletons = loading && rows.length === 0;
+  const skeletons = createMemo(() => props.loading && props.rows.length === 0);
 
   return (
-    <section aria-label={t("recentSessions")} className="relative flex min-w-0 flex-col">
-      <div className="sticky top-0 z-30 flex shrink-0 flex-col gap-2 bg-bg-base pt-6 pb-1 md:pb-3 lg:pt-12">
+    <section aria-label={t("recentSessions")} class="relative flex min-w-0 flex-col">
+      <div class="sticky top-0 z-30 flex shrink-0 flex-col gap-2 bg-bg-base pt-6 pb-1 md:pb-3 lg:pt-12">
         <HomeSessionSearch
-          rows={rows}
-          query={query}
+          rows={props.rows}
+          query={query()}
           onQueryChange={setQuery}
-          hideProjectName={hideProjectName}
-          onOpenSession={onOpenSession}
+          hideProjectName={props.hideProjectName}
+          onOpenSession={props.onOpenSession}
         />
       </div>
 
-      {groups.length > 0 && (
-        <div className="pointer-events-none absolute right-0 top-[68px] z-20 flex md:top-[84px] lg:top-[108px]">
+      <Show when={groups().length > 0}>
+        <div class="pointer-events-none absolute right-0 top-[68px] z-20 flex md:top-[84px] lg:top-[108px]">
           <button
             type="button"
             data-action="home-new-session"
-            onClick={() => onNewSession(activePath ?? rows[0]?.path ?? "")}
-            className="interactive pointer-events-auto flex h-7 items-center gap-1.5 rounded-[6px] px-2 text-body font-[530] text-text-faint hover:text-text-base"
+            onClick={() => props.onNewSession(props.activePath ?? props.rows[0]?.path ?? "")}
+            class="interactive pointer-events-auto flex h-7 items-center gap-1.5 rounded-[6px] px-2 text-body font-[530] text-text-faint hover:text-text-base"
           >
-            <Pencil className="size-4 shrink-0" />
+            <Pencil class="size-4 shrink-0" />
             {t("newSession")}
           </button>
         </div>
-      )}
+      </Show>
 
       {/* The reference reserves a scrollbar thumb track beside the list. */}
-      <div className="pointer-events-none sticky top-[68px] z-40 -mr-3 h-0 md:top-[84px] lg:top-[108px]">
+      <div class="pointer-events-none sticky top-[68px] z-40 -mr-3 h-0 md:top-[84px] lg:top-[108px]">
         <div
           data-component="home-session-scroll-track"
-          className="relative ml-auto h-[calc(100cqh-68px)] w-3 md:h-[calc(100cqh-84px)] lg:h-[calc(100cqh-108px)]"
+          class="relative ml-auto h-[calc(100cqh-68px)] w-3 md:h-[calc(100cqh-84px)] lg:h-[calc(100cqh-108px)]"
         />
       </div>
 
       <div
         data-slot="home-sessions-list"
-        className="relative -mr-3 min-h-[calc(100cqh-64px)] pb-16 pr-3 md:min-h-[calc(100cqh-72px)] lg:min-h-[calc(100cqh-96px)]"
-        aria-busy={skeletons || undefined}
+        class="relative -mr-3 min-h-[calc(100cqh-64px)] pb-16 pr-3 md:min-h-[calc(100cqh-72px)] lg:min-h-[calc(100cqh-96px)]"
+        aria-busy={skeletons() || undefined}
       >
-        {skeletons && [0, 1, 2, 3].map((index) => <HomeSessionSkeleton key={index} />)}
+        <Show when={skeletons()}>
+          <For each={[0, 1, 2, 3]}>{(index) => <HomeSessionSkeleton />}</For>
+        </Show>
 
-        {!skeletons &&
-          groups.map((group) => (
-            <HomeSessionGroup
-              key={group.id}
-              group={group}
-              openKeys={openKeys}
-              hideProjectName={hideProjectName}
-              onOpenSession={onOpenSession}
-              onRowContextMenu={onRowContextMenu}
-            />
-          ))}
-
-        {!skeletons && rows.length === 0 && (
-          <div className="flex min-h-full flex-col items-center gap-4 px-6 pt-[52px] text-center">
-            <div className="shrink-0 text-body leading-4 font-[530] tracking-[-0.04px] text-text-base">
-              {query.trim() ? t("noSessionsFound", { query: query.trim() }) : t("nothingHereYet")}
-            </div>
-            {!query.trim() && (
-              <>
-                <p className="mb-1 text-center text-body leading-5 font-[440] tracking-[-0.04px] text-text-muted">
-                  {t("startSession")}
-                </p>
-                <Button
-                  data-action="home-new-session"
-                  variant="neutral"
-                  size="default"
-                  disabled={!activePath && workspaces.length === 0}
-                  onClick={() => onNewSession(activePath ?? workspaces[0]?.path ?? "")}
-                >
-                  <Pencil className="size-4" />
-                  {t("newSession")}
-                </Button>
-              </>
+        <Show when={!skeletons()}>
+          <For each={groups()}>
+            {(group) => (
+              <HomeSessionGroup
+                group={group}
+                openKeys={props.openKeys}
+                hideProjectName={props.hideProjectName}
+                onOpenSession={props.onOpenSession}
+                onRowContextMenu={props.onRowContextMenu}
+              />
             )}
+          </For>
+        </Show>
+
+        <Show when={!skeletons() && props.rows.length === 0}>
+          <div class="flex min-h-full flex-col items-center gap-4 px-6 pt-[52px] text-center">
+            <div class="shrink-0 text-body leading-4 font-[530] tracking-[-0.04px] text-text-base">
+              {query().trim() ? t("noSessionsFound", { query: query().trim() }) : t("nothingHereYet")}
+            </div>
+            <Show when={!query().trim()}>
+              <p class="mb-1 text-center text-body leading-5 font-[440] tracking-[-0.04px] text-text-muted">
+                {t("startSession")}
+              </p>
+              <Button
+                data-action="home-new-session"
+                variant="neutral"
+                size="default"
+                disabled={!props.activePath && props.workspaces.length === 0}
+                onClick={() => props.onNewSession(props.activePath ?? props.workspaces[0]?.path ?? "")}
+              >
+                <Pencil class="size-4" />
+                {t("newSession")}
+              </Button>
+            </Show>
           </div>
-        )}
+        </Show>
       </div>
     </section>
   );

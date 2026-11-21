@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { createEffect, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
 import {
   Bell,
   Cpu,
@@ -39,7 +39,7 @@ interface SectionItem {
   id: SettingsSectionID;
   label: string;
   description: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: Component<{ class?: string }>;
 }
 
 /** Root tabs mirror the reference settings center. Groups only separate, they carry no heading. */
@@ -120,42 +120,16 @@ interface Props {
  * section on the right. Core config writes restart owned cores; app preferences
  * apply immediately. Every control saves on its own, with no page-level Save.
  */
-export function SettingsPage({
-  busy = false,
-  section,
-  onSectionChange,
-  workspaces,
-  workspace,
-  project,
-  onProjectConsumed,
-  sessionCounts,
-  preferences,
-  onSavePreferences,
-  onSaved,
-  onBack,
-  onAddWorkspace,
-  onRemoveWorkspace,
-  onRestartWorkspace,
-  onOpenSkillFile,
-  onOpenConfigFile,
-}: Props) {
+export function SettingsPage(props: Props) {
   const tr = useT();
   const catalog = useCatalog();
-  const {
-    draft,
-    settingsError,
-    saveError,
-    reload,
-    dismissSaveError,
-    update,
-    commit,
-    updateAndCommit,
-  } = useCoreConfig({ onSaved });
+  const { draft, settingsError, saveError, reload, dismissSaveError, update, commit, updateAndCommit } =
+    useCoreConfig({ onSaved: (reused) => props.onSaved(reused) });
 
-  const [info, setInfo] = useState<AppInfo>();
-  const [infoError, setInfoError] = useState<string>();
+  const [info, setInfo] = createSignal<AppInfo>();
+  const [infoError, setInfoError] = createSignal<string>();
 
-  useEffect(() => {
+  onMount(() => {
     let alive = true;
     setInfo(undefined);
     setInfoError(undefined);
@@ -168,34 +142,31 @@ export function SettingsPage({
         if (alive) setInfoError(messageOf(cause));
       });
 
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, []);
+    });
+  });
 
-  const savePreferences = useCallback(
-    (next: AppPreferences) => {
-      void onSavePreferences(next);
-    },
-    [onSavePreferences],
-  );
+  const savePreferences = (next: AppPreferences) => {
+    void props.onSavePreferences(next);
+  };
 
-  const active = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0];
+  const active = () => SECTIONS.find((item) => item.id === props.section) ?? SECTIONS[0];
 
   // Search indexes the rows the sections render, so every row is reachable
   // without a hand-maintained catalog.
-  const page = useRef<HTMLDivElement>(null);
-  const [index, setIndex] = useState<SettingsSearchEntry[]>([]);
-  const [reveal, setReveal] = useState<{ entry: SettingsSearchEntry; token: number }>();
+  let page: HTMLDivElement | undefined;
+  const [index, setIndex] = createSignal<SettingsSearchEntry[]>([]);
+  const [reveal, setReveal] = createSignal<{ entry: SettingsSearchEntry; token: number }>();
 
-  useEffect(() => {
-    if (!draft || !page.current) {
+  createEffect(() => {
+    if (!draft() || !page) {
       setIndex([]);
       return;
     }
     const entries: SettingsSearchEntry[] = [];
     const seen = new Set<string>();
-    for (const sectionElement of page.current.querySelectorAll<HTMLElement>("[data-settings-section]")) {
+    for (const sectionElement of page.querySelectorAll<HTMLElement>("[data-settings-section]")) {
       const id = sectionElement.dataset.settingsSection as SettingsSectionID | undefined;
       if (!id) continue;
       const sectionLabel = localizedLabel(id);
@@ -213,24 +184,25 @@ export function SettingsPage({
       }
     }
     setIndex(entries);
-  }, [draft]);
+  });
 
   // A page change starts at its top, like the reference settings shell.
-  useEffect(() => {
-    const panel = page.current?.querySelector<HTMLElement>(`[data-settings-section="${section}"]`);
+  createEffect(() => {
+    const section = props.section;
+    draft();
+    const panel = page?.querySelector<HTMLElement>(`[data-settings-section="${section}"]`);
     panel?.scrollTo({ top: 0 });
-  }, [section]);
+  });
 
   // Choosing a search result scrolls its row into view and flashes the row
   // with the selection overlay, then fades it out.
-  useEffect(() => {
-    if (!reveal) return;
+  createEffect(() => {
+    const current = reveal();
+    if (!current) return;
     const frame = window.requestAnimationFrame(() => {
-      const scope = page.current?.querySelector<HTMLElement>(`[data-settings-section="${reveal.entry.section}"]`);
-      const candidates = scope
-        ? [scope, ...scope.querySelectorAll<HTMLElement>("[data-setting-row]")]
-        : [];
-      const row = candidates.find((element) => element.dataset.settingRow === reveal.entry.title);
+      const scope = page?.querySelector<HTMLElement>(`[data-settings-section="${current.entry.section}"]`);
+      const candidates = scope ? [scope, ...scope.querySelectorAll<HTMLElement>("[data-setting-row]")] : [];
+      const row = candidates.find((element) => element.dataset.settingRow === current.entry.title);
       if (!row) return;
       row.scrollIntoView({ block: "center" });
       row.classList.remove("settings-target-flash");
@@ -239,202 +211,237 @@ export function SettingsPage({
       row.classList.add("settings-target-flash");
       window.setTimeout(() => row.classList.remove("settings-target-flash"), 1900);
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [reveal]);
+    onCleanup(() => window.cancelAnimationFrame(frame));
+  });
 
   const revealSetting = (entry: SettingsSearchEntry) => {
-    onSectionChange(entry.section);
+    props.onSectionChange(entry.section);
     setReveal({ entry, token: Date.now() });
   };
 
   return (
-    <div ref={page} className="flex min-h-0 flex-1 select-none">
-      <div className="flex min-h-0 w-full flex-1 overflow-hidden rounded-[10px] bg-bg-base elevation-raised">
-        <div className="flex min-h-0 w-full min-w-0 px-[max(0px,calc((100%-1048px)/2))]">
+    <div
+      ref={(element) => {
+        page = element;
+      }}
+      class="flex min-h-0 flex-1 select-none"
+    >
+      <div class="flex min-h-0 w-full flex-1 overflow-hidden rounded-[10px] bg-bg-base elevation-raised">
+        <div class="flex min-h-0 w-full min-w-0 px-[max(0px,calc((100%-1048px)/2))]">
           <SettingsNav
             groups={localizedGroups()}
-            section={section}
-            index={index}
-            onSectionChange={onSectionChange}
+            section={props.section}
+            index={index()}
+            onSectionChange={props.onSectionChange}
             onReveal={revealSetting}
-            onBack={onBack}
+            onBack={props.onBack}
           />
 
-          <div className="flex min-w-0 max-w-settings flex-1 flex-col">
-            <div className="flex items-center gap-2 px-3 pt-4 md:hidden">
+          <div class="flex min-w-0 max-w-settings flex-1 flex-col">
+            <div class="flex items-center gap-2 px-3 pt-4 md:hidden">
               <SettingsSelect
                 label="Settings section"
-                value={section}
+                value={props.section}
                 options={SECTIONS.map((item) => ({
                   value: item.id,
                   label: localizedLabel(item.id),
                 }))}
-                onChange={(value) => onSectionChange(value as SettingsSectionID)}
+                onChange={(value) => props.onSectionChange(value as SettingsSectionID)}
               />
             </div>
-            <header className="settings-header relative flex shrink-0 flex-col gap-1 pt-6 pb-0 md:pt-12">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex min-w-0 flex-col gap-1">
-                  <h1 className="text-[15px] font-[640] text-text-base">
-                    {active.id === "servers" && workspaces.length === 1
+            <header class="settings-header relative flex shrink-0 flex-col gap-1 pt-6 pb-0 md:pt-12">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex min-w-0 flex-col gap-1">
+                  <h1 class="text-[15px] font-[640] text-text-base">
+                    {active().id === "servers" && props.workspaces.length === 1
                       ? t("serverSingular")
-                      : localizedLabel(active.id)}
+                      : localizedLabel(active().id)}
                   </h1>
-                  <span className="text-caption leading-4 text-text-muted">{t(active.description as MessageKey)}</span>
+                  <span class="text-caption leading-4 text-text-muted">
+                    {t(active().description as MessageKey)}
+                  </span>
                 </div>
-                <div className="flex shrink-0 items-center gap-2 pt-0.5">
-                  {(section === "projects" || section === "servers") && onAddWorkspace && (
+                <div class="flex shrink-0 items-center gap-2 pt-0.5">
+                  <Show
+                    when={
+                      (props.section === "projects" || props.section === "servers") && props.onAddWorkspace
+                    }
+                  >
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={onAddWorkspace}
-                      className="gap-1.5 text-text-muted hover:text-text-base"
+                      onClick={() => props.onAddWorkspace?.()}
+                      class="gap-1.5 text-text-muted hover:text-text-base"
                     >
-                      <span className="text-[13px] leading-4">+</span>
-                      {section === "projects" ? t("addProject") : t("addServer")}
+                      <span class="text-[13px] leading-4">+</span>
+                      {props.section === "projects" ? t("addProject") : t("addServer")}
                     </Button>
-                  )}
+                  </Show>
                 </div>
               </div>
             </header>
 
-          {(busy || saveError) && (
-            <div className="flex shrink-0 flex-col gap-1 border-b border-border-base py-2">
-            {busy && (
-              <p className="text-caption leading-4 text-state-fg-warning">
-                A session is still running. Stop it before changing core settings.
-              </p>
-            )}
-            {saveError && (
-              <div className="flex items-start gap-2">
-                <p role="alert" className="min-w-0 flex-1 text-caption leading-4 text-state-fg-danger">
-                  {saveError}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={tr("dismissSaveError")}
-                  onClick={dismissSaveError}
-                  className="text-text-faint hover:text-text-base"
-                >
-                  <X />
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="relative min-h-0 flex-1">
-          {!draft ? (
-            <div className="mx-auto w-full max-w-settings py-6">
-              {settingsError ? (
-                <div className="flex flex-col items-start gap-3">
-                  <p role="alert" className="text-meta leading-5 text-state-fg-danger">
-                    {settingsError}
+            <Show when={props.busy || saveError()}>
+              <div class="flex shrink-0 flex-col gap-1 border-b border-border-base py-2">
+                <Show when={props.busy}>
+                  <p class="text-caption leading-4 text-state-fg-warning">
+                    A session is still running. Stop it before changing core settings.
                   </p>
-                  <Button variant="outline" size="sm" onClick={reload}>
-                    Retry
-                  </Button>
-                </div>
-              ) : (
-                <div role="status" aria-label={tr("loadingSettings")} className="flex flex-col gap-3">
-                  {[0, 1, 2, 3].map((index) => (
-                    <div key={index} className="flex flex-col gap-2">
-                      <div className="h-2 w-20 rounded-xs bg-bg-layer-03 motion-safe:animate-pulse" />
-                      <div className="h-7 w-full rounded-md bg-bg-layer-01 motion-safe:animate-pulse" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            SECTIONS.map((item) => {
-              const visible = item.id === section;
-              const sectioned =
-                item.id === "general" ||
-                item.id === "models" ||
-                item.id === "shortcuts" ||
-                item.id === "notifications" ||
-                item.id === "providers";
-              return (
-                <div
-                  key={item.id}
-                  data-settings-section={item.id}
-                  aria-hidden={visible ? undefined : true}
-                  inert={visible ? undefined : true}
-                  className={`scroll-stable no-scrollbar absolute inset-0 overflow-y-auto ${visible ? "" : "invisible"}`}
-                >
-                  <div className={`w-full pb-20 ${sectioned ? "pt-8" : "pt-6"}`}>
-                    {item.id === "general" && (
-                      <GeneralSection preferences={{ preferences, save: savePreferences }} />
-                    )}
-                    {item.id === "experimental" && (
-                      <ExperimentalSection preferences={{ preferences, save: savePreferences }} />
-                    )}
-                    {item.id === "shortcuts" && (
-                      <ShortcutsSection preferences={{ preferences, save: savePreferences }} />
-                    )}
-                    {item.id === "notifications" && (
-                      <NotificationsSection preferences={{ preferences, save: savePreferences }} />
-                    )}
-                    {item.id === "projects" && (
-                      <ProjectsSection
-                        projects={workspaces}
-                        initialProject={project}
-                        onInitialProjectConsumed={onProjectConsumed}
-                        onAdd={() => onAddWorkspace?.()}
-                        onRemove={(path) => onRemoveWorkspace?.(path)}
-                        preferences={preferences}
-                        onSavePreferences={savePreferences}
-                      />
-                    )}
-                    {item.id === "worktrees" && (
-                      <WorktreesSection
-                        workspace={workspace}
-                        workspaces={workspaces}
-                        sessionCounts={sessionCounts}
-                      />
-                    )}
-                    {item.id === "extensions" && (
-                      <ExtensionsSection
-                        workspace={workspace}
-                        onOpenSkillFile={onOpenSkillFile}
-                        onOpenConfigFile={onOpenConfigFile}
-                      />
-                    )}
-                    {item.id === "providers" && (
-                      <ProvidersSection
-                        scope={{ draft, busy, update, commit, updateAndCommit }}
-                        preferences={preferences}
-                        onSavePreferences={savePreferences}
-                      />
-                    )}
-                    {item.id === "models" && (
-                      <ModelsSection
-                        providers={catalog?.providers ?? EMPTY_PROVIDERS}
-                        preferences={preferences}
-                        onSavePreferences={savePreferences}
-                      />
-                    )}
-                    {item.id === "servers" && (
-                      <ServersSection
-                        workspaces={workspaces}
-                        onAdd={() => onAddWorkspace?.()}
-                        onRemove={(path) => onRemoveWorkspace?.(path)}
-                        onRestart={(path) => onRestartWorkspace?.(path)}
-                      />
-                    )}
-                    {item.id === "about" && <AboutSection info={info} error={infoError} />}
+                </Show>
+                <Show when={saveError()}>
+                  <div class="flex items-start gap-2">
+                    <p role="alert" class="min-w-0 flex-1 text-caption leading-4 text-state-fg-danger">
+                      {saveError()}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={tr("dismissSaveError")}
+                      onClick={dismissSaveError}
+                      class="text-text-faint hover:text-text-base"
+                    >
+                      <X />
+                    </Button>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+                </Show>
+              </div>
+            </Show>
+
+            <div class="relative min-h-0 flex-1">
+              <Show
+                when={draft()}
+                fallback={
+                  <div class="mx-auto w-full max-w-settings py-6">
+                    <Show
+                      when={settingsError()}
+                      fallback={
+                        <div role="status" aria-label={tr("loadingSettings")} class="flex flex-col gap-3">
+                          <For each={[0, 1, 2, 3]}>
+                            {(index) => (
+                              <div class="flex flex-col gap-2">
+                                <div class="h-2 w-20 rounded-xs bg-bg-layer-03 motion-safe:animate-pulse" />
+                                <div class="h-7 w-full rounded-md bg-bg-layer-01 motion-safe:animate-pulse" />
+                              </div>
+                            )}
+                          </For>
+                        </div>
+                      }
+                    >
+                      <div class="flex flex-col items-start gap-3">
+                        <p role="alert" class="text-meta leading-5 text-state-fg-danger">
+                          {settingsError()}
+                        </p>
+                        <Button variant="outline" size="sm" onClick={reload}>
+                          Retry
+                        </Button>
+                      </div>
+                    </Show>
+                  </div>
+                }
+              >
+                <For each={SECTIONS}>
+                  {(item) => {
+                    const visible = () => item.id === props.section;
+                    const sectioned =
+                      item.id === "general" ||
+                      item.id === "models" ||
+                      item.id === "shortcuts" ||
+                      item.id === "notifications" ||
+                      item.id === "providers";
+                    return (
+                      <div
+                        data-settings-section={item.id}
+                        aria-hidden={visible() ? undefined : true}
+                        inert={visible() ? undefined : true}
+                        class={`scroll-stable no-scrollbar absolute inset-0 overflow-y-auto ${visible() ? "" : "invisible"}`}
+                      >
+                        <div class={`w-full pb-20 ${sectioned ? "pt-8" : "pt-6"}`}>
+                          <Show when={item.id === "general"}>
+                            <GeneralSection
+                              preferences={{ preferences: props.preferences, save: savePreferences }}
+                            />
+                          </Show>
+                          <Show when={item.id === "experimental"}>
+                            <ExperimentalSection
+                              preferences={{ preferences: props.preferences, save: savePreferences }}
+                            />
+                          </Show>
+                          <Show when={item.id === "shortcuts"}>
+                            <ShortcutsSection
+                              preferences={{ preferences: props.preferences, save: savePreferences }}
+                            />
+                          </Show>
+                          <Show when={item.id === "notifications"}>
+                            <NotificationsSection
+                              preferences={{ preferences: props.preferences, save: savePreferences }}
+                            />
+                          </Show>
+                          <Show when={item.id === "projects"}>
+                            <ProjectsSection
+                              projects={props.workspaces}
+                              initialProject={props.project}
+                              onInitialProjectConsumed={props.onProjectConsumed}
+                              onAdd={() => props.onAddWorkspace?.()}
+                              onRemove={(path) => props.onRemoveWorkspace?.(path)}
+                              preferences={props.preferences}
+                              onSavePreferences={savePreferences}
+                            />
+                          </Show>
+                          <Show when={item.id === "worktrees"}>
+                            <WorktreesSection
+                              workspace={props.workspace}
+                              workspaces={props.workspaces}
+                              sessionCounts={props.sessionCounts}
+                            />
+                          </Show>
+                          <Show when={item.id === "extensions"}>
+                            <ExtensionsSection
+                              workspace={props.workspace}
+                              onOpenSkillFile={props.onOpenSkillFile}
+                              onOpenConfigFile={props.onOpenConfigFile}
+                            />
+                          </Show>
+                          <Show when={item.id === "providers"}>
+                            <ProvidersSection
+                              scope={{
+                                draft: draft()!,
+                                busy: props.busy ?? false,
+                                update,
+                                commit,
+                                updateAndCommit,
+                              }}
+                              preferences={props.preferences}
+                              onSavePreferences={savePreferences}
+                            />
+                          </Show>
+                          <Show when={item.id === "models"}>
+                            <ModelsSection
+                              providers={catalog()?.providers ?? EMPTY_PROVIDERS}
+                              preferences={props.preferences}
+                              onSavePreferences={savePreferences}
+                            />
+                          </Show>
+                          <Show when={item.id === "servers"}>
+                            <ServersSection
+                              workspaces={props.workspaces}
+                              onAdd={() => props.onAddWorkspace?.()}
+                              onRemove={(path) => props.onRemoveWorkspace?.(path)}
+                              onRestart={(path) => props.onRestartWorkspace?.(path)}
+                            />
+                          </Show>
+                          <Show when={item.id === "about"}>
+                            <AboutSection info={info()} error={infoError()} />
+                          </Show>
+                        </div>
+                      </div>
+                    );
+                  }}
+                </For>
+              </Show>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-

@@ -1,4 +1,5 @@
-import { create } from "zustand";
+import { type Accessor } from "solid-js";
+import { createStore } from "./create";
 import { api } from "../lib/api";
 import { messageOf } from "../lib/errors";
 import { applyPreferences, defaultPreferences, normalizePreferences } from "../lib/preferences";
@@ -15,7 +16,7 @@ interface PreferencesStore {
 let hydration: Promise<void> | undefined;
 
 /** Local preferences: startup workspace, auto-approve, per-workspace models, appearance. */
-export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
+export const usePreferencesStore = createStore<PreferencesStore>((set, get) => ({
   preferences: defaultPreferences,
 
   hydrate: () => {
@@ -48,6 +49,6 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   },
 }));
 
-export function usePreferences(): AppPreferences {
+export function usePreferences(): Accessor<AppPreferences> {
   return usePreferencesStore((state) => state.preferences);
 }

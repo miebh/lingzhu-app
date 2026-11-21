@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "./solid-testing";
 import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
@@ -54,7 +54,7 @@ describe("agent and model switches", () => {
 
   test("a switch draws the divider with the agent's name", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "hi" },
@@ -70,7 +70,7 @@ describe("agent and model switches", () => {
 
   test("a model switch names the model, falling back to its id", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             { key: "u1", role: "user", text: "hi" },
@@ -87,7 +87,7 @@ describe("agent and model switches", () => {
 describe("live status line", () => {
   test("a running shell says it waits on the command", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat(
             [
@@ -107,7 +107,7 @@ describe("live status line", () => {
     const pending = chat([{ key: "u1", role: "user", text: "hi" }], true);
     pending.pending = [{ id: "p1", sessionId: "s1", action: "shell", resources: [] }];
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={pending} />
       </TooltipProvider>,
     );
@@ -117,7 +117,7 @@ describe("live status line", () => {
 
   test("a live thought keeps the status line showing", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat(
             [

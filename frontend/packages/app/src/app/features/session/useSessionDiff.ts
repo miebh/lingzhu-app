@@ -1,4 +1,5 @@
-import { useEffect, useReducer, useRef } from "react";
+import { createEffect, createMemo, onCleanup } from "solid-js";
+import { createReducer } from "@lingzhu/ui/solid";
 import { api } from "../../../lib/api";
 import { messageOf } from "../../../lib/errors";
 import {
@@ -12,33 +13,42 @@ import {
  * new attempt, so a slow response from the previous session is ignored.
  */
 export function useSessionDiff(workspace: string, sessionID: string) {
-  const [state, dispatch] = useReducer(
-    transitionSessionDiff,
-    undefined,
-    createSessionDiffState,
-  );
-  const attempt = useRef(0);
+  const [state, dispatch] = createReducer(transitionSessionDiff, createSessionDiffState);
+  let attempt = 0;
 
-  useEffect(() => {
-    const id = ++attempt.current;
-    dispatch({ type: "load", attempt: id });
+  createEffect(() => {
+    const path = workspace;
+    const id = sessionID;
+    const current = ++attempt;
+    dispatch({ type: "load", attempt: current });
     let alive = true;
+    onCleanup(() => {
+      alive = false;
+    });
     api
-      .sessionDiff(workspace, sessionID)
+      .sessionDiff(path, id)
       .then((diff) => {
-        if (alive) dispatch({ type: "loaded", attempt: id, diff });
+        if (alive) dispatch({ type: "loaded", attempt: current, diff });
       })
       .catch((cause) => {
-        if (alive) dispatch({ type: "failed", attempt: id, message: messageOf(cause) });
+        if (alive) dispatch({ type: "failed", attempt: current, message: messageOf(cause) });
       });
-    return () => {
-      alive = false;
-    };
-  }, [workspace, sessionID]);
+  });
 
-  const view = sessionDiffView(state);
+  const view = createMemo(() => sessionDiffView(state()));
   return {
-    ...view,
+    get diff() {
+      return view().diff;
+    },
+    get selected() {
+      return view().selected;
+    },
+    get loading() {
+      return view().loading;
+    },
+    get error() {
+      return view().error;
+    },
     select: (file?: string) => dispatch({ type: "selected", file }),
   };
 }

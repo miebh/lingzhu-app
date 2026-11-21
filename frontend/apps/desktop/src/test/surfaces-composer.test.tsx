@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { fireEvent, render, screen } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
@@ -19,7 +19,7 @@ describe("composer surfaces", () => {
     const onSelectModel = vi.fn();
     const onSend = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -54,7 +54,7 @@ describe("composer surfaces", () => {
   test("selecting a built-in command clears the composer", async () => {
     const run = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -81,7 +81,7 @@ describe("composer surfaces", () => {
   test("mod+enter sends with the alternate delivery", async () => {
     const onSend = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running
           disabled={false}
@@ -107,7 +107,7 @@ describe("composer surfaces", () => {
   test("composer pastes an attachment and sends it with the prompt", async () => {
     const onSend = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -135,7 +135,7 @@ describe("composer surfaces", () => {
 
   test("composer accepts a dropped file", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -160,7 +160,7 @@ describe("composer surfaces", () => {
   test("model picker selects a variant", async () => {
     const onSelectModel = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -203,7 +203,7 @@ describe("composer surfaces", () => {
     const onSelectModel = vi.fn();
     const onSend = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -249,7 +249,7 @@ describe("composer surfaces", () => {
   test("composer variant picker selects a reasoning level", async () => {
     const onSelectModel = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -284,7 +284,7 @@ describe("composer surfaces", () => {
   test("composer labels localize to Chinese", async () => {
     setLanguage("zh");
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -307,7 +307,7 @@ describe("composer surfaces", () => {
   test("composer add menu matches the reference entries", async () => {
     setLanguage("zh");
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -333,7 +333,7 @@ describe("composer surfaces", () => {
   test("a quote lands in the composer draft", () => {
     const consumed = vi.fn();
     render(
-      <Composer
+      () => <Composer
         running={false}
         disabled={false}
         providers={[]}
@@ -355,17 +355,17 @@ describe("composer surfaces", () => {
 
   test("a consumed quote is not reinserted when the composer remounts", async () => {
     function Harness() {
-      const [quote, setQuote] = useState<{ text: string; nonce: number } | undefined>({
+      const [quote, setQuote] = createSignal<{ text: string; nonce: number } | undefined>({
         text: "Quoted answer",
         nonce: 1,
       });
-      const [shown, setShown] = useState(true);
+      const [shown, setShown] = createSignal(true);
       return (
         <>
           <button type="button" onClick={() => setShown((value) => !value)}>
             Toggle composer
           </button>
-          {shown && (
+          {shown() && (
             <Composer
               running={false}
               disabled={false}
@@ -373,7 +373,7 @@ describe("composer surfaces", () => {
               provider=""
               model=""
               commands={[]}
-              quote={quote}
+              quote={quote()}
               onQuoteConsumed={() => setQuote(undefined)}
               onSelectModel={() => undefined}
               onManageModels={() => undefined}
@@ -385,7 +385,7 @@ describe("composer surfaces", () => {
         </>
       );
     }
-    render(<Harness />);
+    render(() => <Harness />);
     const area = screen.getByLabelText("Prompt") as HTMLTextAreaElement;
     expect(area.value).toContain("> Quoted answer");
     // Start a fresh draft, then unmount and remount the composer. The quote
@@ -411,7 +411,7 @@ describe("composer surfaces", () => {
     const onToggle = vi.fn();
     const onEdit = vi.fn();
     render(
-      <SessionQueuePanel
+      () => <SessionQueuePanel
         items={items}
         onRemove={onRemove}
         onToggleDelivery={onToggle}
@@ -437,7 +437,7 @@ describe("composer surfaces", () => {
       size: 5,
     });
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -464,7 +464,7 @@ describe("composer surfaces", () => {
   test("composer @ search selects an agent", async () => {
     const onSelectAgent = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -493,7 +493,7 @@ describe("composer surfaces", () => {
   test("composer ! enters shell mode and runs the command", async () => {
     const onRunShell = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -522,7 +522,7 @@ describe("composer surfaces", () => {
 
   test("shell mode recalls its own command history", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -557,7 +557,7 @@ describe("composer surfaces", () => {
 
   test("composer recalls previous prompts with the arrow keys", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Composer
           running={false}
           disabled={false}
@@ -588,7 +588,7 @@ describe("composer surfaces", () => {
 
   test("undo restores a sent prompt into the composer", async () => {
     function Harness() {
-      const [restore, setRestore] = useState<{ text: string; nonce: number }>();
+      const [restore, setRestore] = createSignal<{ text: string; nonce: number }>();
       return (
         <TooltipProvider>
           <button type="button" onClick={() => setRestore({ text: "first", nonce: Date.now() })}>
@@ -601,7 +601,7 @@ describe("composer surfaces", () => {
             provider=""
             model=""
             commands={[]}
-            restore={restore}
+            restore={restore()}
             onSelectModel={() => undefined}
             onManageModels={() => undefined}
             onAddProvider={() => undefined}
@@ -611,17 +611,17 @@ describe("composer surfaces", () => {
         </TooltipProvider>
       );
     }
-    render(<Harness />);
+    render(() => <Harness />);
     await userEvent.click(screen.getByRole("button", { name: "Restore prompt" }));
     expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("first");
   });
 
   test("composer send appends a user turn to the timeline", async () => {
     function Harness() {
-      const [entries, setEntries] = useState<ChatState["entries"]>([]);
+      const [entries, setEntries] = createSignal<ChatState["entries"]>([]);
       return (
         <TooltipProvider>
-          <Messages chat={chat(entries)} />
+          <Messages chat={chat(entries())} />
           <Composer
             running={false}
             disabled={false}
@@ -640,7 +640,7 @@ describe("composer surfaces", () => {
         </TooltipProvider>
       );
     }
-    render(<Harness />);
+    render(() => <Harness />);
     await userEvent.type(screen.getByLabelText("Prompt"), "Hello flow");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByText("Hello flow")).toBeTruthy();

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { ChevronDown, ChevronRight, Copy, Save, ScrollText } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -20,22 +21,24 @@ interface Props {
 }
 
 /** Read-only durable event log of one session. */
-export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function LogDialog(props: Props) {
   const tr = useT();
-  const [events, setEvents] = useState<SessionEvent[]>([]);
-  const [filter, setFilter] = useState("");
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState<number>();
-  const [afterSeq, setAfterSeq] = useState("0");
-  const [replaying, setReplaying] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [tailing, setTailing] = useState(false);
-  const [startingTail, setStartingTail] = useState(false);
-  const [savingLog, setSavingLog] = useState(false);
+  const [events, setEvents] = createSignal<SessionEvent[]>([]);
+  const [filter, setFilter] = createSignal("");
+  const [expanded, setExpanded] = createSignal<Record<number, boolean>>({});
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [copied, setCopied] = createSignal<number>();
+  const [afterSeq, setAfterSeq] = createSignal("0");
+  const [replaying, setReplaying] = createSignal(false);
+  const [notice, setNotice] = createSignal("");
+  const [tailing, setTailing] = createSignal(false);
+  const [startingTail, setStartingTail] = createSignal(false);
+  const [savingLog, setSavingLog] = createSignal(false);
 
   const load = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     setLoading(true);
     setError("");
@@ -48,8 +51,10 @@ export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: P
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
+      void props.sessionID;
       void load();
     } else {
       setEvents([]);
@@ -64,15 +69,16 @@ export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: P
       setStartingTail(false);
       setSavingLog(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace, sessionID]);
+  });
 
-  useEffect(() => {
-    if (!open || !tailing || !workspace || !sessionID) return;
+  createEffect(() => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
+    if (!props.open || !tailing() || !workspace || !sessionID) return;
     const off = api.onSessionTail((payload) => {
       if (payload.workspace !== workspace || payload.sessionId !== sessionID) return;
       const event = payload.event;
-      setEvents((current) => {
+      update(setEvents, events, (current) => {
         if (current.some((entry) => entry.seq === event.seq)) return current;
         const merged = [...current, event];
         merged.sort((a, b) => a.seq - b.seq);
@@ -80,16 +86,17 @@ export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: P
       });
       setNotice(`Tailing · event #${event.seq}`);
     });
-    return () => {
+    onCleanup(() => {
       off();
       void api.stopSessionTail(workspace, sessionID);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tailing, workspace, sessionID]);
+    });
+  });
 
   const startTail = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
-    const after = events.reduce((max, event) => Math.max(max, event.seq), 0);
+    const after = events().reduce((max, event) => Math.max(max, event.seq), 0);
     setStartingTail(true);
     try {
       await api.startSessionTail(workspace, sessionID, after);
@@ -104,8 +111,10 @@ export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: P
   };
 
   const replay = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
-    const parsed = Number(afterSeq);
+    const parsed = Number(afterSeq());
     if (!Number.isFinite(parsed) || parsed < 0) {
       setError("Sequence must be a non-negative number.");
       return;
@@ -124,10 +133,11 @@ export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: P
     }
   };
 
-  const visible = useMemo(() => {
-    const term = filter.trim().toLowerCase();
-    if (!term) return events;
-    return events.filter((event) => {
+  const visible = createMemo(() => {
+    const term = filter().trim().toLowerCase();
+    const list = events();
+    if (!term) return list;
+    return list.filter((event) => {
       if (event.type.toLowerCase().includes(term)) return true;
       try {
         return JSON.stringify(event.data ?? {}).toLowerCase().includes(term);
@@ -135,15 +145,16 @@ export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: P
         return false;
       }
     });
-  }, [events, filter]);
+  });
 
   const saveLog = async () => {
-    if (!sessionID || visible.length === 0) return;
+    const sessionID = props.sessionID;
+    if (!sessionID || visible().length === 0) return;
     setSavingLog(true);
     try {
       const path = await api.saveTextFile(
-        logExportName(sessionID, visible.length),
-        serializeLog({ sessionId: sessionID, filter: filter.trim(), events: visible }),
+        logExportName(sessionID, visible().length),
+        serializeLog({ sessionId: sessionID, filter: filter().trim(), events: visible() }),
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -168,120 +179,127 @@ export function LogDialog({ open, workspace, sessionID, title, onOpenChange }: P
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <ScrollText className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <ScrollText class="size-4 text-text-faint" />
               Log
             </DialogTitle>
-            <DialogDescription className="truncate">
-              {title ? `${title} · ` : ""}
-              {events.length} durable event{events.length === 1 ? "" : "s"}
+            <DialogDescription class="truncate">
+              {props.title ? `${props.title} · ` : ""}
+              {events().length} durable event{events().length === 1 ? "" : "s"}
             </DialogDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={savingLog || visible.length === 0}
+              disabled={savingLog() || visible().length === 0}
               onClick={() => void saveLog()}
             >
               <Save />
-              {savingLog ? "Saving…" : "Save file"}
+              {savingLog() ? "Saving…" : "Save file"}
             </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load()} />
+            <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
         </div>
 
-        <div className="mt-3 flex shrink-0 items-center gap-2">
+        <div class="mt-3 flex shrink-0 items-center gap-2">
           <Input
-            value={filter}
+            value={filter()}
             aria-label={tr("logFilterEvents")}
             placeholder={tr("logFilterByTypeOrData")}
-            onChange={(event) => setFilter(event.target.value)}
-            className="select-text"
+            onInput={(event) => setFilter(event.currentTarget.value)}
+            class="select-text"
           />
-          <span className="shrink-0 text-caption text-text-faint">
-            {visible.length}/{events.length}
+          <span class="shrink-0 text-caption text-text-faint">
+            {visible().length}/{events().length}
           </span>
         </div>
 
-        <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2">
+        <div class="mt-2 flex shrink-0 flex-wrap items-center gap-2">
           <Input
-            value={afterSeq}
+            value={afterSeq()}
             aria-label={tr("logReplayAfterSequence")}
             placeholder={tr("dialogAfterSeq")}
-            onChange={(event) => setAfterSeq(event.target.value)}
-            className="w-32 select-text font-mono"
+            onInput={(event) => setAfterSeq(event.currentTarget.value)}
+            class="w-32 select-text font-mono"
           />
-          <Button type="button" variant="outline" size="sm" disabled={replaying} onClick={() => void replay()}>
-            {replaying ? "Replaying…" : "Replay stream"}
+          <Button type="button" variant="outline" size="sm" disabled={replaying()} onClick={() => void replay()}>
+            {replaying() ? "Replaying…" : "Replay stream"}
           </Button>
           <Button
             type="button"
-            variant={tailing ? "default" : "outline"}
+            variant={tailing() ? "default" : "outline"}
             size="sm"
-            disabled={replaying || startingTail}
-            onClick={() => (tailing ? setTailing(false) : void startTail())}
+            disabled={replaying() || startingTail()}
+            onClick={() => (tailing() ? setTailing(false) : void startTail())}
           >
-            {tailing ? "Stop tail" : startingTail ? "Starting…" : "Tail"}
+            {tailing() ? "Stop tail" : startingTail() ? "Starting…" : "Tail"}
           </Button>
-          {notice && <span className="text-caption text-text-faint">{notice}</span>}
+          <Show when={notice()}>
+            <span class="text-caption text-text-faint">{notice()}</span>
+          </Show>
         </div>
 
-        <ErrorBanner error={error} />
+        <ErrorBanner error={error()} />
 
-        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
-          {visible.length === 0 ? (
-            <p className="p-3 text-meta text-text-faint">
-              {loading ? "Loading…" : "No events match."}
-            </p>
-          ) : (
-            visible.map((event) => {
-              const isOpen = Boolean(expanded[event.seq]);
-              return (
-                <div key={`${event.seq}:${event.type}`} className="border-b border-border-base last:border-b-0">
-                  <div className="flex items-center gap-2 px-2 py-1.5 text-meta">
-                    <button
-                      type="button"
-                      aria-label={isOpen ? "Collapse event" : "Expand event"}
-                      onClick={() =>
-                        setExpanded((current) => ({ ...current, [event.seq]: !isOpen }))
-                      }
-                      className="interactive grid size-5 shrink-0 place-items-center rounded-xs text-text-faint hover:text-text-base"
-                    >
-                      {isOpen ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-                    </button>
-                    <span className="w-12 shrink-0 text-right font-mono text-caption tabular-nums text-text-faint">
-                      {event.seq}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-text-muted">{event.type}</span>
-                    <span className="shrink-0 text-caption text-text-faint">{formatTimeOfDay(event.at)}</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-xs"
-                      aria-label={`Copy event ${event.seq}`}
-                      onClick={() => void copy(event)}
-                    >
-                      <Copy />
-                    </Button>
+        <div class="mt-3 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
+          <Show
+            when={visible().length > 0}
+            fallback={
+              <p class="p-3 text-meta text-text-faint">
+                {loading() ? "Loading…" : "No events match."}
+              </p>
+            }
+          >
+            <For each={visible()}>
+              {(event) => {
+                const isOpen = () => Boolean(expanded()[event.seq]);
+                return (
+                  <div class="border-b border-border-base last:border-b-0">
+                    <div class="flex items-center gap-2 px-2 py-1.5 text-meta">
+                      <button
+                        type="button"
+                        aria-label={isOpen() ? "Collapse event" : "Expand event"}
+                        onClick={() =>
+                          update(setExpanded, expanded, (current) => ({ ...current, [event.seq]: !isOpen() }))
+                        }
+                        class="interactive grid size-5 shrink-0 place-items-center rounded-xs text-text-faint hover:text-text-base"
+                      >
+                        {isOpen() ? <ChevronDown class="size-3" /> : <ChevronRight class="size-3" />}
+                      </button>
+                      <span class="w-12 shrink-0 text-right font-mono text-caption tabular-nums text-text-faint">
+                        {event.seq}
+                      </span>
+                      <span class="min-w-0 flex-1 truncate font-mono text-text-muted">{event.type}</span>
+                      <span class="shrink-0 text-caption text-text-faint">{formatTimeOfDay(event.at)}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-xs"
+                        aria-label={`Copy event ${event.seq}`}
+                        onClick={() => void copy(event)}
+                      >
+                        <Copy />
+                      </Button>
+                    </div>
+                    <Show when={isOpen()}>
+                      <pre class="max-h-80 overflow-auto border-t border-border-base bg-bg-layer-01 p-3 font-mono text-caption leading-5 whitespace-pre-wrap break-all text-text-muted select-text">
+                        {JSON.stringify(event.data ?? {}, null, 2)}
+                      </pre>
+                    </Show>
+                    <Show when={copied() === event.seq}>
+                      <p class="px-10 pb-1 text-caption text-text-faint">Copied event JSON.</p>
+                    </Show>
                   </div>
-                  {isOpen && (
-                    <pre className="max-h-80 overflow-auto border-t border-border-base bg-bg-layer-01 p-3 font-mono text-caption leading-5 whitespace-pre-wrap break-all text-text-muted select-text">
-                      {JSON.stringify(event.data ?? {}, null, 2)}
-                    </pre>
-                  )}
-                  {copied === event.seq && (
-                    <p className="px-10 pb-1 text-caption text-text-faint">Copied event JSON.</p>
-                  )}
-                </div>
-              );
-            })
-          )}
+                );
+              }}
+            </For>
+          </Show>
         </div>
       </DialogContent>
     </Dialog>

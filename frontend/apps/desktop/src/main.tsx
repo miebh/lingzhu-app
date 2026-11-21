@@ -1,18 +1,15 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
+import { render } from "solid-js/web";
 import App from "@lingzhu/app/App";
 import { ErrorBoundary } from "@lingzhu/app/components/shell/ErrorBoundary";
-import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import "@lingzhu/ui/theme.css";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
+render(
+  () => (
     <ErrorBoundary>
-      <TooltipProvider>
-        <App />
-      </TooltipProvider>
+      <App />
     </ErrorBoundary>
-  </React.StrictMode>,
+  ),
+  document.getElementById("root") as HTMLElement,
 );
 
 // Development builds only: hold Control to name the component under the pointer

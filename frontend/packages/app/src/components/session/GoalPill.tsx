@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Button } from "@lingzhu/ui/button";
 import { CircleAlert, RefreshCw, Square, Trash2 } from "@lingzhu/ui/icons";
 import { api } from "@/lib/api";
-import { t, useLanguage, type MessageKey } from "@lingzhu/ui/i18n";
+import { t, type MessageKey } from "@lingzhu/ui/i18n";
 
 export interface GoalState {
   id: string;
@@ -24,16 +24,19 @@ const STATUS: Record<GoalState["status"], { label: MessageKey; tone: string }> =
 };
 
 /** Status glyph per state, matching the reference icon set. */
-function GoalGlyph({ status }: { status: GoalState["status"] }) {
-  if (status === "paused") return <CircleAlert className="size-4" />;
-  if (status === "complete") return <CircleAlert className="size-4" />;
-  // The active state uses a steering glyph in the reference; the app's closest
-  // ring icon keeps the same silhouette at 16px.
+function GoalGlyph(props: { status: GoalState["status"] }) {
   return (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true" className="shrink-0">
-      <circle cx="8" cy="8" r="6.5" stroke="currentColor" />
-      <circle cx="8" cy="8" r="1.75" fill="currentColor" />
-    </svg>
+    <Show
+      when={props.status !== "paused" && props.status !== "complete"}
+      fallback={<CircleAlert class="size-4" />}
+    >
+      {/* The active state uses a steering glyph in the reference; the app's
+          closest ring icon keeps the same silhouette at 16px. */}
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true" class="shrink-0">
+        <circle cx="8" cy="8" r="6.5" stroke="currentColor" />
+        <circle cx="8" cy="8" r="1.75" fill="currentColor" />
+      </svg>
+    </Show>
   );
 }
 
@@ -42,14 +45,15 @@ function GoalGlyph({ status }: { status: GoalState["status"] }) {
  * status, and a popover headed by the objective with the actions that apply.
  * Creating a goal happens through `/goal <objective>` in the composer.
  */
-export function GoalPill({ workspace, sessionID }: { workspace: string; sessionID: string }) {
-  useLanguage();
-  const [goal, setGoal] = useState<GoalState | null>(null);
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
+export function GoalPill(props: { workspace: string; sessionID: string }) {
+  const [goal, setGoal] = createSignal<GoalState | null>(null);
+  const [open, setOpen] = createSignal(false);
+  const [busy, setBusy] = createSignal(false);
+  let root: HTMLDivElement | undefined;
 
-  useEffect(() => {
+  createEffect(() => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     let live = true;
     const load = () => {
       api
@@ -70,39 +74,40 @@ export function GoalPill({ workspace, sessionID }: { workspace: string; sessionI
       if (!document.hidden) load();
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => {
+    onCleanup(() => {
       live = false;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [workspace, sessionID]);
+    });
+  });
 
-  useEffect(() => {
-    if (!open) return;
+  createEffect(() => {
+    if (!open()) return;
     const onPointerDown = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!root?.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
-    return () => {
+    onCleanup(() => {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+    });
+  });
 
-  if (!goal) return null;
-
-  const view = STATUS[goal.status];
+  const view = createMemo(() => {
+    const current = goal();
+    return current ? STATUS[current.status] : undefined;
+  });
 
   const run = async (action: "pause" | "resume" | "clear") => {
     setOpen(false);
     setBusy(true);
     try {
-      await api.goalAction(workspace, sessionID, action);
-      setGoal(await api.goalState(workspace, sessionID));
+      await api.goalAction(props.workspace, props.sessionID, action);
+      setGoal(await api.goalState(props.workspace, props.sessionID));
     } catch {
       // A failed action leaves the pill showing the last known state.
     } finally {
@@ -111,58 +116,62 @@ export function GoalPill({ workspace, sessionID }: { workspace: string; sessionI
   };
 
   return (
-    <div ref={root} className="relative shrink-0">
-      <button
-        type="button"
-        data-composer-pill
-        data-slot="session-plugin-pill"
-        data-status={goal.status}
-        aria-label={goal.objective}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className={`flex h-8 min-w-0 max-w-full items-center gap-2 rounded-lg border-[0.5px] border-transparent bg-bg-base px-2.5 text-body font-[440] leading-4 tracking-[-0.04px] whitespace-nowrap text-text-base shadow-elevation-raised outline-none focus-visible:outline-2 focus-visible:outline-offset-[2.5px] focus-visible:outline-border-focus dark:bg-bg-layer-01 ${
-          open ? "bg-bg-layer-01 dark:bg-bg-layer-02" : ""
-        }`}
-      >
-        <span className={`grid shrink-0 place-items-center ${view.tone || "text-text-faint"}`}>
-          <GoalGlyph status={goal.status} />
-        </span>
-        <span className="min-w-0 max-w-[260px] truncate">{t(view.label)}</span>
-      </button>
-
-      {open && (
-        <div
-          data-composer-pill-panel
-          data-slot="session-plugin-pill-popover"
-          aria-label={goal.objective}
-          className="absolute bottom-10 left-0 z-30 w-80 max-w-[calc(100vw-56px)] rounded-[10px] border-[0.5px] border-transparent bg-bg-layer-01 p-1 shadow-elevation-floating"
-        >
-          <div className="px-2 pt-1 pb-1.5 text-[11px] leading-4 font-[530] tracking-[0.05px] text-text-faint">
-            <span dir="auto" className="line-clamp-3 break-words">
-              {goal.objective}
+    <Show when={goal()}>
+      {(current) => (
+        <div ref={root} class="relative shrink-0">
+          <button
+            type="button"
+            data-composer-pill
+            data-slot="session-plugin-pill"
+            data-status={current().status}
+            aria-label={current().objective}
+            aria-haspopup="dialog"
+            aria-expanded={open()}
+            onClick={() => setOpen(!open())}
+            class={`flex h-8 min-w-0 max-w-full items-center gap-2 rounded-lg border-[0.5px] border-transparent bg-bg-base px-2.5 text-body font-[440] leading-4 tracking-[-0.04px] whitespace-nowrap text-text-base shadow-elevation-raised outline-none focus-visible:outline-2 focus-visible:outline-offset-[2.5px] focus-visible:outline-border-focus dark:bg-bg-layer-01 ${
+              open() ? "bg-bg-layer-01 dark:bg-bg-layer-02" : ""
+            }`}
+          >
+            <span class={`grid shrink-0 place-items-center ${view()?.tone || "text-text-faint"}`}>
+              <GoalGlyph status={current().status} />
             </span>
-          </div>
-          <div className="flex justify-end gap-1 px-1 pt-1">
-            {goal.status === "active" && (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run("pause")}>
-                <Square className="size-3" />
-                {t("pause")}
-              </Button>
-            )}
-            {goal.status === "paused" && (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run("resume")}>
-                <RefreshCw className="size-3" />
-                {t("resume")}
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run("clear")}>
-              <Trash2 className="size-3" />
-              {t("clear")}
-            </Button>
-          </div>
+            <span class="min-w-0 max-w-[260px] truncate">{t(view()?.label ?? "goal")}</span>
+          </button>
+
+          <Show when={open()}>
+            <div
+              data-composer-pill-panel
+              data-slot="session-plugin-pill-popover"
+              aria-label={current().objective}
+              class="absolute bottom-10 left-0 z-30 w-80 max-w-[calc(100vw-56px)] rounded-[10px] border-[0.5px] border-transparent bg-bg-layer-01 p-1 shadow-elevation-floating"
+            >
+              <div class="px-2 pt-1 pb-1.5 text-[11px] leading-4 font-[530] tracking-[0.05px] text-text-faint">
+                <span dir="auto" class="line-clamp-3 break-words">
+                  {current().objective}
+                </span>
+              </div>
+              <div class="flex justify-end gap-1 px-1 pt-1">
+                <Show when={current().status === "active"}>
+                  <Button size="sm" variant="ghost" disabled={busy()} onClick={() => void run("pause")}>
+                    <Square class="size-3" />
+                    {t("pause")}
+                  </Button>
+                </Show>
+                <Show when={current().status === "paused"}>
+                  <Button size="sm" variant="ghost" disabled={busy()} onClick={() => void run("resume")}>
+                    <RefreshCw class="size-3" />
+                    {t("resume")}
+                  </Button>
+                </Show>
+                <Button size="sm" variant="ghost" disabled={busy()} onClick={() => void run("clear")}>
+                  <Trash2 class="size-3" />
+                  {t("clear")}
+                </Button>
+              </div>
+            </div>
+          </Show>
         </div>
       )}
-    </div>
+    </Show>
   );
 }

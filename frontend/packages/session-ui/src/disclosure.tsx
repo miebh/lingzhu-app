@@ -1,10 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, createEffect, createSignal, onCleanup, useContext, type Accessor, type JSX } from "solid-js";
 
-const ToolScopeContext = createContext("");
+const ToolScopeContext = createContext<() => string>(() => "");
 
 /** Keeps disclosure slices inside one session; tool IDs repeat across sessions. */
-export function ToolScopeProvider({ scope, children }: { scope: string; children: ReactNode }) {
-  return <ToolScopeContext.Provider value={scope}>{children}</ToolScopeContext.Provider>;
+export function ToolScopeProvider(props: { scope: string; children?: JSX.Element }) {
+  // The value is an accessor so a session switch reaches mounted rows without
+  // remounting them (and the transcript's scrollport) under the virtualizer.
+  return <ToolScopeContext.Provider value={() => props.scope}>{props.children}</ToolScopeContext.Provider>;
 }
 
 // Expanded state survives virtualization and transcript re-renders, like the
@@ -13,10 +15,6 @@ const disclosures = new Map<string, boolean>();
 // Listeners are scoped to their slice: toggling one card must not wake every
 // mounted tool row, and a long transcript mounts many of them.
 const disclosureListeners = new Map<string, Set<() => void>>();
-
-// Aliases are joined into one signature so the effect keeps a stable dependency
-// while the component reads each key separately.
-const DISCLOSURE_SEPARATOR = "\u0000";
 
 function disclosureValue(keys: readonly string[], fallback: boolean) {
   for (const key of keys) {
@@ -33,14 +31,19 @@ function disclosureValue(keys: readonly string[], fallback: boolean) {
  * and writing records the choice under every key, so an expanded block stays
  * expanded when a live transcript row is replaced by its persisted copy.
  */
-export function useDisclosure(key: string | readonly string[], fallback = false) {
+export function useDisclosure(
+  key: string | readonly string[],
+  fallback = false,
+): readonly [Accessor<boolean>, (next: boolean) => void] {
   const scope = useContext(ToolScopeContext);
-  const keys = (typeof key === "string" ? [key] : key).map((item) => (scope ? `${scope}:${item}` : item));
-  const signature = keys.join(DISCLOSURE_SEPARATOR);
-  const [open, setOpenState] = useState(() => disclosureValue(keys, fallback));
+  const keys = () =>
+    (typeof key === "string" ? [key] : key).map((item) => (scope() ? `${scope()}:${item}` : item));
+  const [open, setOpenState] = createSignal(disclosureValue(keys(), fallback));
 
-  useEffect(() => {
-    const scoped = signature.split(DISCLOSURE_SEPARATOR);
+  // A session switch changes the scope, so the subscription follows it instead
+  // of keeping the keys of the transcript that mounted the row first.
+  createEffect(() => {
+    const scoped = keys();
     const update = () => setOpenState(disclosureValue(scoped, fallback));
     const listeners = scoped.map((item) => {
       const set = disclosureListeners.get(item) ?? new Set<() => void>();
@@ -58,17 +61,18 @@ export function useDisclosure(key: string | readonly string[], fallback = false)
       }
     }
     update();
-    return () => {
+    onCleanup(() => {
       for (const [item, set] of listeners) {
         set.delete(update);
         if (set.size === 0) disclosureListeners.delete(item);
       }
-    };
-  }, [signature, fallback]);
+    });
+  });
 
   const setOpen = (next: boolean) => {
-    for (const item of keys) disclosures.set(item, next);
-    for (const item of keys) disclosureListeners.get(item)?.forEach((listener) => listener());
+    const scoped = keys();
+    for (const item of scoped) disclosures.set(item, next);
+    for (const item of scoped) disclosureListeners.get(item)?.forEach((listener) => listener());
   };
 
   return [open, setOpen] as const;

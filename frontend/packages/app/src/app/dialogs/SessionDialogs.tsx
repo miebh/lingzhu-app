@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { For, type Component } from "solid-js";
 import { EnvironmentDialog } from "../../components/dialogs/EnvironmentDialog";
 import { FormsDialog } from "../../components/dialogs/FormsDialog";
 import { InboxDialog } from "../../components/dialogs/InboxDialog";
@@ -33,8 +33,7 @@ type SessionDialogID =
   | "wait"
   | "prompt-once"
   | "schedules"
-  | "environment"
-;
+  | "environment";
 
 interface SessionDialogComponentProps {
   open: boolean;
@@ -46,54 +45,51 @@ interface SessionDialogComponentProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const SessionSlot = ({
-  id,
-  component: Dialog,
-}: {
+const SessionSlot = (props: {
   id: SessionDialogID;
-  component: ComponentType<SessionDialogComponentProps>;
+  component: Component<SessionDialogComponentProps>;
 }) => {
-  const entry = useDialogEntry(id);
+  const Dialog = props.component;
+  const entry = useDialogEntry(props.id);
   return (
     <Dialog
-      open={entry !== undefined}
-      workspace={entry?.props.workspace}
-      sessionID={entry?.props.sessionID}
-      title={entry?.props.title}
-      skillID={entry?.props.skillID}
-      create={entry?.props.createSkill}
-      onOpenChange={dismissDialog(id)}
+      open={entry() !== undefined}
+      workspace={entry()?.props.workspace}
+      sessionID={entry()?.props.sessionID}
+      title={entry()?.props.title}
+      skillID={entry()?.props.skillID}
+      create={entry()?.props.createSkill}
+      onOpenChange={dismissDialog(props.id)}
     />
   );
 };
 
+const SESSION_DIALOGS: Array<[SessionDialogID, Component<SessionDialogComponentProps>]> = [
+  ["share", ShareDialog],
+  ["pairing", PairingDialog],
+  ["media", MediaDialog],
+  ["usage", UsageDialog],
+  ["references", ReferenceDialog],
+  ["log", LogDialog],
+  ["inbox", InboxDialog],
+  ["forms", FormsDialog],
+  ["jobs", JobsDialog],
+  ["skills", SkillsDialog],
+  ["synthetic", SyntheticDialog],
+  ["run-command", RunCommandDialog],
+  ["wait", WaitSessionDialog],
+  ["prompt-once", PromptOnceDialog],
+  ["schedules", SchedulesDialog],
+  ["environment", EnvironmentDialog],
+];
+
 /** Every dialog that only needs the workspace/session/title triple. */
 export function SessionDialogs() {
-  const dialogs: Array<[SessionDialogID, ComponentType<SessionDialogComponentProps>]> = [
-    ["share", ShareDialog],
-    ["pairing", PairingDialog],
-    ["media", MediaDialog],
-    ["usage", UsageDialog],
-    ["references", ReferenceDialog],
-    ["log", LogDialog],
-    ["inbox", InboxDialog],
-    ["forms", FormsDialog],
-    ["jobs", JobsDialog],
-    ["skills", SkillsDialog],
-    ["synthetic", SyntheticDialog],
-    ["run-command", RunCommandDialog],
-    ["wait", WaitSessionDialog],
-    ["prompt-once", PromptOnceDialog],
-    ["schedules", SchedulesDialog],
-    ["environment", EnvironmentDialog],
-    ];
-
   return (
     <>
-      {dialogs.map(([id, component]) => (
-        <SessionSlot key={id} id={id} component={component} />
-      ))}
+      <For each={SESSION_DIALOGS}>
+        {(item) => <SessionSlot id={item[0]} component={item[1]} />}
+      </For>
     </>
   );
 }
-

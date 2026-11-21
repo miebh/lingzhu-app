@@ -1,4 +1,5 @@
-import { act, render } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { act, render } from "./solid-testing";
 import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
@@ -49,21 +50,18 @@ function fakeScroller(element: HTMLElement, height: number) {
 }
 
 function mount(entries: TimelineEntry[]) {
+  const [current, setEntries] = createSignal(entries);
   const view = render(
-    <TooltipProvider>
-      <Messages chat={running(entries)} detail="compact" />
+    () => <TooltipProvider>
+      <Messages chat={running(current())} detail="compact" />
     </TooltipProvider>,
   );
   const scroller = view.container.querySelector<HTMLElement>(".scroll-stable-both")!;
-  return { ...view, scroller, state: fakeScroller(scroller, 2000) };
+  return { ...view, scroller, state: fakeScroller(scroller, 2000), setEntries };
 }
 
 const rerenderWith = (view: ReturnType<typeof mount>, entries: TimelineEntry[]) => {
-  view.rerender(
-    <TooltipProvider>
-      <Messages chat={running(entries)} detail="compact" />
-    </TooltipProvider>,
-  );
+  view.setEntries(entries);
 };
 
 describe("streaming follow", () => {

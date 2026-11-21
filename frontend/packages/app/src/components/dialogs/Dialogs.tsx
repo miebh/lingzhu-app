@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
 import { Input } from "@lingzhu/ui/input";
@@ -12,25 +12,25 @@ interface RenameDialogProps {
   onConfirm: (title: string) => void;
 }
 
-export function RenameDialog({ open, initial, onOpenChange, onConfirm }: RenameDialogProps) {
+export function RenameDialog(props: RenameDialogProps) {
   const tr = useT();
-  const [title, setTitle] = useState(initial);
+  const [title, setTitle] = createSignal(props.initial);
 
-  useEffect(() => {
-    if (open) setTitle(initial);
-  }, [open, initial]);
+  createEffect(() => {
+    if (props.open) setTitle(props.initial);
+  });
 
   const submit = () => {
-    const next = title.trim();
+    const next = title().trim();
     if (!next) return;
-    onConfirm(next);
+    props.onConfirm(next);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent hideClose>
         <form
-          className="select-none"
+          class="select-none"
           onSubmit={(event) => {
             event.preventDefault();
             submit();
@@ -39,18 +39,18 @@ export function RenameDialog({ open, initial, onOpenChange, onConfirm }: RenameD
           <DialogTitle>{t("renameSession")}</DialogTitle>
           <DialogDescription>{t("renameHint")}</DialogDescription>
           <Input
-            autoFocus
+            autofocus
             size="lg"
-            value={title}
+            value={title()}
             aria-label={tr("sessionTitleLabel")}
-            onChange={(event) => setTitle(event.target.value)}
-            className="mt-4 select-text"
+            onInput={(event) => setTitle(event.currentTarget.value)}
+            class="mt-4 select-text"
           />
-          <div className="mt-4 flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <div class="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
               {t("cancel")}
             </Button>
-            <Button type="submit" disabled={title.trim() === ""}>
+            <Button type="submit" disabled={title().trim() === ""}>
               {t("save")}
             </Button>
           </div>
@@ -70,26 +70,18 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
 }
 
-export function ConfirmDialog({
-  open,
-  title,
-  description,
-  confirmLabel,
-  destructive = false,
-  onOpenChange,
-  onConfirm,
-}: ConfirmDialogProps) {
+export function ConfirmDialog(props: ConfirmDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="select-none">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent hideClose class="select-none">
+        <DialogTitle>{props.title}</DialogTitle>
+        <DialogDescription>{props.description}</DialogDescription>
+        <div class="mt-4 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button variant={destructive ? "destructive" : "default"} onClick={onConfirm}>
-            {confirmLabel}
+          <Button variant={props.destructive ? "destructive" : "default"} onClick={props.onConfirm}>
+            {props.confirmLabel}
           </Button>
         </div>
       </DialogContent>
@@ -104,25 +96,25 @@ interface WorktreeDialogProps {
 }
 
 /** Names a git worktree created from the current workspace. */
-export function WorktreeDialog({ open, onOpenChange, onConfirm }: WorktreeDialogProps) {
+export function WorktreeDialog(props: WorktreeDialogProps) {
   const tr = useT();
-  const [name, setName] = useState("");
+  const [name, setName] = createSignal("");
 
-  useEffect(() => {
-    if (open) setName("");
-  }, [open]);
+  createEffect(() => {
+    if (props.open) setName("");
+  });
 
   const submit = () => {
-    const next = name.trim();
+    const next = name().trim();
     if (!next) return;
-    onConfirm(next);
+    props.onConfirm(next);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent hideClose>
         <form
-          className="select-none"
+          class="select-none"
           onSubmit={(event) => {
             event.preventDefault();
             submit();
@@ -131,19 +123,19 @@ export function WorktreeDialog({ open, onOpenChange, onConfirm }: WorktreeDialog
           <DialogTitle>{t("newWorktree")}</DialogTitle>
           <DialogDescription>{t("newWorktreeHint")}</DialogDescription>
           <Input
-            autoFocus
+            autofocus
             size="lg"
-            value={name}
+            value={name()}
             aria-label={t("worktreeName")}
             placeholder={tr("dialogWorktreeExample")}
-            onChange={(event) => setName(event.target.value)}
-            className="mt-4 select-text"
+            onInput={(event) => setName(event.currentTarget.value)}
+            class="mt-4 select-text"
           />
-          <div className="mt-4 flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <div class="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
               {t("cancel")}
             </Button>
-            <Button type="submit" disabled={name.trim() === ""}>
+            <Button type="submit" disabled={name().trim() === ""}>
               {t("create")}
             </Button>
           </div>
@@ -153,7 +145,6 @@ export function WorktreeDialog({ open, onOpenChange, onConfirm }: WorktreeDialog
   );
 }
 
-
 interface MoveSessionDialogProps {
   open: boolean;
   workspaces: WorkspaceInfo[];
@@ -162,31 +153,33 @@ interface MoveSessionDialogProps {
 }
 
 /** Picks another workspace for a session transfer. */
-export function MoveSessionDialog({ open, workspaces, onOpenChange, onConfirm }: MoveSessionDialogProps) {
+export function MoveSessionDialog(props: MoveSessionDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="select-none">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent hideClose class="select-none">
         <DialogTitle>{t("moveSession")}</DialogTitle>
         <DialogDescription>{t("moveHint")}</DialogDescription>
-        <div className="mt-4 flex flex-col gap-1">
-          {workspaces.length === 0 ? (
-            <p className="px-2 py-4 text-meta text-text-faint">{t("addWorkspaceFirst")}</p>
-          ) : (
-            workspaces.map((workspace) => (
-              <button
-                key={workspace.path}
-                type="button"
-                onClick={() => onConfirm(workspace.path)}
-                className="interactive flex h-control-md w-full flex-col items-start justify-center rounded-md px-2 text-left"
-              >
-                <span className="text-body text-text-base">{workspace.name}</span>
-                <span className="w-full truncate text-caption text-text-faint">{workspace.path}</span>
-              </button>
-            ))
-          )}
+        <div class="mt-4 flex flex-col gap-1">
+          <Show
+            when={props.workspaces.length > 0}
+            fallback={<p class="px-2 py-4 text-meta text-text-faint">{t("addWorkspaceFirst")}</p>}
+          >
+            <For each={props.workspaces}>
+              {(workspace) => (
+                <button
+                  type="button"
+                  onClick={() => props.onConfirm(workspace.path)}
+                  class="interactive flex h-control-md w-full flex-col items-start justify-center rounded-md px-2 text-left"
+                >
+                  <span class="text-body text-text-base">{workspace.name}</span>
+                  <span class="w-full truncate text-caption text-text-faint">{workspace.path}</span>
+                </button>
+              )}
+            </For>
+          </Show>
         </div>
-        <div className="mt-4 flex justify-end">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+        <div class="mt-4 flex justify-end">
+          <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
             {t("cancel")}
           </Button>
         </div>

@@ -13,8 +13,8 @@ import type {
 import { switchChanges } from "@lingzhu/ui/domain/chat";
 
 /**
- * Folds one core event into a chat. Kept free of React so the transcript rules
- * stay testable and the chat provider only owns wiring.
+ * Folds one core event into a chat. Kept free of UI rendering so the transcript
+ * rules stay testable and the chat provider only owns wiring.
  */
 export function applyEvent(chats: Record<string, ChatState>, key: string, event: CoreEvent): Record<string, ChatState> {
   const chat = chats[key];

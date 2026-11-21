@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render } from "./solid-testing";
 import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
@@ -40,7 +40,7 @@ describe("a notice between tool blocks", () => {
     ];
 
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat(entries)} detail="everything" />
       </TooltipProvider>,
     );
@@ -64,7 +64,7 @@ describe("a notice between tool blocks", () => {
     ];
 
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat(entries)} detail="compact" />
       </TooltipProvider>,
     );

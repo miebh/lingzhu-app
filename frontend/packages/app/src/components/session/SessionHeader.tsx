@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { For, Show, createMemo, type JSX } from "solid-js";
 import { MoreHorizontal } from "@lingzhu/ui/icons";
 import { Keybind } from "@lingzhu/ui/keybind";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lingzhu/ui/tooltip";
@@ -52,25 +52,20 @@ interface Props {
   /** Header end inset: 10px beside vertical tabs, 12px beside the horizontal strip. */
   endInset?: number;
   /** Summary control rendered before the session menu and context ring. */
-  summary?: ReactNode;
+  summary?: JSX.Element;
 }
 
 /** A slash separating two segments of the breadcrumb. */
 function HeaderSeparator() {
   return (
-    <span className="shrink-0 text-[13px] leading-4 text-icon-faint" aria-hidden="true">
+    <span class="shrink-0 text-[13px] leading-4 text-icon-faint" aria-hidden="true">
       /
     </span>
   );
 }
 
 /** One clickable ancestor session in the breadcrumb. */
-function SessionAncestorLink({
-  id,
-  title,
-  last,
-  onOpenSession,
-}: {
+function SessionAncestorLink(props: {
   id: string;
   title: string;
   last: boolean;
@@ -79,40 +74,28 @@ function SessionAncestorLink({
   return (
     <button
       type="button"
-      data-slot={last ? "session-title-parent" : "session-title-ancestor"}
-      data-session-id={id}
-      title={title}
-      onClick={() => onOpenSession?.(id)}
-      className="max-w-[min(200px,40vw)] shrink-0 truncate px-1 text-[13px] leading-4 font-[530] tracking-[-0.04px] text-text-faint transition-colors hover:text-text-muted"
+      data-slot={props.last ? "session-title-parent" : "session-title-ancestor"}
+      data-session-id={props.id}
+      title={props.title}
+      onClick={() => props.onOpenSession?.(props.id)}
+      class="max-w-[min(200px,40vw)] shrink-0 truncate px-1 text-[13px] leading-4 font-[530] tracking-[-0.04px] text-text-faint transition-colors hover:text-text-muted"
     >
-      <bdi dir="auto">{title}</bdi>
+      <bdi dir="auto">{props.title}</bdi>
     </button>
   );
 }
 
 /** The title of the session this header belongs to. */
-function SessionTitle({ title }: { title: string }) {
+function SessionTitle(props: { title: string }) {
   return (
-    <h1 className="w-fit min-w-0 max-w-full shrink truncate rounded-md px-1 py-1.5 text-[13px] leading-4 font-[530] tracking-[-0.04px] text-text-base">
-      {title}
+    <h1 class="w-fit min-w-0 max-w-full shrink truncate rounded-md px-1 py-1.5 text-[13px] leading-4 font-[530] tracking-[-0.04px] text-text-base">
+      {props.title}
     </h1>
   );
 }
 
 /** The breadcrumb: project location, ancestor sessions and the title. */
-function SessionBreadcrumb({
-  workspace,
-  workspaceIcon,
-  workspaceColor,
-  worktree,
-  directory,
-  title,
-  ancestors,
-  running,
-  onOpenProjectSettings,
-  onOpenProjectHome,
-  onOpenSession,
-}: {
+function SessionBreadcrumb(props: {
   workspace?: string;
   workspaceIcon?: string;
   workspaceColor?: string;
@@ -127,63 +110,75 @@ function SessionBreadcrumb({
 }) {
   // Child sessions show only the project; the worktree label belongs to the
   // top-level workspace and would misplace a delegated task.
-  const location = [workspace, ancestors.length > 0 ? "" : worktree].filter(Boolean).join(" / ");
+  const location = createMemo(() =>
+    [props.workspace, props.ancestors.length > 0 ? "" : props.worktree].filter(Boolean).join(" / "),
+  );
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1">
+    <div class="flex min-w-0 flex-1 items-center gap-1">
       <SessionLocationMenu
-        workspace={workspace}
-        workspaceIcon={workspaceIcon}
-        workspaceColor={workspaceColor}
-        directory={directory}
-        worktree={ancestors.length > 0 ? undefined : worktree}
-        label={location}
-        onOpenProject={onOpenProjectHome}
-        onOpenSettings={onOpenProjectSettings}
+        workspace={props.workspace}
+        workspaceIcon={props.workspaceIcon}
+        workspaceColor={props.workspaceColor}
+        directory={props.directory}
+        worktree={props.ancestors.length > 0 ? undefined : props.worktree}
+        label={location()}
+        onOpenProject={props.onOpenProjectHome}
+        onOpenSettings={props.onOpenProjectSettings}
       />
-      {ancestors.map((ancestor, index) => (
-        <Fragment key={ancestor.id}>
-          <HeaderSeparator />
-          <SessionAncestorLink
-            id={ancestor.id}
-            title={ancestor.title}
-            last={index === ancestors.length - 1}
-            onOpenSession={onOpenSession}
-          />
-        </Fragment>
-      ))}
-      {workspace && (title || ancestors.length > 0) && <HeaderSeparator />}
-      {running && <ActivityRing size={16} />}
-      {title && <SessionTitle title={title} />}
+      <For each={props.ancestors}>
+        {(ancestor, index) => (
+          <>
+            <HeaderSeparator />
+            <SessionAncestorLink
+              id={ancestor.id}
+              title={ancestor.title}
+              last={index() === props.ancestors.length - 1}
+              onOpenSession={props.onOpenSession}
+            />
+          </>
+        )}
+      </For>
+      <Show when={props.workspace && (props.title || props.ancestors.length > 0)}>
+        <HeaderSeparator />
+      </Show>
+      <Show when={props.running}>
+        <ActivityRing size={16} />
+      </Show>
+      <Show when={props.title}>
+        <SessionTitle title={props.title ?? ""} />
+      </Show>
     </div>
   );
 }
 
 /** The session menu listing rename, export and delete. */
-function SessionMenu({ actions }: { actions: SessionHeaderAction[] }) {
+function SessionMenu(props: { actions: SessionHeaderAction[] }) {
   const tr = useT();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={tr("sessionHeaderSessionMenu")}
-          className="interactive grid size-7 shrink-0 place-items-center rounded-md text-text-faint hover:text-text-base"
-        >
-          <MoreHorizontal className="size-4" />
-        </button>
+      <DropdownMenuTrigger
+        type="button"
+        aria-label={tr("sessionHeaderSessionMenu")}
+        class="interactive grid size-7 shrink-0 place-items-center rounded-md text-text-faint hover:text-text-base"
+      >
+        <MoreHorizontal class="size-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={6} className="w-max min-w-0">
-        {actions.map((action) => (
-          <div key={action.id}>
-            {action.separated && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              onSelect={action.onSelect}
-              className={`pe-[30px] ${action.danger ? "text-state-fg-danger focus:text-state-fg-danger" : ""}`}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          </div>
-        ))}
+      <DropdownMenuContent align="start" sideOffset={6} class="w-max min-w-0">
+        <For each={props.actions}>
+          {(action) => (
+            <div>
+              <Show when={action.separated}>
+                <DropdownMenuSeparator />
+              </Show>
+              <DropdownMenuItem
+                onSelect={action.onSelect}
+                class={`pe-[30px] ${action.danger ? "text-state-fg-danger focus:text-state-fg-danger" : ""}`}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            </div>
+          )}
+        </For>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -193,56 +188,51 @@ function SessionMenu({ actions }: { actions: SessionHeaderAction[] }) {
  * The review toggle: a pane glyph whose filled half scales with the panel's
  * open width, so the icon reports the panel state while it animates.
  */
-export function SessionPanelToggle({
-  open,
-  onToggle,
-  keybind,
-  className,
-}: {
+export function SessionPanelToggle(props: {
   open: boolean;
   onToggle: () => void;
   keybind?: string;
-  className?: string;
+  class?: string;
 }) {
   const tr = useT();
-  const parts = keybind ? formatKeybind(keybind)?.split("+") ?? [] : [];
-  const label = open ? tr("hideReviewPanel") : tr("showReviewPanel");
+  const parts = createMemo(() => (props.keybind ? formatKeybind(props.keybind)?.split("+") ?? [] : []));
+  const label = () => (props.open ? tr("hideReviewPanel") : tr("showReviewPanel"));
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          aria-expanded={open}
-          aria-controls="review-panel"
-          onClick={onToggle}
-          className={`interactive grid size-7 shrink-0 place-items-center rounded-md text-text-faint hover:text-text-base ${className ?? ""}`}
-        >
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="size-4">
-            <g transform="matrix(-1 0 0 1 20 0)">
-              <path
-                d="M2.917 2.916H7.917V17.083H2.917Z"
-                fill="currentColor"
-                style={{
-                  transform: `matrix(${open ? 1 : 0} 0 0 1 ${open ? 0 : 2.917 * (1 - 0)} 0)`,
-                  transformOrigin: "left center",
-                  transition: "transform 160ms ease",
-                }}
-              />
-              <path
-                d="M2.917 2.916H17.084V17.083H2.917ZM7.917 2.916V17.083"
-                stroke="currentColor"
-                strokeLinecap="square"
-              />
-            </g>
-          </svg>
-        </button>
+      <TooltipTrigger
+        type="button"
+        aria-label={label()}
+        aria-expanded={props.open}
+        aria-controls="review-panel"
+        onClick={props.onToggle}
+        class={`interactive grid size-7 shrink-0 place-items-center rounded-md text-text-faint hover:text-text-base ${props.class ?? ""}`}
+      >
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true" class="size-4">
+          <g transform="matrix(-1 0 0 1 20 0)">
+            <path
+              d="M2.917 2.916H7.917V17.083H2.917Z"
+              fill="currentColor"
+              style={{
+                transform: `matrix(${props.open ? 1 : 0} 0 0 1 ${props.open ? 0 : 2.917 * (1 - 0)} 0)`,
+                "transform-origin": "left center",
+                transition: "transform 160ms ease",
+              }}
+            />
+            <path
+              d="M2.917 2.916H17.084V17.083H2.917ZM7.917 2.916V17.083"
+              stroke="currentColor"
+              stroke-linecap="square"
+            />
+          </g>
+        </svg>
       </TooltipTrigger>
       <TooltipContent side="bottom">
-        <span className="flex items-center gap-1.5">
-          {label}
-          {parts.length > 0 && <Keybind keys={parts} />}
+        <span class="flex items-center gap-1.5">
+          {label()}
+          <Show when={parts().length > 0}>
+            <Keybind keys={parts()} />
+          </Show>
         </span>
       </TooltipContent>
     </Tooltip>
@@ -250,46 +240,41 @@ export function SessionPanelToggle({
 }
 
 /** The identity row at the top of a session panel: project, working ring, title and actions. */
-export function SessionHeader({
-  workspace,
-  workspaceIcon,
-  workspaceColor,
-  worktree,
-  directory,
-  title,
-  ancestors = [],
-  running,
-  onOpenProjectSettings,
-  onOpenProjectHome,
-  onOpenSession,
-  actions = [],
-  context,
-  /** Reserves the trailing slot the floating review toggle occupies. */
-  reserveEnd,
-  endInset = 12,
-  summary,
-}: Props) {
+export function SessionHeader(props: Props) {
+  const ancestors = () => props.ancestors ?? [];
+  const actions = () => props.actions ?? [];
+  const endInset = () => props.endInset ?? 12;
+
   return (
-    <div className="flex h-12 shrink-0 items-center gap-1.5 ps-2.5" style={{ paddingInlineEnd: endInset }}>
+    <div
+      class="flex h-12 shrink-0 items-center gap-1.5 ps-2.5"
+      style={{ "padding-inline-end": `${endInset()}px` }}
+    >
       <SessionBreadcrumb
-        workspace={workspace}
-        workspaceIcon={workspaceIcon}
-        workspaceColor={workspaceColor}
-        worktree={worktree}
-        directory={directory}
-        title={title}
-        ancestors={ancestors}
-        running={running}
-        onOpenProjectSettings={onOpenProjectSettings}
-        onOpenProjectHome={onOpenProjectHome}
-        onOpenSession={onOpenSession}
+        workspace={props.workspace}
+        workspaceIcon={props.workspaceIcon}
+        workspaceColor={props.workspaceColor}
+        worktree={props.worktree}
+        directory={props.directory}
+        title={props.title}
+        ancestors={ancestors()}
+        running={props.running}
+        onOpenProjectSettings={props.onOpenProjectSettings}
+        onOpenProjectHome={props.onOpenProjectHome}
+        onOpenSession={props.onOpenSession}
       />
 
-      <div className="flex shrink-0 items-center gap-2">
-        {actions.length > 0 && <SessionMenu actions={actions} />}
-        {context && <SessionContextButton {...context} />}
-        {summary}
-        {reserveEnd && <div className="size-7 shrink-0" aria-hidden="true" />}
+      <div class="flex shrink-0 items-center gap-2">
+        <Show when={actions().length > 0}>
+          <SessionMenu actions={actions()} />
+        </Show>
+        <Show when={props.context}>
+          {(context) => <SessionContextButton {...context()} />}
+        </Show>
+        {props.summary}
+        <Show when={props.reserveEnd}>
+          <div class="size-7 shrink-0" aria-hidden="true" />
+        </Show>
       </div>
     </div>
   );

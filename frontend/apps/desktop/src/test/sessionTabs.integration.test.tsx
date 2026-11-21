@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { fireEvent, render, screen } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { SideTabs } from "@/components/shell/SideTabs";
@@ -9,12 +9,12 @@ import { type SessionInfo } from "@lingzhu/ui/types";
 
 function Harness() {
   const durable: StoredSessionTab = { key: chatKey("/w", "s1"), path: "/w", sessionID: "s1" };
-  const [tabs, setTabs] = useState<StoredSessionTab[]>([durable]);
-  const [sessions, setSessions] = useState<SessionInfo[]>([{ id: "s1", title: "Only session", updated: "1" }]);
-  const [chatState, setChatState] = useState<Record<string, { draft?: boolean }>>({ [durable.key]: { draft: false } });
-  const [activeKey, setActiveKey] = useState<string | undefined>(durable.key);
-  const [home, setHome] = useState(false);
-  const [deleted, setDeleted] = useState<string[]>([]);
+  const [tabs, setTabs] = createSignal<StoredSessionTab[]>([durable]);
+  const [sessions, setSessions] = createSignal<SessionInfo[]>([{ id: "s1", title: "Only session", updated: "1" }]);
+  const [chatState, setChatState] = createSignal<Record<string, { draft?: boolean }>>({ [durable.key]: { draft: false } });
+  const [activeKey, setActiveKey] = createSignal<string | undefined>(durable.key);
+  const [home, setHome] = createSignal(false);
+  const [deleted, setDeleted] = createSignal<string[]>([]);
 
   const apply = (plan: ReturnType<typeof planTabDelete>) => {
     setTabs(plan.next);
@@ -33,15 +33,15 @@ function Harness() {
   });
 
   const deleteTab = (tab: SideTab) => {
-    const entry = tabs.find((item) => item.key === tab.key);
+    const entry = tabs().find((item) => item.key === tab.key);
     if (!entry) return;
     const plan = planTabDelete({
       tab,
       entry,
-      tabs,
-      activeKey,
-      sessions,
-      chats: chatState,
+      tabs: tabs(),
+      activeKey: activeKey(),
+      sessions: sessions(),
+      chats: chatState(),
     });
     if (plan.draft) {
       apply(plan);
@@ -63,11 +63,11 @@ function Harness() {
   return (
     <div>
       <SideTabs
-        tabs={tabs.map((entry) =>
+        tabs={tabs().map((entry) =>
           sideTab(entry, entry.sessionID === "s1" ? "Only session" : "New session"),
         )}
-        activeKey={activeKey}
-        homeActive={home}
+        activeKey={activeKey()}
+        homeActive={home()}
         onHome={() => setHome(true)}
         onSelect={(tab) => {
           setActiveKey(tab.key);
@@ -81,8 +81,8 @@ function Harness() {
       <button type="button" onClick={createDraft}>
         Create draft
       </button>
-      <output data-testid="view">{home ? "home" : "chat"}</output>
-      <output data-testid="deleted">{deleted.join(",")}</output>
+      <output data-testid="view">{home() ? "home" : "chat"}</output>
+      <output data-testid="deleted">{deleted().join(",")}</output>
     </div>
   );
 }
@@ -90,7 +90,7 @@ function Harness() {
 describe("delete the only session, create a new one, delete it", () => {
   test("the rail empties and Home takes over both times", async () => {
     const user = userEvent.setup();
-    render(<Harness />);
+    render(() => <Harness />);
 
     const homeButton = screen.getByRole("button", { name: "Home" });
     expect(homeButton.getAttribute("aria-pressed")).toBe("false");

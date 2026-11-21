@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
@@ -77,7 +77,7 @@ describe("transcript regressions", () => {
 
   test("two changes to the same file open independently", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           detail={{
             shell: { placement: "separate", details: "collapsed" },
@@ -107,7 +107,7 @@ describe("transcript regressions", () => {
 
   test("a sent prompt keeps its meta line hidden until hover", () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([{ key: "u1", role: "user", text: "hi", agent: "build", model: "gpt-5" }])} showAgent />
       </TooltipProvider>,
     );
@@ -120,7 +120,7 @@ describe("transcript regressions", () => {
     // The thought keeps its own row, and the status line stays visible instead
     // of collapsing to make room for it.
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat(
             [
@@ -147,7 +147,7 @@ describe("transcript regressions", () => {
     // reserving its height would park every header in empty space and make it
     // float mid-content while the transcript scrolls.
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="compact" chat={chat([edit("t1", "1", "src/a.ts", "one")])} />
       </TooltipProvider>,
     );
@@ -179,7 +179,7 @@ describe("transcript regressions", () => {
     ]);
 
     const { rerender } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="compact" chat={live} />
       </TooltipProvider>,
     );
@@ -198,7 +198,7 @@ describe("transcript regressions", () => {
 
   test("a file list with its own tool title reserves the sticky title row", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages detail="everything" chat={chat([edit("t1", "1", "src/a.ts", "one")])} />
       </TooltipProvider>,
     );

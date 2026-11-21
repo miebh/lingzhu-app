@@ -1,4 +1,5 @@
-import type { SVGProps } from "react";
+import type { JSX } from "solid-js";
+import { createMemo, splitProps } from "solid-js";
 import { cn } from "@lingzhu/ui/utils";
 
 /** The reference file artwork, extracted from its sprite with prefixed ids. */
@@ -322,23 +323,22 @@ function chooseFileIcon(path: string, type: "file" | "directory" = "file", expan
   return "Document";
 }
 
-export function FileTypeIcon({
-  path,
-  type = "file",
-  expanded = false,
-  className,
-  ...props
-}: SVGProps<SVGSVGElement> & { path: string; type?: "file" | "directory"; expanded?: boolean }) {
+export function FileTypeIcon(props: JSX.SvgSVGAttributes<SVGSVGElement> & {
+  path: string;
+  type?: "file" | "directory";
+  expanded?: boolean;
+}) {
   ensureSprite();
-  const name = chooseFileIcon(path, type, expanded);
+  const [local, rest] = splitProps(props, ["path", "type", "expanded", "class"]);
+  const name = createMemo(() => chooseFileIcon(local.path, local.type ?? "file", local.expanded ?? false));
   return (
     <svg
-      {...props}
-      className={cn("size-4 shrink-0", className)}
+      {...rest}
+      class={cn("size-4 shrink-0", local.class)}
       viewBox="0 0 16 16"
       aria-hidden="true"
     >
-      <use href={`#lz-file-icon-${name}`} />
+      <use href={`#lz-file-icon-${name()}`} />
     </svg>
   );
 }

@@ -1,9 +1,8 @@
-import { createRoot } from "react-dom/client";
+import { render } from "solid-js/web";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { SideTabs } from "@/components/shell/SideTabs";
 import { HomeDashboard } from "@/components/home/HomeDashboard";
 import { SegmentedControl } from "@lingzhu/ui/segmented-control";
-import { TooltipProvider } from "@lingzhu/ui/tooltip";
 import { setPierreAvailable } from "@lingzhu/session-ui/pierre";
 import type { ChatState, TimelineEntry } from "@lingzhu/ui/types";
 import "@lingzhu/ui/theme.css";
@@ -71,11 +70,7 @@ const tools: TimelineEntry[] = [
   { key: "user-image", role: "user", text: "看这张图", attachments: [{ mime: "image/png", name: "pixel.png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" }] },
 ];
 
-createRoot(document.getElementById("root")!).render(
-  <TooltipProvider>
-    <Messages detail="everything" chat={chat("parity-page", tools)} />
-  </TooltipProvider>,
-);
+render(() => <Messages detail="everything" chat={chat("parity-page", tools)} />, document.getElementById("root")!);
 
 const grouped: TimelineEntry[] = [];
 for (let index = 0; index < 12; index += 1) {
@@ -85,11 +80,7 @@ for (let index = 0; index < 12; index += 1) {
   grouped.push(tool(`q${index}`, "grep", `{"pattern":"x${index}"}`));
 }
 
-createRoot(document.getElementById("group-root")!).render(
-  <TooltipProvider>
-    <Messages detail="compact" chat={chat("parity-group", grouped)} />
-  </TooltipProvider>,
-);
+render(() => <Messages detail="compact" chat={chat("parity-group", grouped)} />, document.getElementById("group-root")!);
 
 const stickyEntries: TimelineEntry[] = [
   { key: "su", role: "user", text: "scroll probe" },
@@ -99,11 +90,7 @@ const stickyEntries: TimelineEntry[] = [
   ),
 ];
 
-createRoot(document.getElementById("sticky-root")!).render(
-  <TooltipProvider>
-    <Messages detail="compact" chat={chat("parity-sticky", stickyEntries)} />
-  </TooltipProvider>,
-);
+render(() => <Messages detail="compact" chat={chat("parity-sticky", stickyEntries)} />, document.getElementById("sticky-root")!);
 
 // The shell surfaces: side rail rows, home rows and the review segmented control.
 function ShellParity() {
@@ -119,7 +106,7 @@ function ShellParity() {
     },
   ];
   return (
-    <div style={{ display: "flex", gap: 16, width: 720 }}>
+    <div style={{ display: "flex", gap: "16px", width: "720px" }}>
       <SideTabs
         tabs={[
           { key: "a", label: "First", subtitle: "Project", kind: "chat", closable: true },
@@ -132,7 +119,7 @@ function ShellParity() {
         onSearch={() => undefined}
         width={240}
       />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: "1", "min-width": "0" }}>
         <HomeDashboard
           workspaces={workspaces}
           activePath="."
@@ -141,7 +128,7 @@ function ShellParity() {
           onSelectWorkspace={() => undefined}
           onNewSession={() => undefined}
         />
-        <div style={{ padding: 8 }}>
+        <div style={{ padding: "8px" }}>
           <SegmentedControl
             label="Diff layout"
             value="unified"
@@ -157,11 +144,7 @@ function ShellParity() {
   );
 }
 
-createRoot(document.getElementById("shell-root")!).render(
-  <TooltipProvider>
-    <ShellParity />
-  </TooltipProvider>,
-);
+render(() => <ShellParity />, document.getElementById("shell-root")!);
 
 // The harness drives clicks and measurements from the browser console.
 (window as unknown as { __parityReady: boolean }).__parityReady = true;

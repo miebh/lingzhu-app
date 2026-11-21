@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createMemo, type Accessor } from "solid-js";
 import { api } from "../lib/api";
 import { entryAttachments } from "@lingzhu/ui/attachments";
 import { applyEvent, nextEntryKey } from "../lib/chat-events";
@@ -6,6 +6,7 @@ import { isSessionNotFound, messageOf } from "../lib/errors";
 import { splitModelID } from "../lib/models";
 import { blankChat, chatKey, entriesFromMessages } from "@lingzhu/ui/domain/chat";
 import { type ChatState, type CoreEvent, type ModelSelection, type PromptAttachment, type PromptComment, type PromptReference, type QuestionResponse, type WorkspaceInfo } from "@lingzhu/ui/types";
+import { createStore } from "./create";
 import { useCatalogStore, type Catalog } from "./catalog";
 import { notify } from "./notify";
 import { usePreferencesStore } from "./preferences";
@@ -120,7 +121,7 @@ function resolveHomeModel(input: {
  * Every live session plus the actions that mutate them. Core events are folded
  * in here, so no surface parses the stream.
  */
-export const useChatStore = create<ChatStore>((set, get) => {
+export const useChatStore = createStore<ChatStore>((set, get) => {
   const snapshot = (): HomeInput => ({
     activePath: useWorkspaceStore.getState().activePath,
     workspaces: useWorkspaceStore.getState().workspaces,
@@ -866,7 +867,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
   };
 });
 
-export function useChatMap(): Record<string, ChatState> {
+export function useChatMap(): Accessor<Record<string, ChatState>> {
   return useChatStore((state) => state.chats);
 }
 
@@ -879,16 +880,16 @@ function workspaceHolding(sessionID: string): string | undefined {
   return undefined;
 }
 
-export function useActiveChatID(): string | undefined {
+export function useActiveChatID(): Accessor<string | undefined> {
   const path = useWorkspaceStore((state) => state.activePath);
-  return useChatStore((state) => (path ? state.activeByWorkspace[path] : undefined));
+  return useChatStore((state) => (path() ? state.activeByWorkspace[path()!] : undefined));
 }
 
-export function useActiveChat(): ChatState | undefined {
+export function useActiveChat(): Accessor<ChatState | undefined> {
   const path = useWorkspaceStore((state) => state.activePath);
-  const sessionID = useChatStore((state) => (path ? state.activeByWorkspace[path] : undefined));
+  const sessionID = useChatStore((state) => (path() ? state.activeByWorkspace[path()!] : undefined));
   return useChatStore((state) =>
-    path && sessionID ? state.chats[chatKey(path, sessionID)] : undefined,
+    path() && sessionID() ? state.chats[chatKey(path()!, sessionID()!)] : undefined,
   );
 }
 
@@ -897,52 +898,59 @@ export function useActiveChat(): ChatState | undefined {
  * token replaces the whole chat object, so a container that only needs the
  * title or the running flag must not subscribe to the chat itself.
  */
-export function useActiveChatField<T>(select: (chat: ChatState) => T, fallback: T): T {
+export function useActiveChatField<T>(select: (chat: ChatState) => T, fallback: T): Accessor<T> {
   const path = useWorkspaceStore((state) => state.activePath);
-  const sessionID = useChatStore((state) => (path ? state.activeByWorkspace[path] : undefined));
+  const sessionID = useChatStore((state) => (path() ? state.activeByWorkspace[path()!] : undefined));
   return useChatStore((state) => {
-    const chat = path && sessionID ? state.chats[chatKey(path, sessionID)] : undefined;
+    const id = sessionID();
+    const p = path();
+    const chat = p && id ? state.chats[chatKey(p, id)] : undefined;
     return chat ? select(chat) : fallback;
   });
 }
 
 /** Any session is running; settings use it to block writes to the shared config. */
-export function useAnyChatRunning(): boolean {
+export function useAnyChatRunning(): Accessor<boolean> {
   return useChatStore((state) => Object.values(state.chats).some((chat) => chat.running));
 }
 
-export function useChatHome(): HomeModel {
+export function useChatHome(): Accessor<HomeModel> {
   const activePath = useWorkspaceStore((state) => state.activePath);
   const workspaces = useWorkspaceStore((state) => state.workspaces);
   // Only the active session's selection matters here. Subscribing to the chat
-  // map would re-render every caller on each streamed token.
+  // map would recompute every caller on each streamed token.
   const provider = useChatStore((state) => {
-    const sessionID = activePath ? state.activeByWorkspace[activePath] : undefined;
-    return activePath && sessionID ? state.chats[chatKey(activePath, sessionID)]?.provider : undefined;
+    const sessionID = activePath() ? state.activeByWorkspace[activePath()!] : undefined;
+    return activePath() && sessionID ? state.chats[chatKey(activePath()!, sessionID)]?.provider : undefined;
   });
   const model = useChatStore((state) => {
-    const sessionID = activePath ? state.activeByWorkspace[activePath] : undefined;
-    return activePath && sessionID ? state.chats[chatKey(activePath, sessionID)]?.model : undefined;
+    const sessionID = activePath() ? state.activeByWorkspace[activePath()!] : undefined;
+    return activePath() && sessionID ? state.chats[chatKey(activePath()!, sessionID)]?.model : undefined;
   });
   const defaultModel = usePreferencesStore((state) => state.preferences.defaultModel);
   const catalog = useCatalogStore((state) => state.catalog);
-  return resolveHomeModel({
-    activePath,
-    workspaces,
-    active: provider === undefined && model === undefined ? undefined : { provider, model },
-    defaultModel,
-    catalog,
-  });
+  return createMemo(() =>
+    resolveHomeModel({
+      activePath: activePath(),
+      workspaces: workspaces(),
+      active:
+        provider() === undefined && model() === undefined
+          ? undefined
+          : { provider: provider(), model: model() },
+      defaultModel: defaultModel(),
+      catalog: catalog(),
+    }),
+  );
 }
 
 /** True on the home screen: no session, or a draft that has not started. */
-export function useAtHome(): boolean {
+export function useAtHome(): Accessor<boolean> {
   const activePath = useWorkspaceStore((state) => state.activePath);
   // Derived inside the selector so a streamed token, which replaces the chat
   // object, does not re-render every caller of this hook.
   return useChatStore((state) => {
-    const sessionID = activePath ? state.activeByWorkspace[activePath] : undefined;
-    const active = activePath && sessionID ? state.chats[chatKey(activePath, sessionID)] : undefined;
+    const sessionID = activePath() ? state.activeByWorkspace[activePath()!] : undefined;
+    const active = activePath() && sessionID ? state.chats[chatKey(activePath()!, sessionID)] : undefined;
     return !active || (active.draft && active.entries.length === 0 && !active.running);
   });
 }

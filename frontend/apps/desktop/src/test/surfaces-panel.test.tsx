@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createSignal } from "solid-js";
+import { act, fireEvent, render, screen, waitFor, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
@@ -34,7 +34,7 @@ describe("side panel surfaces", () => {
     }
 
     render(
-      <>
+      () => <>
         <Toggle />
         <Reader />
       </>,
@@ -49,7 +49,7 @@ describe("side panel surfaces", () => {
     const onCloseTab = vi.fn();
     const tabs: SidePanelTab[] = [{ id: "review", label: "Review" }];
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -85,7 +85,7 @@ describe("side panel surfaces", () => {
     } as never);
     const onSendReview = vi.fn();
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -122,7 +122,7 @@ describe("side panel surfaces", () => {
     } as never);
     const onSendReview = vi.fn();
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -176,7 +176,7 @@ describe("side panel surfaces", () => {
     } as never);
     const onOpenFile = vi.fn();
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -210,7 +210,7 @@ describe("side panel surfaces", () => {
       tokens: 100,      usage: { input: 10, output: 20, cacheRead: 0, cacheWrite: 0 },
     } as ChatState;
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -233,7 +233,7 @@ describe("side panel surfaces", () => {
 
   test("side panel exposes a plugins pane", async () => {
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -272,7 +272,7 @@ describe("side panel surfaces", () => {
       tokens: 1,    } as ChatState;
 
     function Harness() {
-      const [active, setActive] = useState<SidePanelTab["id"]>("review");
+      const [active, setActive] = createSignal<SidePanelTab["id"]>("review");
       return (
         <SessionSidePanel
           open
@@ -283,7 +283,7 @@ describe("side panel surfaces", () => {
             { id: "files", label: "Files" },
             { id: "details", label: "Details" },
           ]}
-          active={active}
+          active={active()}
           onSelect={setActive}
           onCloseTab={() => undefined}
           onClose={() => undefined}
@@ -293,7 +293,7 @@ describe("side panel surfaces", () => {
       );
     }
 
-    render(<Harness />);
+    render(() => <Harness />);
     await waitFor(() => expect(screen.getAllByText(/a\.ts/).length).toBeGreaterThan(0));
     await userEvent.click(screen.getByRole("tab", { name: /Files/ }));
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
@@ -314,7 +314,7 @@ describe("side panel surfaces", () => {
     } as never);
 
     function Harness() {
-      const [active, setActive] = useState<SidePanelTab["id"]>("review");
+      const [active, setActive] = createSignal<SidePanelTab["id"]>("review");
       return (
         <SessionSidePanel
           open
@@ -324,7 +324,7 @@ describe("side panel surfaces", () => {
             { id: "review", label: "Review" },
             { id: "files", label: "Files" },
           ]}
-          active={active}
+          active={active()}
           onSelect={setActive}
           onCloseTab={() => undefined}
           onClose={() => undefined}
@@ -333,7 +333,7 @@ describe("side panel surfaces", () => {
       );
     }
 
-    render(<Harness />);
+    render(() => <Harness />);
     await waitFor(() => expect(screen.getAllByText(/a\.ts/).length).toBeGreaterThan(0));
     expect(diff).toHaveBeenCalledTimes(1);
 
@@ -350,9 +350,10 @@ describe("side panel surfaces", () => {
   });
 
   test("the side panel stays mounted while it closes", () => {
-    const { rerender } = render(
-      <SessionSidePanel
-        open
+    const [open, setOpen] = createSignal(true);
+    render(
+      () => <SessionSidePanel
+        open={open()}
         workspace="/w"
         sessionID="s1"
         tabs={[{ id: "review", label: "Review" }]}
@@ -367,21 +368,7 @@ describe("side panel surfaces", () => {
     );
     expect(screen.getByLabelText("Review and files")).toBeTruthy();
 
-    rerender(
-      <SessionSidePanel
-        open={false}
-        workspace="/w"
-        sessionID="s1"
-        tabs={[{ id: "review", label: "Review" }]}
-        active="review"
-        onSelect={() => undefined}
-        onCloseTab={() => undefined}
-        onReorderTabs={() => undefined}
-        onClose={() => undefined}
-        onOpenFile={() => undefined}
-        onSendReview={() => undefined}
-      />,
-    );
+    setOpen(false);
     const panel = screen.getByLabelText("Review and files");
     expect(panel.getAttribute("data-open")).toBe("false");
     // Its width travels back to zero over the next frames; the chat gets the
@@ -411,8 +398,8 @@ describe("side panel surfaces", () => {
     });
     try {
       render(
-        <div data-panel-row data-test-width="1600" style={{ width: 1600 }}>
-          <div data-test-width="480" style={{ width: 480 }}>
+        () => <div data-panel-row data-test-width="1600" style={{ width: "1600px" }}>
+          <div data-test-width="480" style={{ width: "480px" }}>
             <SessionSidePanel
               open
               workspace="/w"
@@ -448,7 +435,7 @@ describe("side panel surfaces", () => {
     }
   });
 
-  test("a narrowing row shrinks the side panel instead of the transcript", () => {
+  test("a narrowing row shrinks the side panel instead of the transcript", async () => {
     localStorage.removeItem("lingzhu.sidePanelWidth");
     // The row starts at 1600px and narrows to 636px, the width a 900px window
     // leaves after the rail and insets. The panel used to hold its floor there
@@ -471,8 +458,8 @@ describe("side panel surfaces", () => {
       } as DOMRect;
     });
     try {
-      const { rerender } = render(
-        <div data-panel-row data-test-row style={{ width: widths.row }}>
+      render(
+        () => <div data-panel-row data-test-row style={{ width: `${widths.row}px` }}>
           <div data-test-width="400" />
           <SessionSidePanel
             open
@@ -494,24 +481,6 @@ describe("side panel surfaces", () => {
       expect(panel.getAttribute("data-overlay")).toBeNull();
 
       widths.row = 636;
-      rerender(
-        <div data-panel-row data-test-row style={{ width: widths.row }}>
-          <div data-test-width="400" />
-          <SessionSidePanel
-            open
-            workspace="/w"
-            sessionID="s1"
-            tabs={[{ id: "review", label: "Review" }]}
-            active="review"
-            onSelect={() => undefined}
-            onCloseTab={() => undefined}
-            onReorderTabs={() => undefined}
-            onClose={() => undefined}
-            onOpenFile={() => undefined}
-            onSendReview={() => undefined}
-          />
-        </div>,
-      );
       // The row's ResizeObserver is stubbed in tests, so the window resize is
       // what re-measures it here; both paths run the same measurement.
       act(() => {
@@ -521,7 +490,9 @@ describe("side panel surfaces", () => {
       // rather than taking the space the transcript needs.
       expect(panel.getAttribute("data-overlay")).toBe("true");
       expect(panel.className).toContain("absolute");
-      expect(Number.parseInt(panel.style.width, 10)).toBeLessThanOrEqual(636 - 16);
+      await waitFor(() =>
+        expect(Number.parseInt(panel.style.width, 10)).toBeLessThanOrEqual(636 - 16),
+      );
     } finally {
       rect.mockRestore();
     }
@@ -530,7 +501,7 @@ describe("side panel surfaces", () => {
   test("the plus menu adds a view to the one panel", async () => {
     const onAddTab = vi.fn();
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="/w"
         sessionID="s1"
@@ -556,7 +527,9 @@ describe("side panel surfaces", () => {
     expect(onAddTab).toHaveBeenCalledWith("plugins");
 
     // A single strip, no split.
-    expect(screen.getAllByRole("tablist", { name: "Panel tabs" })).toHaveLength(1);
+    await waitFor(() =>
+      expect(screen.getAllByRole("tablist", { name: "Panel tabs" })).toHaveLength(1),
+    );
   });
 
   test("side panel cycles Review, Files, Details and Plugins", async () => {
@@ -570,7 +543,7 @@ describe("side panel surfaces", () => {
     } as never);
 
     function Harness() {
-      const [active, setActive] = useState<SidePanelTab["id"]>("review");
+      const [active, setActive] = createSignal<SidePanelTab["id"]>("review");
       return (
         <SessionSidePanel
           open
@@ -582,7 +555,7 @@ describe("side panel surfaces", () => {
             { id: "details", label: "Details" },
             { id: "plugins", label: "Plugins" },
           ]}
-          active={active}
+          active={active()}
           onSelect={setActive}
           onCloseTab={() => undefined}
           onClose={() => undefined}
@@ -592,7 +565,7 @@ describe("side panel surfaces", () => {
       );
     }
 
-    render(<Harness />);
+    render(() => <Harness />);
     await waitFor(() => expect(screen.getAllByText(/a\.ts/).length).toBeGreaterThan(0));
     await userEvent.click(screen.getByRole("tab", { name: /Files/ }));
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
@@ -605,7 +578,7 @@ describe("side panel surfaces", () => {
   test("details pane localizes to Chinese", async () => {
     setLanguage("zh");
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -631,7 +604,7 @@ describe("side panel surfaces", () => {
       diffs: [{ file: "a.ts", patch: "@@ -1 +1 @@\n-old\n+new", additions: 1, deletions: 1, status: "modified" }],
     } as never);
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -661,7 +634,7 @@ describe("side panel surfaces", () => {
   test("review file tree lists changed paths depth-first", async () => {
     const onSelect = vi.fn();
     render(
-      <ReviewFileTree
+      () => <ReviewFileTree
         files={[
           { file: "src/app.ts", additions: 1, deletions: 0, status: "modified", patch: "" },
           { file: "src/lib/util.ts", additions: 2, deletions: 1, status: "added", patch: "" },
@@ -687,7 +660,7 @@ describe("side panel surfaces", () => {
       diffs: [{ file: "src/a.ts", patch: "@@ -1 +1 @@\n-old\n+new", additions: 1, deletions: 1, status: "modified" }],
     } as never);
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"
@@ -713,7 +686,7 @@ describe("side panel surfaces", () => {
     } as never);
     const onOpenFile = vi.fn();
     render(
-      <SessionSidePanel
+      () => <SessionSidePanel
         open
         workspace="."
         sessionID="s1"

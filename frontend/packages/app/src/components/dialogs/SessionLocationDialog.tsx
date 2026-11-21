@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { GitBranch, Monitor, Plus, Search } from "@lingzhu/ui/icons";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
 import { api } from "../../lib/api";
@@ -35,34 +36,25 @@ interface Props {
  * The reference location picker: a 480px palette dialog with a search field
  * over a keyboard-navigable list, plus the project's worktree step.
  */
-export function SessionLocationDialog({
-  open,
-  step,
-  workspacePath,
-  workspaces,
-  onOpenChange,
-  onStepChange,
-  onSelectWorkspace,
-  onSelectWorktree,
-  onAddWorkspace,
-  onOpenWorktrees,
-}: Props) {
+export function SessionLocationDialog(props: Props) {
   const tr = useT();
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(0);
-  const [worktrees, setWorktrees] = useState<Worktree[]>([]);
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = createSignal("");
+  const [selected, setSelected] = createSignal(0);
+  const [worktrees, setWorktrees] = createSignal<Worktree[]>([]);
+  const [loading, setLoading] = createSignal(false);
+  let inputRef: HTMLInputElement | null = null;
+  let listRef: HTMLDivElement | null = null;
 
-  useEffect(() => {
-    if (!open) return;
+  createEffect(() => {
+    if (!props.open) return;
+    props.step;
     setQuery("");
     setSelected(0);
-  }, [open, step]);
+  });
 
-  useEffect(() => {
-    if (!open || step !== "worktrees" || !workspacePath) return;
+  createEffect(() => {
+    const workspacePath = props.workspacePath;
+    if (!props.open || props.step !== "worktrees" || !workspacePath) return;
     let cancelled = false;
     setLoading(true);
     Promise.resolve()
@@ -76,32 +68,32 @@ export function SessionLocationDialog({
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => {
+    onCleanup(() => {
       cancelled = true;
-    };
-  }, [open, step, workspacePath]);
+    });
+  });
 
-  const rows = useMemo<Row[]>(() => {
-    const needle = query.trim().toLowerCase();
+  const rows = createMemo<Row[]>(() => {
+    const needle = query().trim().toLowerCase();
     const matches = (...values: Array<string | undefined>) =>
       !needle || values.some((value) => value?.toLowerCase().includes(needle));
 
-    if (step === "worktrees") {
+    if (props.step === "worktrees") {
       const next: Row[] = [];
-      if (matches("Local repository", workspacePath)) {
+      if (matches("Local repository", props.workspacePath)) {
         next.push({
           id: "local",
           kind: "worktree",
           title: "Local repository",
-          detail: workspacePath,
-          path: workspacePath,
+          detail: props.workspacePath,
+          path: props.workspacePath,
           current: true,
         });
       }
       if (matches("New worktree")) {
         next.push({ id: "new-worktree", kind: "new-worktree", title: "New worktree" });
       }
-      for (const worktree of worktrees) {
+      for (const worktree of worktrees()) {
         if (!matches(worktree.branch, worktree.path)) continue;
         next.push({
           id: `worktree:${worktree.path}`,
@@ -114,7 +106,7 @@ export function SessionLocationDialog({
       return next;
     }
 
-    const next: Row[] = workspaces
+    const next: Row[] = props.workspaces
       .filter((workspace) => workspace.connected && matches(workspace.name, workspace.path))
       .map((workspace) => ({
         id: `workspace:${workspace.path}`,
@@ -123,84 +115,84 @@ export function SessionLocationDialog({
         detail: workspace.path,
         name: workspace.name,
         path: workspace.path,
-        current: workspace.path === workspacePath,
+        current: workspace.path === props.workspacePath,
       }));
     next.push({ id: "add", kind: "add", title: "Add workspace" });
     return next;
-  }, [query, step, workspaces, workspacePath, worktrees]);
+  });
 
-  const activeIndex = rows.length === 0 ? -1 : Math.min(selected, rows.length - 1);
+  const activeIndex = () => (rows().length === 0 ? -1 : Math.min(selected(), rows().length - 1));
 
-  useEffect(() => {
-    if (activeIndex < 0) return;
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)
-      ?.scrollIntoView({ block: "nearest" });
-  }, [activeIndex]);
+  createEffect(() => {
+    const index = activeIndex();
+    if (index < 0) return;
+    listRef?.querySelector<HTMLElement>(`[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
+  });
 
   const choose = (row?: Row) => {
     if (!row) return;
     if (row.kind === "workspace") {
-      onOpenChange(false);
-      onSelectWorkspace?.(row.path ?? "");
+      props.onOpenChange(false);
+      props.onSelectWorkspace?.(row.path ?? "");
       return;
     }
     if (row.kind === "worktree") {
-      onOpenChange(false);
-      if (row.path !== workspacePath) onSelectWorktree?.(row.path ?? "");
+      props.onOpenChange(false);
+      if (row.path !== props.workspacePath) props.onSelectWorktree?.(row.path ?? "");
       return;
     }
-    onOpenChange(false);
-    if (row.kind === "add") onAddWorkspace();
-    else onOpenWorktrees?.();
+    props.onOpenChange(false);
+    if (row.kind === "add") props.onAddWorkspace();
+    else props.onOpenWorktrees?.();
   };
 
   const move = (delta: number) => {
-    if (rows.length === 0) return;
-    setSelected((current) => (Math.min(current, rows.length - 1) + delta + rows.length) % rows.length);
+    const length = rows().length;
+    if (length === 0) return;
+    update(setSelected, selected, (current) => (Math.min(current, length - 1) + delta + length) % length);
   };
 
-  const placeholder = step === "worktrees" ? "Search worktrees" : "Search projects";
+  const placeholder = () => (props.step === "worktrees" ? "Search worktrees" : "Search projects");
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent
         size="model"
         style={{
           width: "min(calc(100vw - 24px), 480px)",
-          marginTop: "max(48px, calc((100vh - 480px) / 2))",
-          maxHeight: "min(calc(100vh - 96px), 480px)",
-          maxWidth: "calc(100vw - 24px)",
+          "margin-top": "max(48px, calc((100vh - 480px) / 2))",
+          "max-height": "min(calc(100vh - 96px), 480px)",
+          "max-width": "calc(100vw - 24px)",
         }}
-        className="command-palette-dialog flex flex-col overflow-hidden border-0 bg-bg-base p-0"
+        class="command-palette-dialog flex flex-col overflow-hidden border-0 bg-bg-base p-0"
         hideClose
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          inputRef.current?.focus();
+          inputRef?.focus();
         }}
       >
-        <DialogTitle className="sr-only">
-          {step === "worktrees" ? "Run session in" : "Session location"}
+        <DialogTitle class="sr-only">
+          {props.step === "worktrees" ? "Run session in" : "Session location"}
         </DialogTitle>
-        <DialogDescription className="sr-only">
-          {step === "worktrees"
+        <DialogDescription class="sr-only">
+          {props.step === "worktrees"
             ? "Search and choose the worktree for this session."
             : "Search and choose the project for this session."}
         </DialogDescription>
 
-        <div className="command-palette-search">
-          <div className="command-palette-field">
-            <Search className="command-palette-icon size-4" />
+        <div class="command-palette-search">
+          <div class="command-palette-field">
+            <Search class="command-palette-icon size-4" />
             <input
-              ref={inputRef}
-              autoFocus
-              value={query}
-              aria-label={placeholder}
+              ref={(node) => (inputRef = node)}
+              autofocus
+              value={query()}
+              aria-label={placeholder()}
               aria-controls="session-location-list"
-              aria-activedescendant={activeIndex >= 0 ? `session-location-option-${activeIndex}` : undefined}
-              placeholder={placeholder}
-              onChange={(event) => {
-                setQuery(event.target.value);
+              aria-activedescendant={activeIndex() >= 0 ? `session-location-option-${activeIndex()}` : undefined}
+              placeholder={placeholder()}
+              onInput={(event) => {
+                setQuery(event.currentTarget.value);
                 setSelected(0);
               }}
               onKeyDown={(event) => {
@@ -212,90 +204,94 @@ export function SessionLocationDialog({
                   move(-1);
                 } else if (event.key === "Enter") {
                   event.preventDefault();
-                  choose(rows[activeIndex]);
+                  choose(rows()[activeIndex()]);
                 } else if (
-                  step === "worktrees" &&
-                  query === "" &&
+                  props.step === "worktrees" &&
+                  query() === "" &&
                   (event.key === "ArrowLeft" || event.key === "Backspace")
                 ) {
                   event.preventDefault();
-                  onStepChange("projects");
+                  props.onStepChange("projects");
                 }
               }}
-              className="command-palette-input"
+              class="command-palette-input"
             />
           </div>
         </div>
 
-        <div ref={listRef} className="command-palette-scroll">
-          <div className="command-palette-fade" aria-hidden="true" />
+        <div ref={(node) => (listRef = node)} class="command-palette-scroll">
+          <div class="command-palette-fade" aria-hidden="true" />
           <div
             id="session-location-list"
             role="listbox"
-            aria-label={step === "worktrees" ? "Worktrees" : "Projects"}
-            className="command-palette-results"
+            aria-label={props.step === "worktrees" ? "Worktrees" : "Projects"}
+            class="command-palette-results"
           >
-            {step === "worktrees" && (
-              <div className="command-palette-group">
+            <Show when={props.step === "worktrees"}>
+              <div class="command-palette-group">
                 <button
                   type="button"
-                  onClick={() => onStepChange("projects")}
-                  className="command-palette-group-title text-start"
+                  onClick={() => props.onStepChange("projects")}
+                  class="command-palette-group-title text-start"
                 >
                   {tr("dialogRunSessionIn")}
                 </button>
               </div>
-            )}
-            <div className="command-palette-group">
-              {rows.length === 0 && !loading ? (
-                <p className="command-palette-state">No results found</p>
-              ) : (
-                rows.map((row, index) => {
-                  const active = index === activeIndex;
-                  return (
-                    <button
-                      key={row.id}
-                      id={`session-location-option-${index}`}
-                      data-index={index}
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      data-active={active ? "" : undefined}
-                      onMouseMove={() => setSelected(index)}
-                      onClick={() => choose(row)}
-                      className="command-palette-row"
-                    >
-                      <span className="command-palette-row-main">
-                        {row.kind === "workspace" || row.kind === "add" ? (
-                          row.kind === "add" ? (
-                            <Plus className="size-4" />
+            </Show>
+            <div class="command-palette-group">
+              <Show
+                when={rows().length > 0 || loading()}
+                fallback={<p class="command-palette-state">No results found</p>}
+              >
+                <For each={rows()}>
+                  {(row, index) => {
+                    const active = () => index() === activeIndex();
+                    return (
+                      <button
+                        id={`session-location-option-${index()}`}
+                        data-index={index()}
+                        type="button"
+                        role="option"
+                        aria-selected={active()}
+                        data-active={active() ? "" : undefined}
+                        onMouseMove={() => setSelected(index())}
+                        onClick={() => choose(row)}
+                        class="command-palette-row"
+                      >
+                        <span class="command-palette-row-main">
+                          {row.kind === "workspace" || row.kind === "add" ? (
+                            row.kind === "add" ? (
+                              <Plus class="size-4" />
+                            ) : (
+                              <ProjectAvatar name={row.name} />
+                            )
+                          ) : row.kind === "new-worktree" ? (
+                            <Plus class="size-4" />
+                          ) : row.title === "Local repository" ? (
+                            <Monitor class="size-4" />
                           ) : (
-                            <ProjectAvatar name={row.name} />
-                          )
-                        ) : row.kind === "new-worktree" ? (
-                          <Plus className="size-4" />
-                        ) : row.title === "Local repository" ? (
-                          <Monitor className="size-4" />
-                        ) : (
-                          <GitBranch className="size-4" />
-                        )}
-                        <span className="command-palette-row-text">
-                          <span className="command-palette-title">{row.title}</span>
-                          {row.detail && (
-                            <span className="command-palette-description" dir="ltr">
-                              {row.detail}
-                            </span>
+                            <GitBranch class="size-4" />
                           )}
+                          <span class="command-palette-row-text">
+                            <span class="command-palette-title">{row.title}</span>
+                            <Show when={row.detail}>
+                              <span class="command-palette-description" dir="ltr">
+                                {row.detail}
+                              </span>
+                            </Show>
+                          </span>
+                          <Show when={row.current}>
+                            <span class="shrink-0 text-caption text-text-faint">Current</span>
+                          </Show>
                         </span>
-                        {row.current && (
-                          <span className="shrink-0 text-caption text-text-faint">Current</span>
-                        )}
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-              {loading && <p className="command-palette-state">Loading worktrees…</p>}
+                      </button>
+                    );
+                  }}
+                </For>
+              </Show>
+              <Show when={loading()}>
+                <p class="command-palette-state">Loading worktrees…</p>
+              </Show>
             </div>
           </div>
         </div>

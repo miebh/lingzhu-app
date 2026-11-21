@@ -1,4 +1,4 @@
-﻿import { useMemo } from "react";
+﻿import { createMemo, For } from "solid-js";
 import { FileTypeIcon } from "@lingzhu/ui/file-icons";
 import type { VCSFileDiff } from "@lingzhu/ui/types";
 import { fileStatusLetter, fileStatusTone } from "@lingzhu/ui/status";
@@ -68,39 +68,39 @@ function sortPaths(files: VCSFileDiff[]): VCSFileDiff[] {
  * The review change list: 28px rows with a 16px file-type icon, a faint
  * directory prefix, the filename, and a 16px change letter at the end.
  */
-export function ReviewFileTree({ files, selected, flat, onSelect }: Props) {
-  const ordered = useMemo(() => {
-    if (flat) return files;
-    return sortPaths(files);
-  }, [files, flat]);
+export function ReviewFileTree(props: Props) {
+  const ordered = createMemo(() => {
+    if (props.flat) return props.files;
+    return sortPaths(props.files);
+  });
 
   return (
-    <div className="flex w-max min-w-full flex-col gap-0.5">
-      {ordered.map((file) => {
-        const name = filenameOf(file.file);
-        const directory = file.file.slice(0, file.file.length - name.length);
-        const active = file.file === selected;
-        return (
-          <button
-            key={file.file}
-            type="button"
-            data-selected={active ? "true" : undefined}
-            onClick={() => onSelect(file.file)}
-            className="interactive flex h-7 min-w-max items-center gap-1.5 rounded-md pe-2 ps-2 text-text-muted hover:bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))] data-[selected=true]:bg-[linear-gradient(var(--overlay-pressed),var(--overlay-pressed))] data-[selected=true]:text-text-base"
-          >
-            <FileTypeIcon path={file.file} />
-            <span className="flex min-w-0 items-center whitespace-nowrap">
-              <span className="font-[530] text-[13px] leading-5 text-text-muted">{directory}</span>
-              <span className="font-[530] text-[13px] leading-5 text-text-base">{name}</span>
-            </span>
-            <span
-              className={`w-4 shrink-0 text-center text-caption leading-none font-[530] uppercase tabular-nums ${fileStatusTone(file.status)}`}
+    <div class="flex w-max min-w-full flex-col gap-0.5">
+      <For each={ordered()}>
+        {(file) => {
+          const name = filenameOf(file.file);
+          const directory = file.file.slice(0, file.file.length - name.length);
+          return (
+            <button
+              type="button"
+              data-selected={file.file === props.selected ? "true" : undefined}
+              onClick={() => props.onSelect(file.file)}
+              class="interactive flex h-7 min-w-max items-center gap-1.5 rounded-md pe-2 ps-2 text-text-muted hover:bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))] data-[selected=true]:bg-[linear-gradient(var(--overlay-pressed),var(--overlay-pressed))] data-[selected=true]:text-text-base"
             >
-              {fileStatusLetter(file.status)}
-            </span>
-          </button>
-        );
-      })}
+              <FileTypeIcon path={file.file} />
+              <span class="flex min-w-0 items-center whitespace-nowrap">
+                <span class="font-[530] text-[13px] leading-5 text-text-muted">{directory}</span>
+                <span class="font-[530] text-[13px] leading-5 text-text-base">{name}</span>
+              </span>
+              <span
+                class={`w-4 shrink-0 text-center text-caption leading-none font-[530] uppercase tabular-nums ${fileStatusTone(file.status)}`}
+              >
+                {fileStatusLetter(file.status)}
+              </span>
+            </button>
+          );
+        }}
+      </For>
     </div>
   );
 }

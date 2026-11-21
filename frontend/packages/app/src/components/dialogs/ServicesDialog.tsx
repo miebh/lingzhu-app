@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { Show, createEffect, createSignal } from "solid-js";
 import { Image, Save, Search, Server } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -17,29 +17,30 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-function Badge({ configured }: { configured: boolean }) {
+function Badge(props: { configured: boolean }) {
   return (
     <span
-      className={`rounded-xs border border-border-base px-1.5 py-0.5 text-caption ${
-        configured ? "text-state-fg-success" : "text-state-fg-warning"
+      class={`rounded-xs border border-border-base px-1.5 py-0.5 text-caption ${
+        props.configured ? "text-state-fg-success" : "text-state-fg-warning"
       }`}
     >
-      {configured ? "configured" : "not configured"}
+      {props.configured ? "configured" : "not configured"}
     </span>
   );
 }
 
 /** Read-only status of web search and image generation for this workspace. */
-export function ServicesDialog({ open, workspace, name, onOpenChange }: Props) {
+export function ServicesDialog(props: Props) {
   const tr = useT();
-  const [search, setSearch] = useState<WebSearchStatus>();
-  const [image, setImage] = useState<ImageStatus>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [search, setSearch] = createSignal<WebSearchStatus>();
+  const [image, setImage] = createSignal<ImageStatus>();
+  const [loading, setLoading] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+  const [notice, setNotice] = createSignal("");
 
   const load = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
     setLoading(true);
     setError("");
@@ -57,8 +58,9 @@ export function ServicesDialog({ open, workspace, name, onOpenChange }: Props) {
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setSearch(undefined);
@@ -67,16 +69,16 @@ export function ServicesDialog({ open, workspace, name, onOpenChange }: Props) {
       setSaving(false);
       setNotice("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
   const saveStatus = async () => {
-    if (!workspace || (!search && !image)) return;
+    const workspace = props.workspace;
+    if (!workspace || (!search() && !image())) return;
     setSaving(true);
     try {
       const path = await api.saveTextFile(
         servicesExportName(),
-        serializeServices({ workspace, webSearch: search, image }),
+        serializeServices({ workspace, webSearch: search(), image: image() }),
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -91,72 +93,90 @@ export function ServicesDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Server className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <Server class="size-4 text-text-faint" />
               Services
             </DialogTitle>
-            <DialogDescription className="truncate">{name || workspace}</DialogDescription>
+            <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={saving || (!search && !image)}
+              disabled={saving() || (!search() && !image())}
               onClick={() => void saveStatus()}
             >
               <Save />
-              {saving ? "Saving…" : "Save file"}
+              {saving() ? "Saving…" : "Save file"}
             </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load()} />
+            <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
         </div>
 
-        <ErrorBanner error={error} className="mt-3" />
-        <NoticeBanner notice={notice} mono />
+        <ErrorBanner error={error()} class="mt-3" />
+        <NoticeBanner notice={notice()} mono />
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <section className="rounded-md border border-border-base">
-            <div className="flex items-center gap-2 border-b border-border-base px-3 py-2 text-body text-text-base">
-              <Search className="size-4 text-text-faint" />
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <section class="rounded-md border border-border-base">
+            <div class="flex items-center gap-2 border-b border-border-base px-3 py-2 text-body text-text-base">
+              <Search class="size-4 text-text-faint" />
               {tr("paletteWebSearch")}
-              {search && <span className="ml-auto">{<Badge configured={search.configured} />}</span>}
+              <Show when={search()}>
+                {(status) => (
+                  <span class="ml-auto">
+                    <Badge configured={status().configured} />
+                  </span>
+                )}
+              </Show>
             </div>
-            {search ? (
-              <>
-                <DetailRow label="Provider" value={search.provider} />
-                <DetailRow label="Endpoint" value={search.endpoint} />
-                <DetailRow label="Max results" value={String(search.maxResults)} />
-              </>
-            ) : (
-              <p className="p-3 text-meta text-text-faint">{loading ? "Loading…" : "No status."}</p>
-            )}
+            <Show
+              when={search()}
+              fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No status."}</p>}
+            >
+              {(status) => (
+                <>
+                  <DetailRow label="Provider" value={status().provider} />
+                  <DetailRow label="Endpoint" value={status().endpoint} />
+                  <DetailRow label="Max results" value={String(status().maxResults)} />
+                </>
+              )}
+            </Show>
           </section>
 
-          <section className="rounded-md border border-border-base">
-            <div className="flex items-center gap-2 border-b border-border-base px-3 py-2 text-body text-text-base">
-              <Image className="size-4 text-text-faint" />
+          <section class="rounded-md border border-border-base">
+            <div class="flex items-center gap-2 border-b border-border-base px-3 py-2 text-body text-text-base">
+              <Image class="size-4 text-text-faint" />
               {tr("dialogImageGeneration")}
-              {image && <span className="ml-auto">{<Badge configured={image.configured} />}</span>}
+              <Show when={image()}>
+                {(status) => (
+                  <span class="ml-auto">
+                    <Badge configured={status().configured} />
+                  </span>
+                )}
+              </Show>
             </div>
-            {image ? (
-              <>
-                <DetailRow label="Provider" value={image.provider} />
-                <DetailRow label="Endpoint" value={image.endpoint} />
-                <DetailRow label="Model" value={image.model} />
-                <DetailRow label="Size" value={image.size} />
-              </>
-            ) : (
-              <p className="p-3 text-meta text-text-faint">{loading ? "Loading…" : "No status."}</p>
-            )}
+            <Show
+              when={image()}
+              fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No status."}</p>}
+            >
+              {(status) => (
+                <>
+                  <DetailRow label="Provider" value={status().provider} />
+                  <DetailRow label="Endpoint" value={status().endpoint} />
+                  <DetailRow label="Model" value={status().model} />
+                  <DetailRow label="Size" value={status().size} />
+                </>
+              )}
+            </Show>
           </section>
         </div>
 
-        <p className="mt-3 text-caption text-text-faint">
+        <p class="mt-3 text-caption text-text-faint">
           Status hides API keys; configure providers in the config file or settings.
         </p>
       </DialogContent>

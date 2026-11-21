@@ -1,25 +1,18 @@
 /**
- * Development-only component inspector.
+ * Development-only element inspector.
  *
- * Holding Alt turns the pointer into a probe: the React component under it is
- * outlined and named, and a click copies that name instead of reaching the app.
- * The desktop entry mounts this module only in a development build, so a
- * release bundle never includes it.
+ * Holding Alt turns the pointer into a probe: the element under it is outlined
+ * and named from its `data-component` / `data-slot` attributes, or from its tag,
+ * classes and id when nothing names it, and a click copies that name instead of
+ * reaching the app. The desktop entry mounts this module only in a development
+ * build, so a release bundle never includes it.
  */
-
-type FiberNode = {
-  type?: unknown;
-  elementType?: unknown;
-  stateNode?: unknown;
-  child?: FiberNode | null;
-  return?: FiberNode | null;
-};
 
 /** What the probe found under the pointer. */
 export type InspectTarget = {
-  /** The component that owns the element, or its tag name for plain DOM. */
+  /** Nearest `data-component` / `data-slot` name, or a selector fallback. */
   name: string;
-  /** Component names from the hovered leaf outwards, nearest first. */
+  /** Named surfaces from the hovered leaf outwards, nearest first. */
   chain: string[];
   /** The exact element under the pointer, highlighted as-is. */
   host: Element;
@@ -29,51 +22,11 @@ export type InspectTarget = {
   slot?: string;
 };
 
-const FIBER_PREFIX = "__reactFiber$";
-
-/** Names that describe React plumbing rather than a piece of the UI. */
-const PLUMBING = new Set([
-  "Fragment",
-  "StrictMode",
-  "Suspense",
-  "SuspenseList",
-  "Profiler",
-  "Provider",
-  "Consumer",
-  "Memo",
-  "ForwardRef",
-  "Offscreen",
-]);
-
-/** Wrappers that only forward props to the component the reader cares about. */
-const WRAPPER = /^(Slot|Primitive|RovingFocus|Collection|DismissableLayer|FocusScope|Popper|Portal|Presence)/;
-
-/** Third-party renderers whose name would hide the app component around them. */
-const VENDOR = new Set(["ReactMarkdown", "MarkdownAsync", "RemarkGfm"]);
-
-function isUiComponent(name: string) {
-  if (!/^[A-Z]/.test(name) || PLUMBING.has(name) || WRAPPER.test(name) || VENDOR.has(name)) return false;
-  return !name.endsWith("Context") && !name.endsWith("Provider");
-}
-
-function typeName(type: unknown): string | undefined {
-  if (typeof type === "function") {
-    const fn = type as { displayName?: string; name?: string };
-    return fn.displayName || fn.name || undefined;
-  }
-  if (!type || typeof type !== "object") return undefined;
-  const wrapper = type as { displayName?: string; render?: unknown; type?: unknown };
-  if (wrapper.displayName) return wrapper.displayName;
-  return typeName(wrapper.render) ?? typeName(wrapper.type);
-}
-
-function fiberAt(node: Element): FiberNode | undefined {
-  for (const key of Object.keys(node)) {
-    if (!key.startsWith(FIBER_PREFIX)) continue;
-    return (node as unknown as Record<string, FiberNode>)[key];
-  }
-  return undefined;
-}
+/**
+ * Attributes that name a surface or one of its parts, most specific first: a
+ * slot names the part inside a component, so it wins when both sit together.
+ */
+const NAME_ATTRIBUTES = ["data-slot", "data-component"] as const;
 
 /** The element above `node`, stepping out of a shadow root to its host. */
 function parentOf(node: Element): Element | null {
@@ -81,46 +34,6 @@ function parentOf(node: Element): Element | null {
   const root = node.getRootNode();
   if (typeof ShadowRoot !== "undefined" && root instanceof ShadowRoot) return root.host;
   return null;
-}
-
-/**
- * Nearest element, from `node` outwards, that React actually rendered. Content
- * a library inserts imperatively (a diff renderer's shadow tree, for instance)
- * carries no fiber of its own, so the probe reports the component that mounted
- * its container instead of going silent.
- */
-function reactHostOf(node: Element): Element | undefined {
-  for (let current: Element | null = node; current; current = parentOf(current)) {
-    if (fiberAt(current)) return current;
-  }
-  return undefined;
-}
-
-/** Every component that owns this element, from the nearest one outwards. */
-function chainOf(node: Element): string[] {
-  const chain: string[] = [];
-  const host = reactHostOf(node);
-  let fiber: FiberNode | null | undefined = host ? fiberAt(host) : undefined;
-  while (fiber) {
-    const name = typeName(fiber.type ?? fiber.elementType);
-    if (name && isUiComponent(name) && chain[chain.length - 1] !== name) chain.push(name);
-    fiber = fiber.return;
-  }
-  return chain;
-}
-
-/**
- * The nearest component that owns this element. A browser element picker names
- * whatever sits under the pointer, so there is no notion of a "more useful"
- * ancestor: the arrow is `ToolArrow`, the label is `TextShimmer`.
- */
-function containerOf(node: Element): { fiber: FiberNode; name: string } | undefined {
-  const host = reactHostOf(node);
-  for (let current: FiberNode | null | undefined = host ? fiberAt(host) : undefined; current; current = current.return) {
-    const name = typeName(current.type ?? current.elementType);
-    if (name && isUiComponent(name)) return { fiber: current, name };
-  }
-  return undefined;
 }
 
 /** Nearest value of a data attribute on the element or its ancestors. */
@@ -134,25 +47,57 @@ function attribute(node: Element | null, name: string): string | undefined {
   return undefined;
 }
 
+/** The name this element carries itself, most specific attribute first. */
+function ownName(node: Element): string | undefined {
+  for (const name of NAME_ATTRIBUTES) {
+    const value = node.getAttribute(name);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+/** Every named surface that owns this element, from the nearest one outwards. */
+function chainOf(node: Element): string[] {
+  const chain: string[] = [];
+  for (let current: Element | null = node; current; current = parentOf(current)) {
+    const name = ownName(current);
+    if (name && chain[chain.length - 1] !== name) chain.push(name);
+  }
+  return chain;
+}
+
+/**
+ * A CSS-like name for an unnamed element, the way a browser element picker
+ * names it: `div.side-tab#rail`.
+ */
+function fallbackName(element: Element): string {
+  const tag = element.tagName.toLowerCase();
+  const id = element.id ? `#${element.id}` : "";
+  const classes = Array.from(element.classList)
+    .slice(0, 3)
+    .map((name) => `.${name}`)
+    .join("");
+  return `${tag}${id}${classes}`;
+}
+
 /**
  * Resolves what sits under the pointer. Like a browser element picker, the
  * outline covers exactly the hovered element rather than the component's whole
  * region, so a rail row highlights that row instead of the entire rail.
  */
-export function describeElement(target: Element): InspectTarget | undefined {
-  const container = containerOf(target);
-  if (!container) return undefined;
-
+export function describeElement(target: Element): InspectTarget {
+  const chain = chainOf(target);
+  const name = chain[0] ?? fallbackName(target);
   return {
-    name: container.name,
-    chain: chainOf(target),
+    name,
+    chain: chain.length ? chain : [name],
     host: target,
     component: attribute(target, "data-component"),
     slot: attribute(target, "data-slot"),
   };
 }
 
-/** What a click copies: the component name. */
+/** What a click copies: the resolved name. */
 export function copyValue(target: InspectTarget): string {
   return target.name;
 }
@@ -288,7 +233,7 @@ export function mountInspector(): () => void {
   let copied = 0;
   /** Until the pointer has moved there is no meaningful element to report. */
   let pointerKnown = false;
-  /** The last element described, so hovering still content reuses its fiber walk. */
+  /** The last element described, so hovering still content reuses its lookup. */
   let lastElement: Element | null = null;
   let lastTarget: InspectTarget | undefined;
   let paintedTitle = "";
@@ -355,8 +300,9 @@ export function mountInspector(): () => void {
       return;
     }
 
-    // Describing an element walks its fiber chain, and the pointer usually sits
-    // on the same node for many frames, so the result is reused until it moves.
+    // Describing an element walks its named ancestors, and the pointer usually
+    // sits on the same node for many frames, so the result is reused until it
+    // moves.
     if (element !== lastElement) {
       lastElement = element;
       lastTarget = describeElement(element);

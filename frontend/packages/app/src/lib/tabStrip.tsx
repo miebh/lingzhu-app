@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Show, createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { ActivityRing } from "@lingzhu/ui/ActivityRing";
 import type { SideTab } from "./sessionTabs";
 
@@ -9,25 +9,25 @@ export interface TabEditing {
 }
 
 /**
- * Inline rename state shared by the side rail and the top strip. `commit`
+ * Inline rename state shared by the side rail and the top strip. `committing`
  * guards against the Enter key and the blur that follows it both firing.
  */
 export function useTabRename(onRename?: (tab: SideTab, title: string) => void) {
-  const [editing, setEditing] = useState<TabEditing>();
-  const committing = useRef(false);
+  const [editing, setEditing] = createSignal<TabEditing>();
+  let committing = false;
 
   const begin = (tab: SideTab) => setEditing({ key: tab.key, value: tab.label });
   const cancel = () => setEditing(undefined);
   const change = (tab: SideTab, value: string) => setEditing({ key: tab.key, value });
 
   const commit = (tab: SideTab) => {
-    if (committing.current) return;
-    committing.current = true;
-    const value = editing?.value.trim();
+    if (committing) return;
+    committing = true;
+    const value = editing()?.value.trim();
     setEditing(undefined);
     if (value && value !== tab.label) onRename?.(tab, value);
     window.setTimeout(() => {
-      committing.current = false;
+      committing = false;
     }, 0);
   };
 
@@ -38,34 +38,37 @@ export function useTabRename(onRename?: (tab: SideTab, title: string) => void) {
  * Closes a popup when the pointer lands elsewhere or the window loses focus or
  * resizes. Both strips dismiss their context and recently-closed menus this way.
  */
-export function useDismissOnOutside(open: boolean, close: () => void) {
-  useEffect(() => {
-    if (!open) return;
+export function useDismissOnOutside(open: Accessor<boolean>, close: () => void) {
+  createEffect(() => {
+    if (!open()) return;
     const dismiss = () => close();
     window.addEventListener("pointerdown", dismiss);
     window.addEventListener("blur", dismiss);
     window.addEventListener("resize", dismiss);
-    return () => {
+    onCleanup(() => {
       window.removeEventListener("pointerdown", dismiss);
       window.removeEventListener("blur", dismiss);
       window.removeEventListener("resize", dismiss);
-    };
-  }, [open, close]);
+    });
+  });
 }
 
 /**
  * The status mark a tab shows while a session runs or failed: an activity ring
  * while it works, then a warning or danger dot.
  */
-export function TabStatusMark({ status }: { status: NonNullable<SideTab["status"]> }) {
-  if (status === "ongoing") return <ActivityRing className="text-icon-base" />;
+export function TabStatusMark(props: { status: NonNullable<SideTab["status"]> }) {
   return (
-    <span
-      aria-hidden="true"
-      className={`size-[7px] shrink-0 rounded-full ${
-        status === "warning" ? "bg-state-fg-warning" : "bg-state-fg-danger"
-      }`}
-    />
+    <Show when={props.status === "ongoing"} fallback={
+      <span
+        aria-hidden="true"
+        class={`size-[7px] shrink-0 rounded-full ${
+          props.status === "warning" ? "bg-state-fg-warning" : "bg-state-fg-danger"
+        }`}
+      />
+    }>
+      <ActivityRing class="text-icon-base" />
+    </Show>
   );
 }
 
@@ -73,41 +76,34 @@ export function TabStatusMark({ status }: { status: NonNullable<SideTab["status"
  * The inline rename field both strips render in place of a tab title. Enter
  * commits, Escape cancels, and blur commits so clicking away saves the edit.
  */
-export function TabRenameInput({
-  tab,
-  value,
-  className,
-  onChange,
-  onCommit,
-  onCancel,
-}: {
+export function TabRenameInput(props: {
   tab: SideTab;
   value: string;
-  className: string;
+  class: string;
   onChange: (value: string) => void;
   onCommit: () => void;
   onCancel: () => void;
 }) {
   return (
     <input
-      autoFocus
-      value={value}
-      aria-label={`Rename ${tab.label}`}
-      onChange={(event) => onChange(event.target.value)}
+      autofocus
+      value={props.value}
+      aria-label={`Rename ${props.tab.label}`}
+      onChange={(event) => props.onChange(event.currentTarget.value)}
       onClick={(event) => event.stopPropagation()}
-      onDoubleClick={(event) => event.stopPropagation()}
+      onDblClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Enter") {
           event.preventDefault();
-          onCommit();
+          props.onCommit();
         } else if (event.key === "Escape") {
           event.preventDefault();
-          onCancel();
+          props.onCancel();
         }
       }}
-      onBlur={onCommit}
-      className={className}
+      onBlur={props.onCommit}
+      class={props.class}
     />
   );
 }

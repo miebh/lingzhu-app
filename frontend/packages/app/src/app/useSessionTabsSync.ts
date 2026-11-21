@@ -1,15 +1,14 @@
-import { useEffect, useRef } from "react";
-import { useShallow } from "zustand/react/shallow";
+import { createEffect, createMemo, onMount, type Accessor } from "solid-js";
 import type { SessionInfo, WorkspaceInfo } from "@lingzhu/ui/types";
 import { useChatStore } from "../store/chat";
 import { useTabsStore } from "../store/tabs";
 
 interface Options {
-  activePath?: string;
-  activeId?: string;
-  sessionsByWorkspace: Record<string, SessionInfo[]>;
-  loadingSessions: Record<string, boolean | undefined>;
-  workspaceList: WorkspaceInfo[];
+  activePath: Accessor<string | undefined>;
+  activeId: Accessor<string | undefined>;
+  sessionsByWorkspace: Accessor<Record<string, SessionInfo[]>>;
+  loadingSessions: Accessor<Record<string, boolean | undefined>>;
+  workspaceList: Accessor<WorkspaceInfo[]>;
 }
 
 /**
@@ -29,56 +28,65 @@ export function useSessionTabsSync({
   workspaceList,
 }: Options) {
   const tabs = useTabsStore((state) => state.tabs);
-  const actions = useTabsStore(
-    useShallow((state) => ({
-      addActiveTab: state.addActiveTab,
-      pruneRestored: state.pruneRestored,
-      persist: state.persist,
-    })),
-  );
+  const actions = useTabsStore((state) => ({
+    addActiveTab: state.addActiveTab,
+    pruneRestored: state.pruneRestored,
+    persist: state.persist,
+  }));
 
   // Tabs restored at startup, so stale ones can be dropped without touching
   // tabs opened during this run.
-  const restoredTabKeys = useRef<Set<string>>(new Set());
-  const reconciled = useRef<Set<string>>(new Set());
-  const hydrated = useRef(false);
+  const restoredTabKeys = new Set<string>();
+  const reconciled = new Set<string>();
+  // The shell getters are coarse, so each projection is memoised: these
+  // effects should wake on a session or list change, not on a streamed token.
+  const path = createMemo(() => activePath());
+  const id = createMemo(() => activeId());
+  const workspaces = createMemo(() => workspaceList());
+  const loading = createMemo(() => loadingSessions());
+  const sessions = createMemo(() => sessionsByWorkspace());
 
-  useEffect(() => {
-    if (hydrated.current) return;
-    hydrated.current = true;
+  onMount(() => {
     useTabsStore.getState().hydrate();
-    restoredTabKeys.current = new Set(useTabsStore.getState().tabs.map((tab) => tab.key));
-  }, []);
+    for (const tab of useTabsStore.getState().tabs) restoredTabKeys.add(tab.key);
+  });
 
-  useEffect(() => {
-    if (!activePath || !activeId) return;
-    actions.addActiveTab(activePath, activeId);
-  }, [activePath, activeId, actions.addActiveTab]);
+  createEffect(() => {
+    const currentPath = path();
+    const currentId = id();
+    if (!currentPath || !currentId) return;
+    actions().addActiveTab(currentPath, currentId);
+  });
 
-  useEffect(() => {
-    const ready = workspaceList.filter((workspace) => {
+  createEffect(() => {
+    const list = workspaces();
+    const loadingState = loading();
+    const sessionRows = sessions();
+    const ready = list.filter((workspace) => {
       if (!workspace.connected) return false;
-      if (loadingSessions[workspace.path] !== false) return false;
-      if (reconciled.current.has(workspace.path)) return false;
-      return (sessionsByWorkspace[workspace.path] ?? []).length > 0;
+      if (loadingState[workspace.path] !== false) return false;
+      if (reconciled.has(workspace.path)) return false;
+      return (sessionRows[workspace.path] ?? []).length > 0;
     });
     if (ready.length === 0) return;
-    for (const workspace of ready) reconciled.current.add(workspace.path);
+    for (const workspace of ready) reconciled.add(workspace.path);
     const known = new Map(
       ready.map((workspace) => [
         workspace.path,
-        new Set((sessionsByWorkspace[workspace.path] ?? []).map((session) => session.id)),
+        new Set((sessionRows[workspace.path] ?? []).map((session) => session.id)),
       ]),
     );
-    actions.pruneRestored(known, restoredTabKeys.current);
-  }, [workspaceList, loadingSessions, sessionsByWorkspace, actions.pruneRestored]);
+    actions().pruneRestored(known, restoredTabKeys);
+  });
 
   // Drafts are ephemeral; only durable sessions survive a restart.
-  const draftSignature = useChatStore(
-    useShallow((state) => tabs.map((tab) => (state.chats[tab.key]?.draft ? "1" : "0"))),
+  const draftSignature = useChatStore((state) =>
+    tabs().map((tab) => (state.chats[tab.key]?.draft ? "1" : "0")),
   );
-  useEffect(() => {
-    const drafts = new Set(tabs.filter((_, index) => draftSignature[index] === "1").map((tab) => tab.key));
-    actions.persist(drafts);
-  }, [tabs, draftSignature, actions.persist]);
+  createEffect(() => {
+    const current = tabs();
+    const signature = draftSignature();
+    const drafts = new Set(current.filter((_, index) => signature[index] === "1").map((tab) => tab.key));
+    actions().persist(drafts);
+  });
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createEffect, createSignal } from "solid-js";
 import { CircleAlert, Copy } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -16,26 +16,27 @@ interface Props {
 }
 
 /** One failed MCP server's error with copy, retry and disable actions. */
-export function MCPErrorDialog({ open, workspace, server, onOpenChange, onChanged }: Props) {
+export function MCPErrorDialog(props: Props) {
   const tr = useT();
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState<"retry" | "disable" | "">("");
-  const [notice, setNotice] = useState("");
+  const [error, setError] = createSignal("");
+  const [busy, setBusy] = createSignal<"retry" | "disable" | "">("");
+  const [notice, setNotice] = createSignal("");
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!props.open) {
       setError("");
       setNotice("");
       setBusy("");
       return;
     }
-    setError(server?.error ?? "");
-  }, [open, server?.name, server?.error]);
+    setError(props.server?.error ?? "");
+  });
 
   const copy = async () => {
-    if (!server || !error) return;
+    const server = props.server;
+    if (!server || !error()) return;
     try {
-      await navigator.clipboard.writeText(`MCP server "${server.name}": ${error}`);
+      await navigator.clipboard.writeText(`MCP server "${server.name}": ${error()}`);
       setNotice(tr("copiedToClipboard"));
       window.setTimeout(() => setNotice(""), 1600);
     } catch (cause) {
@@ -44,15 +45,17 @@ export function MCPErrorDialog({ open, workspace, server, onOpenChange, onChange
   };
 
   const retry = async () => {
+    const workspace = props.workspace;
+    const server = props.server;
     if (!workspace || !server) return;
     setBusy("retry");
     try {
       const next = await api.reconnectMCP(workspace, server.name);
-      onChanged?.(next);
+      props.onChanged?.(next);
       if (next.status === "failed") {
         setError(next.error ?? tr("mcpFailed"));
       } else {
-        onOpenChange(false);
+        props.onOpenChange(false);
       }
     } catch (cause) {
       setError(messageOf(cause));
@@ -62,12 +65,14 @@ export function MCPErrorDialog({ open, workspace, server, onOpenChange, onChange
   };
 
   const disable = async () => {
+    const workspace = props.workspace;
+    const server = props.server;
     if (!workspace || !server) return;
     setBusy("disable");
     try {
       const next = await api.disconnectMCP(workspace, server.name);
-      onChanged?.(next);
-      onOpenChange(false);
+      props.onChanged?.(next);
+      props.onOpenChange(false);
     } catch (cause) {
       setError(messageOf(cause));
     } finally {
@@ -76,13 +81,13 @@ export function MCPErrorDialog({ open, workspace, server, onOpenChange, onChange
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[70vh] flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <CircleAlert className="size-4 text-state-fg-danger" />
-              {server?.name ?? tr("mcpServers")}
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent class="flex max-h-[70vh] flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <CircleAlert class="size-4 text-state-fg-danger" />
+              {props.server?.name ?? tr("mcpServers")}
             </DialogTitle>
             <DialogDescription>{tr("mcpFailed")}</DialogDescription>
           </div>
@@ -90,7 +95,7 @@ export function MCPErrorDialog({ open, workspace, server, onOpenChange, onChange
             type="button"
             variant="outline"
             size="sm"
-            disabled={!error}
+            disabled={!error()}
             onClick={() => void copy()}
           >
             <Copy />
@@ -98,24 +103,24 @@ export function MCPErrorDialog({ open, workspace, server, onOpenChange, onChange
           </Button>
         </div>
 
-        <pre className="mt-3 min-h-24 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border-base bg-bg-layer-01 p-3 font-mono text-caption leading-5 text-state-fg-danger select-text">
-          {error || tr("mcpFailed")}
+        <pre class="mt-3 min-h-24 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border-base bg-bg-layer-01 p-3 font-mono text-caption leading-5 text-state-fg-danger select-text">
+          {error() || tr("mcpFailed")}
         </pre>
 
-        {notice && <p className="mt-2 text-caption text-text-muted">{notice}</p>}
+        {notice() && <p class="mt-2 text-caption text-text-muted">{notice()}</p>}
 
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div class="mt-4 flex items-center justify-end gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={busy !== ""}
+            disabled={busy() !== ""}
             onClick={() => void disable()}
           >
-            {busy === "disable" ? tr("mcpDisconnecting") : tr("mcpDisconnect")}
+            {busy() === "disable" ? tr("mcpDisconnecting") : tr("mcpDisconnect")}
           </Button>
-          <Button type="button" size="sm" disabled={busy !== ""} onClick={() => void retry()}>
-            {busy === "retry" ? tr("mcpReconnecting") : tr("retry")}
+          <Button type="button" size="sm" disabled={busy() !== ""} onClick={() => void retry()}>
+            {busy() === "retry" ? tr("mcpReconnecting") : tr("retry")}
           </Button>
         </div>
       </DialogContent>

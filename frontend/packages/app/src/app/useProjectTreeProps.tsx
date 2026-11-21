@@ -1,13 +1,28 @@
-import type { ComponentProps } from "react";
+import { createMemo } from "solid-js";
 import { Sidebar } from "../components/workspace/Sidebar";
 import { chatKey } from "@lingzhu/ui/domain/chat";
 import { useShell } from "./ShellProvider";
-import { useMemo } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { useChatStore } from "../store/chat";
 import { useUnreadKeys } from "./hooks";
 
-type ProjectTreeProps = Omit<ComponentProps<typeof Sidebar>, "children">;
+type ProjectTreeProps = Omit<Parameters<typeof Sidebar>[0], "children">;
+
+/**
+ * Defines live fields on a prop bag handed to a child once. The child reads
+ * the property while rendering, so the getter re-reads the shell instead of
+ * freezing the value captured at setup time.
+ */
+function liveProps<T extends object>(target: T, live: Partial<Record<keyof T, () => unknown>>): T {
+  for (const key of Object.keys(live) as Array<keyof T>) {
+    const read = live[key]!;
+    Object.defineProperty(target, key, {
+      enumerable: true,
+      configurable: false,
+      get: () => read(),
+    });
+  }
+  return target;
+}
 
 /**
  * The Projects tree wiring. Every menu entry opens a dialog by id or runs a
@@ -15,18 +30,25 @@ type ProjectTreeProps = Omit<ComponentProps<typeof Sidebar>, "children">;
  */
 export function useProjectTreeProps(): ProjectTreeProps {
   const shell = useShell();
-  const { dialogs, workspaceActions, chatActions, sessionsByWorkspace } = shell;
+  const { dialogs, workspaceActions, chatActions } = shell;
   // Keep the tree calm while tokens stream: subscribe to a status signature,
   // then read the map snapshot for the render.
-  const chatSignature = useChatStore(
-    useShallow((state) =>
-      Object.entries(state.chats).map(
-        ([key, chat]) => `${key}:${chat.running ? 1 : 0}:${chat.pending.length}:${chat.questions.length}:${chat.lastRunStatus ?? ""}`,
-      ),
-    ),
+  const chatSignature = useChatStore((state) =>
+    Object.entries(state.chats)
+      .map(
+        ([key, chat]) =>
+          `${key}:${chat.running ? 1 : 0}:${chat.pending.length}:${chat.questions.length}:${chat.lastRunStatus ?? ""}`,
+      )
+      .join("|"),
   );
-  const chats = useMemo(() => useChatStore.getState().chats, [chatSignature.join("\u0002")]);
-  const unread = useUnreadKeys(shell.activeKey);
+  const chats = createMemo(() => {
+    chatSignature();
+    return useChatStore.getState().chats;
+  });
+  const unread = useUnreadKeys(() => shell.activeKey);
+  const openSessionKeys = createMemo(() =>
+    shell.tabs.sessionTabs().map((tab) => chatKey(tab.path, tab.sessionID)),
+  );
 
   const sessionTarget = (path: string, sessionID: string, title: string) => ({
     workspace: path,
@@ -34,15 +56,8 @@ export function useProjectTreeProps(): ProjectTreeProps {
     title,
   });
 
-  return {
+  const props: ProjectTreeProps = {
     embedded: true,
-    unreadKeys: unread,
-    workspaces: shell.workspaceList,
-    activePath: shell.activePath,
-    sessionsByWorkspace,
-    openSessionKeys: shell.tabs.sessionTabs.map((tab) => chatKey(tab.path, tab.sessionID)),
-    chats,
-    activeId: shell.activeId,
     onSelectWorkspace: (path) => {
       shell.view.showChat();
       workspaceActions.select(path);
@@ -132,6 +147,21 @@ export function useProjectTreeProps(): ProjectTreeProps {
     onMoveSelected: dialogs.setBulkMoveTarget,
     onExportSelected: (items) =>
       dialogs.setBulkExportTarget(items.map((item) => ({ path: item.path, id: item.id }))),
-    selectionReset: shell.selectionReset,
+    // Replaced by the live getters below; the placeholders only satisfy the type.
+    workspaces: [],
+    sessionsByWorkspace: {},
+    chats: {},
+    selectionReset: 0,
   };
+
+  return liveProps(props, {
+    unreadKeys: () => unread(),
+    workspaces: () => shell.workspaceList,
+    activePath: () => shell.activePath,
+    sessionsByWorkspace: () => shell.sessionsByWorkspace,
+    openSessionKeys: () => openSessionKeys(),
+    chats: () => chats(),
+    activeId: () => shell.activeId,
+    selectionReset: () => shell.selectionReset,
+  });
 }

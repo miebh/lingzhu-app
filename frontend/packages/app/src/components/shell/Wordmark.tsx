@@ -3,11 +3,11 @@
  * letterforms; this app shows its own name as text on the same centred slot so
  * the composer below keeps its position.
  */
-export function Wordmark({ className = "" }: { className?: string }) {
+export function Wordmark(props: { class?: string }) {
   return (
     <span
       data-slot="wordmark"
-      className={`block text-center text-[56px] leading-none font-[530] tracking-[-0.04em] text-text-faint select-none ${className}`}
+      class={`block text-center text-[56px] leading-none font-[530] tracking-[-0.04em] text-text-faint select-none ${props.class ?? ""}`}
     >
       Lingzhu
     </span>

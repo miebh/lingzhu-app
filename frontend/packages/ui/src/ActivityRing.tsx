@@ -1,4 +1,5 @@
-﻿import type { CSSProperties } from "react";
+﻿import type { JSX } from "solid-js";
+import { For } from "solid-js";
 import { cn } from "@lingzhu/ui/utils";
 import { radarDots, radarKeyframes, radarLoop } from "@lingzhu/ui/radar";
 
@@ -7,7 +8,7 @@ const keyframes = "spinner-radar";
 let installed = false;
 
 /** The Soft Radar activity indicator used while a session is working. */
-export function ActivityRing({ size = 14, className }: { size?: number; className?: string }) {
+export function ActivityRing(props: { size?: number; class?: string }) {
   if (!installed && typeof document !== "undefined") {
     installed = true;
     const style = document.createElement("style");
@@ -20,29 +21,34 @@ export function ActivityRing({ size = 14, className }: { size?: number; classNam
       data-component="activity-ring"
       data-slot="spinner-dots"
       aria-hidden="true"
-      className={cn("text-text-faint", className)}
-      style={{ "--spinner-width": `${size}px`, "--spinner-height": `${size}px` } as CSSProperties}
+      class={cn("text-text-faint", props.class)}
+      style={
+        {
+          "--spinner-width": `${props.size ?? 14}px`,
+          "--spinner-height": `${props.size ?? 14}px`,
+        } as JSX.CSSProperties
+      }
     >
-      {dots.map((dot, index) => (
-        <svg
-          key={index}
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          style={
-            {
-              "--still": dot.still,
-              animation: dot.steady
-                ? undefined
-                : `${keyframes}-${dot.shape} calc(${radarLoop}s * var(--spinner-time, 1)) linear calc(${
-                    -radarLoop * (1 - dot.at)
-                  }s * var(--spinner-time, 1)) infinite`,
-            } as CSSProperties
-          }
-        >
-          <rect x={dot.x} y={dot.y} width={dot.size} height={dot.size} rx={dot.size * 0.24} />
-        </svg>
-      ))}
+      <For each={dots}>
+        {(dot) => (
+          <svg
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style={
+              {
+                "--still": dot.still,
+                animation: dot.steady
+                  ? undefined
+                  : `${keyframes}-${dot.shape} calc(${radarLoop}s * var(--spinner-time, 1)) linear calc(${
+                      -radarLoop * (1 - dot.at)
+                    }s * var(--spinner-time, 1)) infinite`,
+              } as JSX.CSSProperties
+            }
+          >
+            <rect x={dot.x} y={dot.y} width={dot.size} height={dot.size} rx={dot.size * 0.24} />
+          </svg>
+        )}
+      </For>
     </span>
   );
 }
-

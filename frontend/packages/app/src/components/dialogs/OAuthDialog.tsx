@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { ExternalLink, KeyRound, RefreshCw, Save } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -20,24 +21,24 @@ interface Props {
 }
 
 /** Lists OAuth endpoints and supports authorize, exchange, refresh and revoke. */
-export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
+export function OAuthDialog(props: Props) {
   const tr = useT();
-  const [items, setItems] = useState<OAuthStatus[]>([]);
-  const [authorizations, setAuthorizations] = useState<Record<string, OAuthAuthorization>>({});
-  const [codes, setCodes] = useState<Record<string, string>>({});
-  const [states, setStates] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [items, setItems] = createSignal<OAuthStatus[]>([]);
+  const [authorizations, setAuthorizations] = createSignal<Record<string, OAuthAuthorization>>({});
+  const [codes, setCodes] = createSignal<Record<string, string>>({});
+  const [states, setStates] = createSignal<Record<string, string>>({});
+  const [loading, setLoading] = createSignal(false);
+  const [busy, setBusy] = createSignal("");
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
 
   const load = async () => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     setLoading(true);
     setError("");
     try {
-      setItems(await api.oauthStatuses(workspace));
+      setItems(await api.oauthStatuses(props.workspace));
     } catch (err) {
       setError(messageOf(err));
     } finally {
@@ -45,8 +46,9 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setItems([]);
@@ -58,16 +60,16 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
       setBusy("");
       setSaving(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
   const saveStatuses = async () => {
-    if (!workspace || items.length === 0) return;
+    const workspace = props.workspace;
+    if (!workspace || items().length === 0) return;
     setSaving(true);
     try {
       const path = await api.saveTextFile(
-        oauthExportName(workspace, items.length),
-        serializeOAuth({ workspace, statuses: items }),
+        oauthExportName(workspace, items().length),
+        serializeOAuth({ workspace, statuses: items() }),
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -82,16 +84,16 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const replace = (status: OAuthStatus) => {
-    setItems((current) => current.map((item) => (item.name === status.name ? status : item)));
+    update(setItems, items, (current) => current.map((item) => (item.name === status.name ? status : item)));
   };
 
   const authorize = async (item: OAuthStatus) => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     setBusy(item.name);
     try {
-      const auth = await api.authorizeOAuth(workspace, item.name);
-      setAuthorizations((current) => ({ ...current, [item.name]: auth }));
-      setStates((current) => ({ ...current, [item.name]: auth.state }));
+      const auth = await api.authorizeOAuth(props.workspace, item.name);
+      update(setAuthorizations, authorizations, (current) => ({ ...current, [item.name]: auth }));
+      update(setStates, states, (current) => ({ ...current, [item.name]: auth.state }));
       window.open(auth.url, "_blank", "noopener,noreferrer");
       setError("");
       setNotice(`Opened the authorization page for ${item.name}.`);
@@ -103,8 +105,8 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const exchange = async (item: OAuthStatus) => {
-    if (!workspace) return;
-    const code = (codes[item.name] ?? "").trim();
+    if (!props.workspace) return;
+    const code = (codes()[item.name] ?? "").trim();
     if (!code) {
       setError("Authorization code is required.");
       return;
@@ -112,13 +114,13 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
     setBusy(item.name);
     try {
       const updated = await api.exchangeOAuth(
-        workspace,
+        props.workspace,
         item.name,
         code,
-        (states[item.name] ?? "").trim(),
+        (states()[item.name] ?? "").trim(),
       );
       replace(updated);
-      setCodes((current) => ({ ...current, [item.name]: "" }));
+      update(setCodes, codes, (current) => ({ ...current, [item.name]: "" }));
       setError("");
       setNotice(`${item.name} authorized.`);
     } catch (err) {
@@ -129,10 +131,10 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const refresh = async (item: OAuthStatus) => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     setBusy(item.name);
     try {
-      replace(await api.refreshOAuth(workspace, item.name));
+      replace(await api.refreshOAuth(props.workspace, item.name));
       setError("");
       setNotice(`${item.name} token refreshed.`);
     } catch (err) {
@@ -143,12 +145,18 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   const revoke = async (item: OAuthStatus) => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     setBusy(item.name);
     try {
-      await api.revokeOAuth(workspace, item.name);
-      setItems((current) => current.map((entry) => (entry.name === item.name ? { ...entry, authorized: false, expired: false, expiresAt: undefined, hasRefreshToken: false } : entry)));
-      setAuthorizations((current) => {
+      await api.revokeOAuth(props.workspace, item.name);
+      update(setItems, items, (current) =>
+        current.map((entry) =>
+          entry.name === item.name
+            ? { ...entry, authorized: false, expired: false, expiresAt: undefined, hasRefreshToken: false }
+            : entry,
+        ),
+      );
+      update(setAuthorizations, authorizations, (current) => {
         const next = { ...current };
         delete next[item.name];
         return next;
@@ -163,139 +171,147 @@ export function OAuthDialog({ open, workspace, name, onOpenChange }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" height="body" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" height="body" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <KeyRound class="size-4 text-text-faint" />
               OAuth
             </DialogTitle>
-            <DialogDescription className="truncate">{name || workspace}</DialogDescription>
+            <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={saving || items.length === 0}
+              disabled={saving() || items().length === 0}
               onClick={() => void saveStatuses()}
             >
               <Save />
-              {saving ? "Saving…" : "Save file"}
+              {saving() ? "Saving…" : "Save file"}
             </Button>
-            <RefreshButton loading={loading} onRefresh={() => void load()} />
+            <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
         </div>
 
-        <ErrorBanner error={error} />
-        <NoticeBanner notice={notice} shrink />
+        <ErrorBanner error={error()} />
+        <NoticeBanner notice={notice()} shrink />
 
-        <div className="mt-4 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
-          {items.length === 0 ? (
-            <p className="p-3 text-meta text-text-faint">
-              {loading ? "Loading…" : "No OAuth endpoints configured."}
-            </p>
-          ) : (
-            items.map((item) => {
-              const auth = authorizations[item.name];
-              return (
-                <div key={item.name} className="border-b border-border-base p-3 last:border-b-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-body text-text-base">{item.name}</span>
-                    <span className="rounded-xs border border-border-base px-1 text-caption text-text-faint">
-                      {item.grant}
-                    </span>
-                    <span
-                      className={`rounded-xs border border-border-base px-1 text-caption ${
-                        item.authorized && !item.expired
-                          ? "text-state-fg-success"
-                          : "text-state-fg-warning"
-                      }`}
-                    >
-                      {item.authorized ? (item.expired ? "expired" : "authorized") : "not authorized"}
-                    </span>
-                    <span className="text-caption text-text-faint">{item.client_id}</span>
-                  </div>
-                  <p className="mt-1 truncate text-caption text-text-faint">
-                    scopes: {item.scopes.length > 0 ? item.scopes.join(" ") : "(none)"}
-                    {item.expiresAt ? ` · expires ${formatDateTime(item.expiresAt) || item.expiresAt}` : ""}
-                    {item.hasRefreshToken ? " · refresh token" : ""}
-                  </p>
-                  <p className="mt-0.5 truncate font-mono text-caption text-text-faint">{item.token_url}</p>
+        <div class="mt-4 min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
+          <Show
+            when={items().length > 0}
+            fallback={
+              <p class="p-3 text-meta text-text-faint">
+                {loading() ? "Loading…" : "No OAuth endpoints configured."}
+              </p>
+            }
+          >
+            <For each={items()}>
+              {(item) => {
+                const auth = () => authorizations()[item.name];
+                return (
+                  <div class="border-b border-border-base p-3 last:border-b-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-body text-text-base">{item.name}</span>
+                      <span class="rounded-xs border border-border-base px-1 text-caption text-text-faint">
+                        {item.grant}
+                      </span>
+                      <span
+                        class={`rounded-xs border border-border-base px-1 text-caption ${
+                          item.authorized && !item.expired
+                            ? "text-state-fg-success"
+                            : "text-state-fg-warning"
+                        }`}
+                      >
+                        {item.authorized ? (item.expired ? "expired" : "authorized") : "not authorized"}
+                      </span>
+                      <span class="text-caption text-text-faint">{item.client_id}</span>
+                    </div>
+                    <p class="mt-1 truncate text-caption text-text-faint">
+                      scopes: {item.scopes.length > 0 ? item.scopes.join(" ") : "(none)"}
+                      {item.expiresAt ? ` · expires ${formatDateTime(item.expiresAt) || item.expiresAt}` : ""}
+                      {item.hasRefreshToken ? " · refresh token" : ""}
+                    </p>
+                    <p class="mt-0.5 truncate font-mono text-caption text-text-faint">{item.token_url}</p>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      disabled={busy === item.name}
-                      onClick={() => void authorize(item)}
-                    >
-                      <ExternalLink />
-                      Authorize
-                    </Button>
-                    {item.authorized && (
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="xs"
-                        disabled={busy === item.name}
-                        onClick={() => void refresh(item)}
-                      >
-                        <RefreshCw />
-                        {tr("dialogRefreshToken")}
-                      </Button>
-                    )}
-                    {item.authorized && (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="xs"
-                        disabled={busy === item.name}
-                        onClick={() => void revoke(item)}
-                      >
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
-
-                  {auth && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-border-base bg-bg-layer-01 p-2">
-                      <Input
-                        value={codes[item.name] ?? ""}
-                        aria-label={`${item.name} authorization code`}
-                        placeholder={tr("oAuthAuthorizationCode")}
-                        onChange={(event) =>
-                          setCodes((current) => ({ ...current, [item.name]: event.target.value }))
-                        }
-                        className="min-w-40 flex-1 select-text font-mono"
-                      />
-                      <Button
-                        type="button"
-                        size="xs"
-                        disabled={busy === item.name}
-                        onClick={() => void exchange(item)}
-                      >
-                        Exchange
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        onClick={() =>
-                          window.open(auth.url, "_blank", "noopener,noreferrer")
-                        }
+                        disabled={busy() === item.name}
+                        onClick={() => void authorize(item)}
                       >
                         <ExternalLink />
-                        {tr("dialogOpenPage")}
+                        Authorize
                       </Button>
+                      <Show when={item.authorized}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          disabled={busy() === item.name}
+                          onClick={() => void refresh(item)}
+                        >
+                          <RefreshCw />
+                          {tr("dialogRefreshToken")}
+                        </Button>
+                      </Show>
+                      <Show when={item.authorized}>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="xs"
+                          disabled={busy() === item.name}
+                          onClick={() => void revoke(item)}
+                        >
+                          Revoke
+                        </Button>
+                      </Show>
                     </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+
+                    <Show when={auth()}>
+                      {(current) => (
+                        <div class="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-border-base bg-bg-layer-01 p-2">
+                          <Input
+                            value={codes()[item.name] ?? ""}
+                            aria-label={`${item.name} authorization code`}
+                            placeholder={tr("oAuthAuthorizationCode")}
+                            onInput={(event) =>
+                              update(setCodes, codes, (current) => ({
+                                ...current,
+                                [item.name]: event.currentTarget.value,
+                              }))
+                            }
+                            class="min-w-40 flex-1 select-text font-mono"
+                          />
+                          <Button
+                            type="button"
+                            size="xs"
+                            disabled={busy() === item.name}
+                            onClick={() => void exchange(item)}
+                          >
+                            Exchange
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            onClick={() => window.open(current().url, "_blank", "noopener,noreferrer")}
+                          >
+                            <ExternalLink />
+                            {tr("dialogOpenPage")}
+                          </Button>
+                        </div>
+                      )}
+                    </Show>
+                  </div>
+                );
+              }}
+            </For>
+          </Show>
         </div>
       </DialogContent>
     </Dialog>

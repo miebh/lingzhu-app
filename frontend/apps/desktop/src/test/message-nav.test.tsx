@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
@@ -47,7 +47,7 @@ describe("message navigator", () => {
 
   test("one tick per prompt renders and jumps to that prompt", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             prompt("u1", "first ask"),
@@ -78,7 +78,7 @@ describe("message navigator", () => {
 
   test("the hover card lists every prompt with its change bars", async () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             prompt("u1", "first ask"),
@@ -105,7 +105,7 @@ describe("message navigator", () => {
 
   test("a single prompt renders no navigator", () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages chat={chat([prompt("u1", "only ask"), { key: "a1", role: "assistant", text: "answer" }])} />
       </TooltipProvider>,
     );
@@ -114,7 +114,7 @@ describe("message navigator", () => {
 
   test("the active tick tracks the newest prompt", () => {
     const { container } = render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <Messages
           chat={chat([
             prompt("u1", "first ask"),

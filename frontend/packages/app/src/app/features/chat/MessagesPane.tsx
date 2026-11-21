@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Show, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import type { ShellOutputSource } from "@lingzhu/session-ui/ToolPart";
 import type { ToolRun } from "@lingzhu/ui/types";
@@ -9,31 +9,37 @@ import { useActiveChat } from "../../hooks";
 import { useRevert } from "../../useRevert";
 
 /** Timeline surface; the floating composer dock owns requests, activity and queue. */
-export function MessagesPane({ bottomInset = 0, header }: { bottomInset?: number; header?: ReactNode }) {
+export function MessagesPane(props: { bottomInset?: number; header?: JSX.Element }) {
   const shell = useShell();
-  const { activeWorkspace, preferences, workspaceActions, chatActions, panel } = shell;
   const active = useActiveChat();
+  const workspacePath = createMemo(() => shell.activeWorkspace?.path);
+  const activeId = createMemo(() => active()?.id);
+  const isDraft = createMemo(() => Boolean(active()?.draft));
+  const sessionID = createMemo(() => {
+    const chat = active();
+    return chat && !chat.draft ? chat.id : undefined;
+  });
   const revert = useRevert({
-    workspace: activeWorkspace?.path,
-    sessionID: active?.id,
-    entryCount: active?.entries.length ?? 0,
+    workspace: workspacePath,
+    sessionID: activeId,
+    entryCount: () => active()?.entries.length ?? 0,
     restorePrompt: shell.restoreText,
   });
 
   // Background subagents outlive their launch call; keep their timeline card
   // spinning while the child session is still running.
-  const [runningSubagents, setRunningSubagents] = useState<ReadonlySet<string>>(() => new Set());
-  const workspacePath = activeWorkspace?.path;
-  const sessionID = active && !active.draft ? active.id : undefined;
-  useEffect(() => {
-    if (!workspacePath || !sessionID) {
-      setRunningSubagents(new Set());
+  const [runningSubagents, setRunningSubagents] = createSignal<ReadonlySet<string>>(new Set<string>());
+  createEffect(() => {
+    const path = workspacePath();
+    const id = sessionID();
+    if (!path || !id) {
+      setRunningSubagents(new Set<string>());
       return;
     }
     let cancelled = false;
     const load = async () => {
       try {
-        const children = await api.sessionSubagents(workspacePath, sessionID);
+        const children = await api.sessionSubagents(path, id);
         if (!cancelled) setRunningSubagents(new Set(children.map((child) => child.id)));
       } catch {
         // The activity chips own their own error state; a missing card spinner is harmless.
@@ -43,126 +49,108 @@ export function MessagesPane({ bottomInset = 0, header }: { bottomInset?: number
     const timer = window.setInterval(() => {
       if (!document.hidden) void load();
     }, 3000);
-    return () => {
+    onCleanup(() => {
       cancelled = true;
       window.clearInterval(timer);
+    });
+  });
+
+  const onReview = () => shell.panel.openSidePanel("review");
+  const onOpenFile = (path: string) => shell.panel.openFileInPanel(path);
+  const onOpenSession = (childID: string) => {
+    const path = workspacePath();
+    if (!path) return;
+    shell.workspaceActions.select(path);
+    void shell.chatActions.open(path, childID);
+  };
+  const onUndo = (text: string) => {
+    const path = workspacePath();
+    const id = activeId();
+    if (!path || !id) return;
+    void revert.undoLatestTurn(path, id, text);
+  };
+  const onRevert = (text: string, created?: string) => {
+    const path = workspacePath();
+    const id = activeId();
+    if (!path || !id) return;
+    void revert.revertToMessage(path, id, text, created);
+  };
+  const onFork = (text: string) => {
+    const path = workspacePath();
+    const id = activeId();
+    if (!path || !id) return;
+    void shell.sessionActions.forkMessage(path, id, text);
+  };
+  const onLoadOlder = () => {
+    const path = workspacePath();
+    const id = activeId();
+    if (!path || !id || isDraft()) return;
+    shell.chatActions.loadOlder(path, id);
+  };
+  const shellOutput = (tool: ToolRun): ShellOutputSource | undefined => {
+    const id = typeof tool.metadata?.shellID === "string" ? tool.metadata.shellID : "";
+    const path = workspacePath();
+    if (!id || !path) return undefined;
+    const running = tool.metadata?.background === true && !tool.done;
+    return {
+      id,
+      running,
+      load: async (shellID: string, cursor: number) => {
+        const page = await api.shellOutput(path, shellID, cursor, 64 * 1024);
+        return { output: page.output, cursor: page.cursor, truncated: page.truncated };
+      },
     };
-  }, [workspacePath, sessionID]);
-
-  // The transcript is memoized on its props, so every callback handed to it has
-  // to keep its identity across a streamed token; a fresh closure would make
-  // the whole timeline re-render for text that changed in one row.
-  const activeWorkspacePath = activeWorkspace?.path;
-  const activeId = active?.id;
-  const isDraft = Boolean(active?.draft);
-  const openSidePanel = panel.openSidePanel;
-  const openFileInPanel = panel.openFileInPanel;
-  const selectWorkspace = workspaceActions.select;
-  const openChat = chatActions.open;
-  const loadOlder = chatActions.loadOlder;
-  const forkMessage = shell.sessionActions.forkMessage;
-  const quoteMessage = shell.quoteMessage;
-  const undoLatestTurn = revert.undoLatestTurn;
-  const revertToMessage = revert.revertToMessage;
-  const modelName = shell.modelDisplayName;
-  const provider = active?.provider;
-  const model = active?.model;
-  const canUndo = revert.revertCan.undo;
-
-  const onReview = useCallback(() => openSidePanel("review"), [openSidePanel]);
-  const onOpenFile = useCallback((path: string) => openFileInPanel(path), [openFileInPanel]);
-  const onOpenSession = useCallback(
-    (childID: string) => {
-      if (!activeWorkspacePath) return;
-      selectWorkspace(activeWorkspacePath);
-      void openChat(activeWorkspacePath, childID);
-    },
-    [activeWorkspacePath, selectWorkspace, openChat],
-  );
-  const onUndo = useCallback(
-    (text: string) => {
-      if (!activeWorkspacePath || !activeId) return;
-      void undoLatestTurn(activeWorkspacePath, activeId, text);
-    },
-    [activeWorkspacePath, activeId, undoLatestTurn],
-  );
-  const onRevert = useCallback(
-    (text: string, created?: string) => {
-      if (!activeWorkspacePath || !activeId) return;
-      void revertToMessage(activeWorkspacePath, activeId, text, created);
-    },
-    [activeWorkspacePath, activeId, revertToMessage],
-  );
-  const onFork = useCallback(
-    (text: string) => {
-      if (!activeWorkspacePath || !activeId) return;
-      void forkMessage(activeWorkspacePath, activeId, text);
-    },
-    [activeWorkspacePath, activeId, forkMessage],
-  );
-  const onLoadOlder = useMemo(
-    () =>
-      activeWorkspacePath && activeId && !isDraft
-        ? () => loadOlder(activeWorkspacePath, activeId)
-        : undefined,
-    [activeWorkspacePath, activeId, isDraft, loadOlder],
-  );
-  const shellOutput = useMemo<((tool: ToolRun) => ShellOutputSource | undefined) | undefined>(
-    () => (tool: ToolRun) => {
-      const id = typeof tool.metadata?.shellID === "string" ? tool.metadata.shellID : "";
-      if (!id || !activeWorkspacePath) return undefined;
-      const running = tool.metadata?.background === true && !tool.done;
-      return {
-        id,
-        running,
-        load: async (shellID: string, cursor: number) => {
-          const page = await api.shellOutput(activeWorkspacePath, shellID, cursor, 64 * 1024);
-          return { output: page.output, cursor: page.cursor, truncated: page.truncated };
-        },
-      };
-    },
-    [activeWorkspacePath],
-  );
-  const modelLabel = useMemo(() => modelName(provider, model), [modelName, provider, model]);
-  const closeMissing = useCallback(() => {
-    if (!activeWorkspacePath || !activeId) return;
-    shell.tabs.removeSessionTabs([{ path: activeWorkspacePath, id: activeId }]);
-  }, [shell.tabs, activeWorkspacePath, activeId]);
+  };
+  const modelLabel = createMemo(() => shell.modelDisplayName(active()?.provider, active()?.model));
+  const closeMissing = () => {
+    const path = workspacePath();
+    const id = activeId();
+    if (!path || !id) return;
+    shell.tabs.removeSessionTabs([{ path, id }]);
+  };
 
   // Pending steering input comes from the durable inbox projection, so it
   // renders before delivery and disappears in the same update that appends
   // the delivered message.
-  const pending = useMemo(() => (active ? pendingEntries(active.inbox, active) : []), [active]);
-
-  if (!active) return null;
-  const chat = pending.length > 0 ? { ...active, entries: [...active.entries, ...pending] } : active;
+  const pending = createMemo(() => {
+    const chat = active();
+    return chat ? pendingEntries(chat.inbox, chat) : [];
+  });
+  const chat = createMemo(() => {
+    const current = active();
+    if (!current) return undefined;
+    const queued = pending();
+    return queued.length > 0 ? { ...current, entries: [...current.entries, ...queued] } : current;
+  });
 
   return (
-    <>
-      <Messages
-        chat={chat}
-        workspace={activeWorkspacePath}
-        runningSubagents={runningSubagents}
-        header={header}
-        foldLongMessages={preferences.foldUserMessages}
-        showTurnDiffs={preferences.showTurnDiffs}
-        showAgent={preferences.showMessageAgent}
-        modelLabel={modelLabel}
-        modelName={modelName}
-        onReview={onReview}
-        onOpenFile={onOpenFile}
-        onOpenSession={onOpenSession}
-        onQuote={quoteMessage}
-        onUndo={activeWorkspacePath ? onUndo : undefined}
-        onRevert={activeWorkspacePath ? onRevert : undefined}
-        onFork={activeWorkspacePath ? onFork : undefined}
-        canUndo={canUndo}
-        detail={preferences.appearance.timelineDetail}
-        bottomInset={bottomInset}
-        onLoadOlder={onLoadOlder}
-        shellOutput={shellOutput}
-        onCloseMissing={closeMissing}
-      />
-    </>
+    <Show when={chat()}>
+      {(current) => (
+        <Messages
+          chat={current()}
+          workspace={workspacePath()}
+          runningSubagents={runningSubagents()}
+          header={props.header}
+          foldLongMessages={shell.preferences.foldUserMessages}
+          showTurnDiffs={shell.preferences.showTurnDiffs}
+          showAgent={shell.preferences.showMessageAgent}
+          modelLabel={modelLabel()}
+          modelName={shell.modelDisplayName}
+          onReview={onReview}
+          onOpenFile={onOpenFile}
+          onOpenSession={onOpenSession}
+          onQuote={shell.quoteMessage}
+          onUndo={workspacePath() ? onUndo : undefined}
+          onRevert={workspacePath() ? onRevert : undefined}
+          onFork={workspacePath() ? onFork : undefined}
+          canUndo={revert.revertCan().undo}
+          detail={shell.preferences.appearance.timelineDetail}
+          bottomInset={props.bottomInset}
+          onLoadOlder={workspacePath() && activeId() && !isDraft() ? onLoadOlder : undefined}
+          shellOutput={shellOutput}
+          onCloseMissing={closeMissing}
+        />
+      )}
+    </Show>
   );
 }

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
@@ -22,7 +22,7 @@ describe("navigation surfaces", () => {
       { id: "new", title: "New session", group: "Commands", run: runNew },
       { id: "review", title: "Review changes", group: "Commands", run: runReview },
     ];
-    render(<CommandPalette open commands={commands} onOpenChange={onOpenChange} />);
+    render(() => <CommandPalette open commands={commands} onOpenChange={onOpenChange} />);
     const input = await screen.findByLabelText("Command search");
     await userEvent.type(input, "session");
     await userEvent.keyboard("{ArrowDown}{ArrowUp}{Enter}");
@@ -37,7 +37,7 @@ describe("navigation surfaces", () => {
       { id: "new", title: "New session", group: "Commands", run: vi.fn() },
       { id: "review", title: "Review changes", group: "Commands", run: runReview },
     ];
-    render(<CommandPalette open commands={commands} onOpenChange={() => undefined} />);
+    render(() => <CommandPalette open commands={commands} onOpenChange={() => undefined} />);
     const input = await screen.findByLabelText("Command search");
     await userEvent.type(input, "review");
     await userEvent.keyboard("{Enter}");
@@ -58,7 +58,7 @@ describe("navigation surfaces", () => {
     const onSearch = vi.fn();
     const onOpenSettings = vi.fn();
     render(
-      <MobileDrawer
+      () => <MobileDrawer
         tabs={[{ key: "chat", label: "Chat one", subtitle: "Project", kind: "chat", closable: true }]}
         activeKey="chat"
         workspaces={[{ path: ".", name: "Workspace A", addr: "", connected: true, error: "" }]}
@@ -109,7 +109,7 @@ describe("navigation surfaces", () => {
 
   test("vertical rail places project rows above the tab strip", () => {
     render(
-      <SideTabs
+      () => <SideTabs
         tabs={[{ key: "chat", label: "Chat one", kind: "chat", closable: true }]}
         activeKey="chat"
         onSelect={() => undefined}
@@ -128,7 +128,7 @@ describe("navigation surfaces", () => {
 
   test("a Projects selection owns the only active highlight", () => {
     render(
-      <SideTabs
+      () => <SideTabs
         tabs={[{ key: "chat", label: "Chat one", kind: "chat", closable: true }]}
         activeKey="chat"
         highlightActive={false}
@@ -155,7 +155,7 @@ describe("navigation surfaces", () => {
         onSearch: () => undefined,
         onDeleteTab: () => undefined,
       };
-      const { rerender } = render(<SideTabs tabs={[tab]} {...props} />);
+      const { rerender } = render(() => <SideTabs tabs={[tab]} {...props} />);
 
       const row = screen.getByRole("tab", { name: /Chat one/ }).closest(".side-tab") as HTMLElement;
       fireEvent.mouseEnter(row);
@@ -179,7 +179,7 @@ describe("navigation surfaces", () => {
       expect(screen.getByRole("tooltip")).toBeTruthy();
 
       // Removing the tab clears the preview even without a mouseleave.
-      rerender(<SideTabs tabs={[]} {...props} activeKey={undefined} />);
+      rerender(() => <SideTabs tabs={[]} {...props} activeKey={undefined} />);
       expect(screen.queryByRole("tooltip")).toBeNull();
     } finally {
       vi.useRealTimers();
@@ -188,7 +188,7 @@ describe("navigation surfaces", () => {
 
   test("side tabs mark a background finish as unread", () => {
     render(
-      <SideTabs
+      () => <SideTabs
         tabs={[{ key: "chat", label: "Chat one", kind: "chat", closable: true, unread: true }]}
         activeKey="other"
         onSelect={() => undefined}
@@ -203,7 +203,7 @@ describe("navigation surfaces", () => {
 
   test("vertical rail hides the empty tab strip under project rows", () => {
     render(
-      <SideTabs
+      () => <SideTabs
         tabs={[]}
         onSelect={() => undefined}
         onClose={() => undefined}
@@ -220,7 +220,7 @@ describe("navigation surfaces", () => {
   test("a row being renamed is not a drag source", async () => {
     const onRename = vi.fn();
     render(
-      <SideTabs
+      () => <SideTabs
         tabs={[{ key: "chat", label: "Chat one", kind: "chat", closable: true }]}
         activeKey="chat"
         onSelect={() => undefined}
@@ -246,7 +246,7 @@ describe("navigation surfaces", () => {
   test("language preference localizes side tabs", () => {
     setLanguage("zh");
     render(
-      <SideTabs
+      () => <SideTabs
         tabs={[]}
         onSelect={() => undefined}
         onClose={() => undefined}
@@ -266,7 +266,7 @@ describe("navigation surfaces", () => {
     } as never);
     const onOpenFile = vi.fn();
     render(
-      <CommandPalette
+      () => <CommandPalette
         open
         workspace="."
         commands={[]}
@@ -283,7 +283,7 @@ describe("navigation surfaces", () => {
     const onOpenProject = vi.fn();
     const onOpenProjectHome = vi.fn();
     render(
-      <SessionHeader
+      () => <SessionHeader
         workspace="lingzhu"
         title="Session one"
         directory="D:\\code\\lingzhu"
@@ -291,12 +291,12 @@ describe("navigation surfaces", () => {
         onOpenProjectHome={onOpenProjectHome}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "lingzhu" }));
+    await userEvent.click(await screen.findByRole("button", { name: "lingzhu" }));
     expect(screen.getByText("Project settings")).toBeTruthy();
     await userEvent.click(screen.getByText("Project settings"));
     expect(onOpenProject).toHaveBeenCalledTimes(1);
 
-    await userEvent.click(screen.getByRole("button", { name: "lingzhu" }));
+    await userEvent.click(await screen.findByRole("button", { name: "lingzhu" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "lingzhu" }));
     expect(onOpenProjectHome).toHaveBeenCalledTimes(1);
   });
@@ -307,7 +307,7 @@ describe("navigation surfaces", () => {
     const onOpenWorkspace = vi.fn();
     const onNewSession = vi.fn();
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[{ path: ".", name: "Project", addr: "", connected: true, error: "" }]}
         activePath="."
         selectedPath="."
@@ -339,10 +339,10 @@ describe("navigation surfaces", () => {
     expect(project.getAttribute("aria-current")).toBe("page");
     await userEvent.click(project);
     expect(onSelectWorkspace).toHaveBeenCalledWith(".");
-    await userEvent.click(screen.getByRole("button", { name: "Actions for Project" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for Project" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(onNewSession).toHaveBeenCalledWith(".");
-    await userEvent.click(screen.getByRole("button", { name: "Actions for Project" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for Project" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Open" }));
     expect(onOpenWorkspace).toHaveBeenCalledWith(".");
   });
@@ -350,7 +350,7 @@ describe("navigation surfaces", () => {
   test("home dashboard localizes to Chinese", async () => {
     setLanguage("zh");
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[{ path: ".", name: "Project", addr: "", connected: true, error: "" }]}
         activePath="."
         rows={[
@@ -378,7 +378,7 @@ describe("navigation surfaces", () => {
 
   test("home rows mark sessions already open in a tab", async () => {
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[{ path: ".", name: "Project", addr: "", connected: true, error: "" }]}
         activePath="."
         rows={[
@@ -402,7 +402,7 @@ describe("navigation surfaces", () => {
 
   test("mobile drawer is a bottom sheet", async () => {
     render(
-      <MobileDrawer
+      () => <MobileDrawer
         tabs={[{ key: "chat", label: "Chat one", subtitle: "Project", kind: "chat", closable: true }]}
         activeKey="chat"
         onSelect={() => undefined}
@@ -419,7 +419,7 @@ describe("navigation surfaces", () => {
 
   test("home rows show a running indicator", async () => {
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[]}
         rows={[
           {
@@ -442,7 +442,7 @@ describe("navigation surfaces", () => {
 
   test("home sessions group under sticky date headers", async () => {
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[]}
         rows={[
           {
@@ -478,7 +478,7 @@ describe("navigation surfaces", () => {
     const onExport = vi.fn();
     const onDelete = vi.fn();
     render(
-      <HomeDashboard
+      () => <HomeDashboard
         workspaces={[]}
         rows={[
           {

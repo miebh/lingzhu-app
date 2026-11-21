@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createStore } from "./create";
 import type { SettingsSectionID } from "../lib/settings";
 
 /** Page filling the main pane. Chat is permanent; settings joins as an overlay. */
@@ -23,7 +23,7 @@ interface ViewStore {
  * Which page fills the main pane. Settings is an overlay tab, so opening it
  * must not lose the chat's scroll position or composer draft.
  */
-export const useViewStore = create<ViewStore>((set) => ({
+export const useViewStore = createStore<ViewStore>((set) => ({
   tab: "chat",
   settingsOpen: false,
   settingsSection: "general",

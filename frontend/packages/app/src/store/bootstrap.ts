@@ -23,7 +23,7 @@ async function reloadAfterCore() {
 
 /**
  * One-time app start: subscribe to core events, then load local state. The
- * guard keeps React strict-mode double mounts from double-subscribing.
+ * guard keeps a repeated start from subscribing twice.
  */
 export function startApp() {
   if (started) return;

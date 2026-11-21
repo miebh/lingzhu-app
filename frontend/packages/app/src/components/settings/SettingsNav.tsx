@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+﻿import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { ArrowLeft, Search, X } from "@lingzhu/ui/icons";
 import { t } from "@lingzhu/ui/i18n";
 import type { SettingsSectionID } from "../../lib/settings";
@@ -6,7 +7,7 @@ import type { SettingsSectionID } from "../../lib/settings";
 export interface SettingsNavItem {
   id: SettingsSectionID;
   label: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: Component<{ class?: string }>;
 }
 
 export interface SettingsNavGroup {
@@ -57,83 +58,87 @@ function rank(index: SettingsSearchEntry[], query: string): SettingsSearchEntry[
  * the grouped section list. While a query is present the rail lists matching
  * settings instead, and choosing one opens its section at that row.
  */
-export function SettingsNav({ groups, section, index, onSectionChange, onReveal, onBack }: Props) {
-  const [query, setQuery] = useState("");
-  const [highlight, setHighlight] = useState(0);
-  const input = useRef<HTMLInputElement>(null);
+export function SettingsNav(props: Props) {
+  const [query, setQuery] = createSignal("");
+  const [highlight, setHighlight] = createSignal(0);
+  let input: HTMLInputElement | undefined;
 
-  const matches = useMemo(() => rank(index, query), [index, query]);
-  const searching = query.trim().length > 0;
+  const matches = createMemo(() => rank(props.index, query()));
+  const searching = createMemo(() => query().trim().length > 0);
 
-  useEffect(() => {
+  createEffect(() => {
+    query();
     setHighlight(0);
-  }, [query]);
+  });
 
   // Mod+F focuses the settings search from anywhere in settings, as in the
   // reference shell; Escape inside the field clears it.
-  useEffect(() => {
+  onMount(() => {
     const onFind = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "f") return;
       event.preventDefault();
-      input.current?.focus();
-      input.current?.select();
+      input?.focus();
+      input?.select();
     };
     window.addEventListener("keydown", onFind);
-    return () => window.removeEventListener("keydown", onFind);
-  }, []);
+    onCleanup(() => window.removeEventListener("keydown", onFind));
+  });
 
   const choose = (entry: SettingsSearchEntry) => {
     setQuery("");
-    onSectionChange(entry.section);
-    onReveal(entry);
+    props.onSectionChange(entry.section);
+    props.onReveal(entry);
   };
 
   const clear = () => {
     setQuery("");
-    input.current?.focus();
+    input?.focus();
   };
 
   return (
     <aside
       aria-label={t("settingsSections")}
-      className="hidden w-[328px] shrink-0 flex-col pt-[50px] pr-16 pb-12 pl-6 md:flex"
+      class="hidden w-[328px] shrink-0 flex-col pt-[50px] pr-16 pb-12 pl-6 md:flex"
     >
-      <div className="flex min-h-0 w-[240px] max-w-full flex-col gap-4">
-        {onBack && (
+      <div class="flex min-h-0 w-[240px] max-w-full flex-col gap-4">
+        <Show when={props.onBack}>
           <button
             type="button"
-            onClick={onBack}
-            className="mb-7 flex h-7 shrink-0 items-center gap-1.5 rounded-xs px-1.5 text-left text-body text-text-muted hover:bg-bg-layer-03 hover:text-text-base"
+            onClick={() => props.onBack?.()}
+            class="mb-7 flex h-7 shrink-0 items-center gap-1.5 rounded-xs px-1.5 text-left text-body text-text-muted hover:bg-bg-layer-03 hover:text-text-base"
           >
-            <ArrowLeft className="size-4 shrink-0" />
-            <span className="truncate">{t("backToApp")}</span>
+            <ArrowLeft class="size-4 shrink-0" />
+            <span class="truncate">{t("backToApp")}</span>
           </button>
-        )}
+        </Show>
 
-        <div className="relative flex h-9 shrink-0 items-center">
-          <Search className="pointer-events-none absolute left-4 size-4 text-text-faint" />
+        <div class="relative flex h-9 shrink-0 items-center">
+          <Search class="pointer-events-none absolute left-4 size-4 text-text-faint" />
           <input
-            ref={input}
+            ref={(element) => {
+              input = element;
+            }}
             type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={query()}
+            onInput={(event) => setQuery(event.currentTarget.value)}
             onFocus={() => setHighlight(0)}
             onKeyDown={(event) => {
-              if (event.key === "Escape" && searching) {
+              if (event.key === "Escape" && searching()) {
                 event.preventDefault();
                 clear();
                 return;
               }
-              if (!searching) return;
+              if (!searching()) return;
               if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                if (matches.length === 0) return;
+                const list = matches();
+                if (list.length === 0) return;
                 event.preventDefault();
                 const step = event.key === "ArrowDown" ? 1 : -1;
-                setHighlight((current) => (current + step + matches.length) % matches.length);
+                update(setHighlight, highlight, (current) => (current + step + list.length) % list.length);
                 return;
               }
               if (event.key === "Enter") {
-                const entry = matches[highlight];
+                const entry = matches()[highlight()];
                 if (!entry) return;
                 event.preventDefault();
                 choose(entry);
@@ -141,80 +146,95 @@ export function SettingsNav({ groups, section, index, onSectionChange, onReveal,
             }}
             placeholder={t("searchSettings")}
             aria-label={t("searchSettings")}
-            spellCheck={false}
-            autoComplete="off"
-            className="settings-search-input h-full w-full rounded-md bg-bg-layer-02/60 pr-7 pl-10 text-body leading-4 font-[440] tracking-[-0.04px] text-text-base transition-colors placeholder:text-text-faint hover:bg-bg-layer-02 focus-visible:bg-bg-layer-02 [&:not(:placeholder-shown)]:bg-bg-layer-02 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+            spellcheck={false}
+            autocomplete="off"
+            class="settings-search-input h-full w-full rounded-md bg-bg-layer-02/60 pr-7 pl-10 text-body leading-4 font-[440] tracking-[-0.04px] text-text-base transition-colors placeholder:text-text-faint hover:bg-bg-layer-02 focus-visible:bg-bg-layer-02 [&:not(:placeholder-shown)]:bg-bg-layer-02 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
           />
-          {searching && (
+          <Show when={searching()}>
             <button
               type="button"
               aria-label={t("clearSearch")}
               onClick={clear}
-              className="interactive absolute right-1 grid size-5 place-items-center rounded-xs text-text-faint hover:text-icon-base"
+              class="interactive absolute right-1 grid size-5 place-items-center rounded-xs text-text-faint hover:text-icon-base"
             >
-              <X className="size-3.5" />
+              <X class="size-3.5" />
             </button>
-          )}
+          </Show>
         </div>
 
-        {searching ? (
-          <div className="settings-nav-groups flex min-h-0 flex-1 flex-col overflow-y-auto no-scrollbar" role="listbox" aria-label={t("settingsResults")}>
-            {matches.length === 0 ? (
-              <p className="grid min-h-[120px] place-items-center text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted">
-                {t("noSettingsMatch", { query: query.trim() })}              </p>
-            ) : (
-              matches.map((entry, position) => (
-                <button
-                  key={entry.key}
-                  type="button"
-                  role="option"
-                  aria-selected={position === highlight}
-                  data-selected={position === highlight ? "true" : undefined}
-                  data-setting-entry={entry.key}
-                  onMouseEnter={() => setHighlight(position)}
-                  onClick={() => choose(entry)}
-                  className="interactive flex h-9 w-full shrink-0 items-center gap-3 rounded-md px-2 text-left text-body leading-4 tracking-[-0.04px]"
-                >
-                  <span className="min-w-0 truncate font-[530] text-text-base">{entry.title}</span>
-                  <span className="ml-auto min-w-0 shrink-0 truncate font-[440] text-text-muted">
-                    {entry.sectionLabel}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        ) : (
-          <div className="settings-nav-groups flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto no-scrollbar">
-            {groups.map((group, index) => (
-              <div key={group.label ?? index} className="flex w-full flex-col gap-1">
-                {group.label && (
-                  <div className="flex h-7 items-center justify-between gap-2 rounded-xs px-1.5 text-body font-[440] text-text-muted hover:bg-bg-layer-03">
-                    {group.label}
+        <Show
+          when={searching()}
+          fallback={
+            <div class="settings-nav-groups flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto no-scrollbar">
+              <For each={props.groups}>
+                {(group) => (
+                  <div class="flex w-full flex-col gap-1">
+                    <Show when={group.label}>
+                      <div class="flex h-7 items-center justify-between gap-2 rounded-xs px-1.5 text-body font-[440] text-text-muted hover:bg-bg-layer-03">
+                        {group.label}
+                      </div>
+                    </Show>
+                    <For each={group.items}>
+                      {(item) => {
+                        const Icon = item.icon;
+                        const selected = () => item.id === props.section;
+                        return (
+                          <button
+                            type="button"
+                            data-selected={selected() ? "true" : undefined}
+                            aria-current={selected() ? "page" : undefined}
+                            onClick={() => props.onSectionChange(item.id)}
+                            class={`interactive flex h-7 w-full shrink-0 items-center gap-1.5 rounded-xs px-1.5 text-left text-body ${
+                              selected() ? "bg-bg-layer-03 text-text-base" : "text-text-muted hover:text-text-base"
+                            }`}
+                          >
+                            <Icon class={`size-4 shrink-0 ${selected() ? "" : "text-text-faint"}`} />
+                            <span class="truncate">{item.label}</span>
+                          </button>
+                        );
+                      }}
+                    </For>
                   </div>
                 )}
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const selected = item.id === section;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      data-selected={selected ? "true" : undefined}
-                      aria-current={selected ? "page" : undefined}
-                      onClick={() => onSectionChange(item.id)}
-                      className={`interactive flex h-7 w-full shrink-0 items-center gap-1.5 rounded-xs px-1.5 text-left text-body ${
-                        selected ? "bg-bg-layer-03 text-text-base" : "text-text-muted hover:text-text-base"
-                      }`}
-                    >
-                      <Icon className={`size-4 shrink-0 ${selected ? "" : "text-text-faint"}`} />
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+              </For>
+            </div>
+          }
+        >
+          <div
+            class="settings-nav-groups flex min-h-0 flex-1 flex-col overflow-y-auto no-scrollbar"
+            role="listbox"
+            aria-label={t("settingsResults")}
+          >
+            <Show
+              when={matches().length > 0}
+              fallback={
+                <p class="grid min-h-[120px] place-items-center text-body leading-4 font-[440] tracking-[-0.04px] text-text-muted">
+                  {t("noSettingsMatch", { query: query().trim() })}
+                </p>
+              }
+            >
+              <For each={matches()}>
+                {(entry, position) => (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={position() === highlight()}
+                    data-selected={position() === highlight() ? "true" : undefined}
+                    data-setting-entry={entry.key}
+                    onMouseEnter={() => setHighlight(position())}
+                    onClick={() => choose(entry)}
+                    class="interactive flex h-9 w-full shrink-0 items-center gap-3 rounded-md px-2 text-left text-body leading-4 tracking-[-0.04px]"
+                  >
+                    <span class="min-w-0 truncate font-[530] text-text-base">{entry.title}</span>
+                    <span class="ml-auto min-w-0 shrink-0 truncate font-[440] text-text-muted">
+                      {entry.sectionLabel}
+                    </span>
+                  </button>
+                )}
+              </For>
+            </Show>
           </div>
-        )}
+        </Show>
       </div>
     </aside>
   );

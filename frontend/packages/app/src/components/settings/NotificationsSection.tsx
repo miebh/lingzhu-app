@@ -1,3 +1,4 @@
+import { For } from "solid-js";
 import { Switch } from "@lingzhu/ui/switch";
 import { SettingsRow, SettingsSection, SettingsSelect } from "./primitives";
 import { t } from "@lingzhu/ui/i18n";
@@ -23,17 +24,17 @@ const CHANNELS = [
 ] as const;
 
 /** Desktop notifications and sound pickers, grouped like the reference page. */
-export function NotificationsSection({ preferences }: Props) {
-  const prefs = preferences.preferences;
-  const notifications = prefs.notifications;
-  const sounds = prefs.sounds;
+export function NotificationsSection(props: Props) {
+  const prefs = () => props.preferences.preferences;
+  const notifications = () => prefs().notifications;
+  const sounds = () => prefs().sounds;
 
-  const save = (patch: Partial<typeof notifications>) => {
-    preferences.save({ ...prefs, notifications: { ...notifications, ...patch } });
+  const save = (patch: Partial<ReturnType<typeof notifications>>) => {
+    props.preferences.save({ ...prefs(), notifications: { ...notifications(), ...patch } });
   };
 
-  const saveSound = (patch: Partial<typeof sounds>) => {
-    preferences.save({ ...prefs, sounds: { ...sounds, ...patch } });
+  const saveSound = (patch: Partial<ReturnType<typeof sounds>>) => {
+    props.preferences.save({ ...prefs(), sounds: { ...sounds(), ...patch } });
   };
 
   const selectSound = (key: (typeof CHANNELS)[number]["key"], value: string) => {
@@ -41,38 +42,42 @@ export function NotificationsSection({ preferences }: Props) {
       saveSound({ [key]: false });
       return;
     }
-    saveSound({ [key]: true, tones: { ...sounds.tones, [key]: value } });
+    saveSound({ [key]: true, tones: { ...sounds().tones, [key]: value } });
   };
 
   return (
-    <div className="flex flex-col gap-8">
+    <div class="flex flex-col gap-8">
       <SettingsSection title={t("desktopNotifications")}>
-        {CHANNELS.map((channel) => (
-          <SettingsRow key={channel.key} title={t(channel.titleKey)} description={t(channel.notificationKey)}>
-            <Switch
-              aria-label={t("notifyName", { name: t(channel.titleKey) })}
-              checked={notifications[channel.key]}
-              onCheckedChange={(checked) => save({ [channel.key]: checked })}
-            />
-          </SettingsRow>
-        ))}
+        <For each={CHANNELS}>
+          {(channel) => (
+            <SettingsRow title={t(channel.titleKey)} description={t(channel.notificationKey)}>
+              <Switch
+                aria-label={t("notifyName", { name: t(channel.titleKey) })}
+                checked={notifications()[channel.key]}
+                onCheckedChange={(checked) => save({ [channel.key]: checked })}
+              />
+            </SettingsRow>
+          )}
+        </For>
       </SettingsSection>
 
       <SettingsSection title={t("soundEffects")}>
-        {CHANNELS.map((channel) => (
-          <SettingsRow key={channel.key} title={t(channel.titleKey)} description={t(channel.soundKey)}>
-            <SettingsSelect
-              label={t("soundFor", { name: t(channel.titleKey) })}
-              value={sounds[channel.key] ? sounds.tones[channel.key] ?? "soft" : "none"}
-              options={SOUNDS.map((sound) => ({ value: sound.value, label: t(sound.labelKey) }))}
-              onChange={(value) => selectSound(channel.key, value)}
-            />
-          </SettingsRow>
-        ))}
+        <For each={CHANNELS}>
+          {(channel) => (
+            <SettingsRow title={t(channel.titleKey)} description={t(channel.soundKey)}>
+              <SettingsSelect
+                label={t("soundFor", { name: t(channel.titleKey) })}
+                value={sounds()[channel.key] ? sounds().tones[channel.key] ?? "soft" : "none"}
+                options={SOUNDS.map((sound) => ({ value: sound.value, label: t(sound.labelKey) }))}
+                onChange={(value) => selectSound(channel.key, value)}
+              />
+            </SettingsRow>
+          )}
+        </For>
         <SettingsRow title={t("interfaceSounds")} description={t("interfaceSoundsDesc")}>
           <Switch
             aria-label={t("interfaceSounds")}
-            checked={sounds.interface}
+            checked={sounds().interface}
             onCheckedChange={(checked) => saveSound({ interface: checked })}
           />
         </SettingsRow>

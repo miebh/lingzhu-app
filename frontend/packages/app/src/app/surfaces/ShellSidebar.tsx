@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from "react";
+﻿import { createEffect, createSignal, onCleanup, type ComponentProps, type JSX } from "solid-js";
 import { SideTabs } from "../../components/shell/SideTabs";
 import { Sidebar } from "../../components/workspace/Sidebar";
 import {
@@ -38,7 +30,7 @@ export function ShellSidebar() {
   if (shell.mobile) return null;
 
   return (
-    <SidebarRail open={shell.sidebarOpen} {...tabStrip}>
+    <SidebarRail open={shell.sidebarOpen} strip={tabStrip}>
       {shell.preferences.appearance.sidebarOrganize === "projects" && <Sidebar {...tree} />}
     </SidebarRail>
   );
@@ -51,100 +43,90 @@ export function ShellSidebar() {
  * width and only fade over the last of the travel, which stops the tab titles
  * from rewrapping on every frame.
  */
-function SidebarRail({
-  open,
-  children,
-  ...tabs
-}: { open: boolean; children?: ReactNode } & TabStrip) {
-  const width = tabs.width ?? 240;
-  const wrapper = useRef<HTMLDivElement>(null);
-  const content = useRef<HTMLDivElement>(null);
-  const flight = useRef<Flight | undefined>(undefined);
-  const flightTarget = useRef(0);
-  const openWidth = useRef(width);
-  const paintedWidth = useRef(open ? width : 0);
-  const paintedOnce = useRef(false);
-  const [present, setPresent] = useState(open);
+function SidebarRail(props: { open: boolean; strip: TabStrip; children?: JSX.Element }) {
+  let wrapper: HTMLDivElement | undefined;
+  let content: HTMLDivElement | undefined;
+  let flight: Flight | undefined;
+  let flightTarget = 0;
+  let openWidth = props.strip.width ?? 240;
+  let paintedWidth = props.open ? openWidth : 0;
+  let paintedOnce = false;
+  const [present, setPresent] = createSignal(props.open);
 
-  const stopFlight = useCallback(() => {
-    if (flight.current) window.cancelAnimationFrame(flight.current.frame);
-    flight.current = undefined;
-  }, []);
+  const stopFlight = () => {
+    if (flight) window.cancelAnimationFrame(flight.frame);
+    flight = undefined;
+  };
 
-  useEffect(() => stopFlight, [stopFlight]);
+  onCleanup(stopFlight);
 
   // Shows `target` at once: writes the real box size and lets the contents wrap
   // with the rail again. A closed landing also unmounts the rail's contents.
-  const settle = useCallback(
-    (target: number) => {
-      stopFlight();
-      const element = wrapper.current;
-      if (element) {
-        element.style.width = `${target}px`;
-        element.style.overflow = "";
-      }
-      if (content.current) {
-        content.current.style.width = "";
-        content.current.style.opacity = "";
-      }
-      paintedWidth.current = target;
-      if (target === 0) setPresent(false);
-    },
-    [stopFlight],
-  );
+  const settle = (target: number) => {
+    stopFlight();
+    if (wrapper) {
+      wrapper.style.width = `${target}px`;
+      wrapper.style.overflow = "";
+    }
+    if (content) {
+      content.style.width = "";
+      content.style.opacity = "";
+    }
+    paintedWidth = target;
+    if (target === 0) setPresent(false);
+  };
 
-  const fly = useCallback(
-    (target: number) => {
-      const element = wrapper.current;
-      if (!element || prefersReducedMotion()) {
-        settle(target);
+  const fly = (target: number) => {
+    const element = wrapper;
+    if (!element || prefersReducedMotion()) {
+      settle(target);
+      return;
+    }
+    const box = content;
+    element.style.overflow = "hidden";
+    // Start the first frame where the last one left off, so a reversed close
+    // continues from the current width rather than snapping back.
+    element.style.width = `${paintedWidth}px`;
+    if (box) {
+      box.style.width = `${openWidth}px`;
+      box.style.opacity = `${panelContentOpacity(paintedWidth, openWidth)}`;
+    }
+    const state: Flight = {
+      spring: panelSpring(paintedWidth, openWidth),
+      frame: 0,
+      last: performance.now(),
+    };
+    flight = state;
+    const step = (time: number) => {
+      if (flight !== state) return;
+      const dt = Math.min(0.064, Math.max(1 / 240, (time - state.last) / 1000));
+      state.last = time;
+      const resting = stepPanelSpring(state.spring, flightTarget, dt);
+      const value = Math.max(0, state.spring.value);
+      element.style.width = `${value}px`;
+      paintedWidth = value;
+      if (box) box.style.opacity = `${panelContentOpacity(value, openWidth)}`;
+      if (!resting) {
+        state.frame = window.requestAnimationFrame(step);
         return;
       }
-      const box = content.current;
-      element.style.overflow = "hidden";
-      // Start the first frame where the last one left off, so a reversed close
-      // continues from the current width rather than snapping back.
-      element.style.width = `${paintedWidth.current}px`;
-      if (box) {
-        box.style.width = `${openWidth.current}px`;
-        box.style.opacity = `${panelContentOpacity(paintedWidth.current, openWidth.current)}`;
-      }
-      const state: Flight = {
-        spring: panelSpring(paintedWidth.current, openWidth.current),
-        frame: 0,
-        last: performance.now(),
-      };
-      flight.current = state;
-      const step = (time: number) => {
-        if (flight.current !== state) return;
-        const dt = Math.min(0.064, Math.max(1 / 240, (time - state.last) / 1000));
-        state.last = time;
-        const resting = stepPanelSpring(state.spring, flightTarget.current, dt);
-        const value = Math.max(0, state.spring.value);
-        element.style.width = `${value}px`;
-        paintedWidth.current = value;
-        if (box) box.style.opacity = `${panelContentOpacity(value, openWidth.current)}`;
-        if (!resting) {
-          state.frame = window.requestAnimationFrame(step);
-          return;
-        }
-        settle(flightTarget.current);
-      };
-      state.frame = window.requestAnimationFrame(step);
-    },
-    [settle],
-  );
+      settle(flightTarget);
+    };
+    state.frame = window.requestAnimationFrame(step);
+  };
 
   // A toggle flies the width; opening also brings the rail into the tree so its
   // close can travel. A rail first shown already open has no flight to make.
-  useLayoutEffect(() => {
-    if (!wrapper.current) return;
+  createEffect(() => {
+    const open = props.open;
+    const width = props.strip.width ?? 240;
+    if (!wrapper) return;
     const target = open ? width : 0;
-    openWidth.current = width;
-    flightTarget.current = target;
+    openWidth = width;
+    flightTarget = target;
     if (open) setPresent(true);
-    if (!paintedOnce.current) {
-      paintedOnce.current = true;
+    if (!paintedOnce) {
+      paintedOnce = true;
       if (open) {
         settle(target);
         return;
@@ -152,38 +134,64 @@ function SidebarRail({
     }
     // A second toggle mid-flight retargets it: the spring keeps its velocity, so
     // a reversed close turns around smoothly instead of restarting.
-    if (flight.current) return;
-    if (Math.abs(paintedWidth.current - target) < 0.5) {
+    if (flight) return;
+    if (Math.abs(paintedWidth - target) < 0.5) {
       settle(target);
       return;
     }
     fly(target);
-    // Width rides on a flight only when the rail toggles; a resize at rest is
-    // applied by the effect below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, present, fly, settle]);
+  });
 
   // A width change at rest, from a drag, applies at once so the rail follows the
   // pointer instead of chasing it.
-  useLayoutEffect(() => {
-    if (!wrapper.current) return;
+  createEffect(() => {
+    const width = props.strip.width ?? 240;
+    const open = props.open;
+    if (!wrapper) return;
     const target = open ? width : 0;
-    openWidth.current = width;
-    flightTarget.current = target;
-    if (flight.current) return;
+    openWidth = width;
+    flightTarget = target;
+    if (flight) return;
     settle(target);
-  }, [width, open, settle]);
+  });
 
   return (
     <div
-      ref={wrapper}
-      // Width is written frame by frame while the rail travels, so React leaves
-      // it alone; the layout effects above seed it on mount and on resize.
-      className="relative shrink-0"
-      aria-hidden={!open ? true : undefined}
+      ref={(element) => (wrapper = element)}
+      // Width is written frame by frame while the rail travels, so the layout
+      // effects above seed it on mount and on resize.
+      class="relative shrink-0"
+      aria-hidden={!props.open ? true : undefined}
     >
-      <div ref={content} className="h-full">
-        {present && <SideTabs {...tabs}>{children}</SideTabs>}
+      <div ref={(element) => (content = element)} class="h-full">
+        {present() && (
+          <SideTabs
+            tabs={props.strip.tabs}
+            activeKey={props.strip.activeKey}
+            onSelect={props.strip.onSelect}
+            onClose={props.strip.onClose}
+            onCloseOthers={props.strip.onCloseOthers}
+            onCloseAfter={props.strip.onCloseAfter}
+            onDeleteTab={props.strip.onDeleteTab}
+            onRename={props.strip.onRename}
+            onReorder={props.strip.onReorder}
+            onNew={props.strip.onNew}
+            onSearch={props.strip.onSearch}
+            onHome={props.strip.onHome}
+            homeActive={props.strip.homeActive}
+            highlightActive={props.strip.highlightActive}
+            homeKeybind={props.strip.homeKeybind}
+            newKeybind={props.strip.newKeybind}
+            searchKeybind={props.strip.searchKeybind}
+            closedTabs={props.strip.closedTabs}
+            onReopenClosed={props.strip.onReopenClosed}
+            width={props.strip.width}
+            onWidthChange={props.strip.onWidthChange}
+            topInset={props.strip.topInset}
+          >
+            {props.children}
+          </SideTabs>
+        )}
       </div>
     </div>
   );

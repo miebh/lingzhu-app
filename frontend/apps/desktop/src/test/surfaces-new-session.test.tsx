@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
@@ -10,7 +10,7 @@ vi.mock("@/lib/api", () => import("./support/api-mock"));
 describe("new session surfaces", () => {
   test("new session surface shows the wordmark, composer and workspace tray", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <NewSessionHome
           workspaceName="Project"
           workspacePath="."
@@ -38,7 +38,7 @@ describe("new session surfaces", () => {
     const onSelectWorkspace = vi.fn();
     const onAddWorkspace = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <NewSessionHome
           workspaceName="Project"
           workspacePath="."
@@ -81,7 +81,7 @@ describe("new session surfaces", () => {
 
   test("project search filters the project list", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <NewSessionHome
           workspaceName="Project"
           workspacePath="."
@@ -116,7 +116,7 @@ describe("new session surfaces", () => {
     const onSelectWorktree = vi.fn();
     const onOpenWorktrees = vi.fn();
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <NewSessionHome
           workspaceName="Project"
           workspacePath="."
@@ -156,7 +156,7 @@ describe("new session surfaces", () => {
 
   test("clicking the workspace path opens the file manager", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <NewSessionHome
           workspaceName="Project"
           workspacePath="."
@@ -181,7 +181,7 @@ describe("new session surfaces", () => {
 
   test("hovering the session location trigger shows the choose-project bubble", async () => {
     render(
-      <TooltipProvider>
+      () => <TooltipProvider>
         <NewSessionHome
           workspaceName="Project"
           workspacePath="."

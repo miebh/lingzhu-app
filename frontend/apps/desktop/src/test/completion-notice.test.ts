@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook } from "./solid-testing";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { useAppNotifications } from "@lingzhu/app/app/useAppNotifications";
 import { useChatStore } from "@lingzhu/app/store/chat";
@@ -49,14 +49,14 @@ describe("notices for the session the user is not watching", () => {
 
   test("publishes the conversation on screen for the Go watcher", () => {
     useChatStore.setState({ chats: {}, activeByWorkspace: {} });
-    renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
 
     expect(setWatchedSession).toHaveBeenCalledWith("/w", "s1");
   });
 
   test("hands the Go notifier the current wording", () => {
     useChatStore.setState({ chats: {}, activeByWorkspace: {} });
-    renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
 
     // The toast is raised from the event stream, so it cannot read the message
     // catalog; the copy has to travel with the subscription.
@@ -73,7 +73,7 @@ describe("notices for the session the user is not watching", () => {
 
   test("clears the watched session when none is open", () => {
     useChatStore.setState({ chats: {}, activeByWorkspace: {} });
-    renderHook(() => useAppNotifications(undefined, undefined));
+    renderHook(() => useAppNotifications(() => undefined, () => undefined));
 
     expect(setWatchedSession).toHaveBeenCalledWith("", "");
   });
@@ -84,14 +84,13 @@ describe("notices for the session the user is not watching", () => {
       chats: { [chatKey("/w", "s1")]: chat({ running: true }) },
       activeByWorkspace: { "/w": "s1" },
     });
-    const { rerender } = renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
     useChatStore.setState({
       chats: {
         [chatKey("/w", "s1")]: chat({ running: true, pending: [{ id: "p1" }] as ChatState["pending"] }),
       },
     });
-    rerender();
-
+    
     expect(notifyTask).toHaveBeenCalledTimes(1);
     const notice = notifyTask.mock.calls[0][0] as unknown as {
       workspace: string;
@@ -109,14 +108,13 @@ describe("notices for the session the user is not watching", () => {
       chats: { [chatKey("/w", "s1")]: chat({ running: true }) },
       activeByWorkspace: { "/w": "s1" },
     });
-    const { rerender } = renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
     useChatStore.setState({
       chats: {
         [chatKey("/w", "s1")]: chat({ running: true, questions: [{ id: "q1" }] as ChatState["questions"] }),
       },
     });
-    rerender();
-
+    
     expect(notifyTask).toHaveBeenCalledTimes(1);
   });
 
@@ -125,14 +123,13 @@ describe("notices for the session the user is not watching", () => {
       chats: { [chatKey("/w", "s1")]: chat({ running: true }) },
       activeByWorkspace: { "/w": "s2" },
     });
-    const { rerender } = renderHook(() => useAppNotifications("/w", "s2"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s2"));
     useChatStore.setState({
       chats: {
         [chatKey("/w", "s1")]: chat({ running: true, pending: [{ id: "p1" }] as ChatState["pending"] }),
       },
     });
-    rerender();
-
+    
     expect(notifyTask).not.toHaveBeenCalled();
     const notice = useNotifyStore.getState().notice;
     expect(notice?.title).toContain("Fix the build");
@@ -144,14 +141,13 @@ describe("notices for the session the user is not watching", () => {
       chats: { [chatKey("/w", "s1")]: chat({ running: true }) },
       activeByWorkspace: { "/w": "s1" },
     });
-    const { rerender } = renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
     useChatStore.setState({
       chats: {
         [chatKey("/w", "s1")]: chat({ running: true, pending: [{ id: "p1" }] as ChatState["pending"] }),
       },
     });
-    rerender();
-
+    
     expect(notifyTask).not.toHaveBeenCalled();
     expect(useNotifyStore.getState().notice).toBeUndefined();
   });
@@ -163,14 +159,13 @@ describe("notices for the session the user is not watching", () => {
       chats: { [chatKey("/w", "s1")]: chat({ running: true }) },
       activeByWorkspace: { "/w": "s1" },
     });
-    const { rerender } = renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
     useChatStore.setState({
       chats: {
         [chatKey("/w", "s1")]: chat({ running: true, pending: [{ id: "p1" }] as ChatState["pending"] }),
       },
     });
-    rerender();
-
+    
     await Promise.resolve();
     await Promise.resolve();
     expect(useNotifyStore.getState().notice?.title).toContain("Fix the build");
@@ -182,10 +177,9 @@ describe("notices for the session the user is not watching", () => {
       chats: { [chatKey("/w", "s1")]: chat({ running: true }) },
       activeByWorkspace: { "/w": "s1" },
     });
-    const { rerender } = renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
     useChatStore.setState({ chats: { [chatKey("/w", "s1")]: chat({ running: false }) } });
-    rerender();
-
+    
     // The page may be suspended while minimised, so it must not be the only
     // thing that reports a finished run.
     expect(notifyTask).not.toHaveBeenCalled();
@@ -204,14 +198,13 @@ describe("notices for the session the user is not watching", () => {
       chats: { [chatKey("/w", "s1")]: chat({ running: true }) },
       activeByWorkspace: { "/w": "s1" },
     });
-    const { rerender } = renderHook(() => useAppNotifications("/w", "s1"));
+    renderHook(() => useAppNotifications(() => "/w", () => "s1"));
     useChatStore.setState({
       chats: {
         [chatKey("/w", "s1")]: chat({ running: true, pending: [{ id: "p1" }] as ChatState["pending"] }),
       },
     });
-    rerender();
-
+    
     expect(notifyTask).not.toHaveBeenCalled();
     expect(useNotifyStore.getState().notice).toBeUndefined();
   });

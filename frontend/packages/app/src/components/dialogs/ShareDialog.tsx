@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Show, createEffect, createSignal } from "solid-js";
 import { Copy, ExternalLink, Link2, RefreshCw, Share2 } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -18,15 +18,17 @@ interface Props {
 }
 
 /** Shows share configuration and state, and creates or revokes a link. */
-export function ShareDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function ShareDialog(props: Props) {
   const tr = useT();
-  const [config, setConfig] = useState<ShareServiceStatus>();
-  const [state, setState] = useState<ShareState>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [config, setConfig] = createSignal<ShareServiceStatus>();
+  const [state, setState] = createSignal<ShareState>();
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [copied, setCopied] = createSignal(false);
 
   const load = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     setBusy(true);
     setError("");
@@ -44,8 +46,10 @@ export function ShareDialog({ open, workspace, sessionID, title, onOpenChange }:
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
+      void props.sessionID;
       void load();
     } else {
       setConfig(undefined);
@@ -53,10 +57,11 @@ export function ShareDialog({ open, workspace, sessionID, title, onOpenChange }:
       setError("");
       setCopied(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace, sessionID]);
+  });
 
   const create = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     setBusy(true);
     try {
@@ -71,6 +76,8 @@ export function ShareDialog({ open, workspace, sessionID, title, onOpenChange }:
   };
 
   const revoke = async () => {
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     setBusy(true);
     try {
@@ -95,97 +102,111 @@ export function ShareDialog({ open, workspace, sessionID, title, onOpenChange }:
     }
   };
 
-  const share = state?.share;
-  const disabled = config?.mode === "disabled" || config?.enabled === false;
+  const share = () => state()?.share;
+  const disabled = () => config()?.mode === "disabled" || config()?.enabled === false;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="wide" className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent size="wide" class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
             <DialogTitle>Share</DialogTitle>
-            <DialogDescription className="truncate">{title || sessionID}</DialogDescription>
+            <DialogDescription class="truncate">{props.title || props.sessionID}</DialogDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void load()}>
-            <RefreshCw className={busy ? "motion-safe:animate-spin" : undefined} />
+          <Button type="button" variant="outline" size="sm" disabled={busy()} onClick={() => void load()}>
+            <RefreshCw class={busy() ? "motion-safe:animate-spin" : undefined} />
             Refresh
           </Button>
         </div>
 
-        <ErrorBanner error={error} className="mt-3" />
+        <ErrorBanner error={error()} class="mt-3" />
 
-        {config && (
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-meta text-text-muted">
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-border-base px-2 py-1">
-              <Share2 className="size-3.5" />
-              {config.mode}
-            </span>
-            <span className="text-text-faint">{config.remote ? "remote endpoint" : "local link"}</span>
-            {config.endpoint && (
-              <span className="min-w-0 truncate font-mono text-caption text-text-faint">
-                {config.endpoint}
+        <Show when={config()}>
+          {(current) => (
+            <div class="mt-4 flex flex-wrap items-center gap-2 text-meta text-text-muted">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-border-base px-2 py-1">
+                <Share2 class="size-3.5" />
+                {current().mode}
               </span>
-            )}
-            {config.expiry && <span className="text-text-faint">expires {config.expiry}</span>}
-            {disabled && (
-              <span className="text-state-fg-warning">Sharing is disabled in the configuration.</span>
-            )}
-          </div>
-        )}
-
-        <div className="mt-4 rounded-md border border-border-base bg-bg-layer-01 p-3">
-          {share ? (
-            <>
-              <div className="flex items-center gap-2">
-                <Link2 className="size-4 shrink-0 text-text-faint" />
-                <input
-                  readOnly
-                  value={share.url || share.path}
-                  aria-label={tr("shareShareLink")}
-                  onFocus={(event) => event.currentTarget.select()}
-                  className="min-w-0 flex-1 rounded-xs border border-border-base bg-bg-base px-2 py-1 font-mono text-meta text-text-base outline-none select-text"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!share.url}
-                  onClick={() => void copy(share)}
-                >
-                  <Copy />
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!share.url}
-                  onClick={() => share.url && window.open(share.url, "_blank", "noopener,noreferrer")}
-                >
-                  <ExternalLink />
-                  Open
-                </Button>
-              </div>
-              <p className="mt-2 text-meta text-text-faint">
-                {share.messages} message{share.messages === 1 ? "" : "s"} · created{" "}
-                {formatDateTime(share.created)} · token {share.token.slice(0, 8)}…              </p>
-              <div className="mt-3 flex justify-end">
-                <Button type="button" variant="destructive" size="sm" disabled={busy} onClick={() => void revoke()}>
-                  {tr("dialogStopSharing")}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-meta text-text-muted">
-                {state ? "This session is not shared." : "Loading share status…"}
-              </p>
-              <Button type="button" size="sm" disabled={busy || disabled || !state} onClick={() => void create()}>
-                <Share2 />
-                {tr("dialogCreateShareLink")}
-              </Button>
+              <span class="text-text-faint">{current().remote ? "remote endpoint" : "local link"}</span>
+              <Show when={current().endpoint}>
+                <span class="min-w-0 truncate font-mono text-caption text-text-faint">
+                  {current().endpoint}
+                </span>
+              </Show>
+              <Show when={current().expiry}>
+                <span class="text-text-faint">expires {current().expiry}</span>
+              </Show>
+              <Show when={disabled()}>
+                <span class="text-state-fg-warning">Sharing is disabled in the configuration.</span>
+              </Show>
             </div>
           )}
+        </Show>
+
+        <div class="mt-4 rounded-md border border-border-base bg-bg-layer-01 p-3">
+          <Show
+            when={share()}
+            fallback={
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-meta text-text-muted">
+                  {state() ? "This session is not shared." : "Loading share status…"}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy() || disabled() || !state()}
+                  onClick={() => void create()}
+                >
+                  <Share2 />
+                  {tr("dialogCreateShareLink")}
+                </Button>
+              </div>
+            }
+          >
+            {(info) => (
+              <>
+                <div class="flex items-center gap-2">
+                  <Link2 class="size-4 shrink-0 text-text-faint" />
+                  <input
+                    readOnly
+                    value={info().url || info().path}
+                    aria-label={tr("shareShareLink")}
+                    onFocus={(event) => event.currentTarget.select()}
+                    class="min-w-0 flex-1 rounded-xs border border-border-base bg-bg-base px-2 py-1 font-mono text-meta text-text-base outline-none select-text"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!info().url}
+                    onClick={() => void copy(info())}
+                  >
+                    <Copy />
+                    {copied() ? "Copied" : "Copy"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!info().url}
+                    onClick={() => info().url && window.open(info().url, "_blank", "noopener,noreferrer")}
+                  >
+                    <ExternalLink />
+                    Open
+                  </Button>
+                </div>
+                <p class="mt-2 text-meta text-text-faint">
+                  {info().messages} message{info().messages === 1 ? "" : "s"} · created{" "}
+                  {formatDateTime(info().created)} · token {info().token.slice(0, 8)}…                 </p>
+                <div class="mt-3 flex justify-end">
+                  <Button type="button" variant="destructive" size="sm" disabled={busy()} onClick={() => void revoke()}>
+                    {tr("dialogStopSharing")}
+                  </Button>
+                </div>
+              </>
+            )}
+          </Show>
         </div>
       </DialogContent>
     </Dialog>

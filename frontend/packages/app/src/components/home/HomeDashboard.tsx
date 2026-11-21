@@ -1,4 +1,4 @@
-﻿import { useCallback, useMemo, useState } from "react";
+﻿import { createMemo, createSignal, Show } from "solid-js";
 import type { HomeSessionRow, WorkspaceInfo } from "@lingzhu/ui/types";
 import { HomeProjectsColumn } from "./HomeProjectsColumn";
 import { HomeSessionMenu } from "./HomeSessionMenu";
@@ -45,94 +45,79 @@ const HOME_SESSION_LIMIT = 64;
  * projects column and a sessions list whose rows are 40px, like the reference
  * home surface.
  */
-export function HomeDashboard({
-  workspaces,
-  hideProjects = false,
-  activePath,
-  selectedPath,
-  hideProjectName = false,
-  rows,
-  openKeys,
-  loading = false,
-  onOpenSession,
-  onSelectWorkspace,
-  onOpenWorkspace,
-  onEditWorkspace,
-  onRemoveWorkspace,
-  onNewSession,
-  onRename,
-  onExport,
-  onDelete,
-  onAddWorkspace,
-  onOpenSettings,
-}: Props) {
-  const [menu, setMenu] = useState<{ row: HomeSessionRow; x: number; y: number }>();
-  const closeMenu = useCallback(() => setMenu(undefined), []);
+export function HomeDashboard(props: Props) {
+  const [menu, setMenu] = createSignal<{ row: HomeSessionRow; x: number; y: number }>();
+  const closeMenu = () => setMenu(undefined);
 
-  const sortedRows = useMemo(
-    () => [...rows].sort((left, right) => right.updated.localeCompare(left.updated)).slice(0, HOME_SESSION_LIMIT),
-    [rows],
+  const sortedRows = createMemo(() =>
+    [...props.rows]
+      .sort((left, right) => right.updated.localeCompare(left.updated))
+      .slice(0, HOME_SESSION_LIMIT),
   );
 
   // The row only opens a menu when it has something to offer.
-  const openRowMenu =
-    onRename || onExport || onDelete
-      ? (row: HomeSessionRow, x: number, y: number) => setMenu({ row, x, y })
-      : undefined;
+  const openRowMenu = createMemo(() => {
+    if (!(props.onRename || props.onExport || props.onDelete)) return undefined;
+    return (row: HomeSessionRow, x: number, y: number) => setMenu({ row, x, y });
+  });
 
   return (
-    <div data-slot="home-panel" className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
+    <div data-slot="home-panel" class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div class="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         <div
-          className={`mx-auto grid min-h-full w-full gap-4 px-3 lg:grid-rows-1 lg:gap-8 lg:px-6 ${
-            hideProjects
+          class={`mx-auto grid min-h-full w-full gap-4 px-3 lg:grid-rows-1 lg:gap-8 lg:px-6 ${
+            props.hideProjects
               ? "max-w-[720px] grid-rows-[minmax(0,1fr)]"
               : "max-w-[1080px] grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[280px_minmax(0,720px)]"
           }`}
         >
-          {!hideProjects && (
+          <Show when={!props.hideProjects}>
             <HomeProjectsColumn
-              workspaces={workspaces}
-              selectedPath={selectedPath ?? activePath}
-              onSelectWorkspace={onSelectWorkspace}
-              onOpenWorkspace={onOpenWorkspace}
-              onEditWorkspace={onEditWorkspace}
-              onRemoveWorkspace={onRemoveWorkspace}
-              onNewSession={onNewSession}
-              onAddWorkspace={onAddWorkspace}
-              onOpenSettings={onOpenSettings}
+              workspaces={props.workspaces}
+              selectedPath={props.selectedPath ?? props.activePath}
+              onSelectWorkspace={props.onSelectWorkspace}
+              onOpenWorkspace={props.onOpenWorkspace}
+              onEditWorkspace={props.onEditWorkspace}
+              onRemoveWorkspace={props.onRemoveWorkspace}
+              onNewSession={props.onNewSession}
+              onAddWorkspace={props.onAddWorkspace}
+              onOpenSettings={props.onOpenSettings}
             />
-          )}
+          </Show>
 
           <HomeSessionsList
-            rows={sortedRows}
-            openKeys={openKeys}
-            hideProjectName={hideProjectName}
-            loading={loading}
-            activePath={activePath}
-            workspaces={workspaces}
-            onOpenSession={onOpenSession}
-            onNewSession={onNewSession}
-            onRowContextMenu={openRowMenu}
+            rows={sortedRows()}
+            openKeys={props.openKeys}
+            hideProjectName={props.hideProjectName ?? false}
+            loading={props.loading ?? false}
+            activePath={props.activePath}
+            workspaces={props.workspaces}
+            onOpenSession={props.onOpenSession}
+            onNewSession={props.onNewSession}
+            onRowContextMenu={openRowMenu()}
           />
         </div>
       </div>
 
       {/* Below the wide layout the projects column is stacked and its utility
           nav collapses to the panel footer, like the reference home. */}
-      {onOpenSettings && <HomeSettingsFooter onOpenSettings={onOpenSettings} />}
+      <Show when={props.onOpenSettings}>
+        <HomeSettingsFooter onOpenSettings={() => props.onOpenSettings?.()} />
+      </Show>
 
-      {menu && (
-        <HomeSessionMenu
-          row={menu.row}
-          x={menu.x}
-          y={menu.y}
-          onRename={onRename}
-          onExport={onExport}
-          onDelete={onDelete}
-          onClose={closeMenu}
-        />
-      )}
+      <Show when={menu()}>
+        {(current) => (
+          <HomeSessionMenu
+            row={current().row}
+            x={current().x}
+            y={current().y}
+            onRename={props.onRename}
+            onExport={props.onExport}
+            onDelete={props.onDelete}
+            onClose={closeMenu}
+          />
+        )}
+      </Show>
     </div>
   );
 }

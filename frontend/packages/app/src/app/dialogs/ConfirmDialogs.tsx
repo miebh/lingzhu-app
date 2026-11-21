@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { BatchExportDialog } from "../../components/dialogs/BatchExportDialog";
 import { ConfirmDialog, MoveSessionDialog, RenameDialog, WorktreeDialog } from "../../components/dialogs/Dialogs";
 import { ManageModelsDialog } from "../../components/dialogs/ManageModelsDialog";
@@ -25,112 +26,121 @@ export function ConfirmDialogs() {
   const transfer = useDialogEntry("transfer");
   const actions = shell.sessionActions;
   const running = useAnyChatRunning();
-  const workspaces = shell.workspaceList;
 
   const nameOf = (path?: string) =>
-    workspaces.find((workspace) => workspace.path === path)?.name ?? path ?? "";
+    shell.workspaceList.find((workspace) => workspace.path === path)?.name ?? path ?? "";
 
   return (
     <>
-      {manageModels && (
-        <ManageModelsDialog
-          open
-          busy={running}
-          initialConnect={manageModels.props.connect}
-          onOpenChange={dismiss("manage-models")}
-          onSaved={(reused) => actions.settingsSaved(reused)}
-        />
-      )}
+      <Show when={manageModels()}>
+        {(entry) => (
+          <ManageModelsDialog
+            open
+            busy={running()}
+            initialConnect={entry().props.connect}
+            onOpenChange={dismiss("manage-models")}
+            onSaved={(reused) => actions.settingsSaved(reused)}
+          />
+        )}
+      </Show>
 
       <RenameDialog
-        open={rename !== undefined}
-        initial={rename?.props.session.title ?? ""}
+        open={rename() !== undefined}
+        initial={rename()?.props.session.title ?? ""}
         onOpenChange={dismiss("rename")}
         onConfirm={(title) => {
-          if (rename) void actions.confirmRename(rename.props, title);
+          const entry = rename();
+          if (entry) void actions.confirmRename(entry.props, title);
         }}
       />
 
       <ConfirmDialog
-        open={remove !== undefined}
+        open={remove() !== undefined}
         title={tr("confirmDialogsDeleteSession")}
-        description={`Delete "${remove?.props.session.title || remove?.props.session.id || "this session"}"? Its log is removed from disk.`}
+        description={`Delete "${remove()?.props.session.title || remove()?.props.session.id || "this session"}"? Its log is removed from disk.`}
         confirmLabel="Delete"
         destructive
         onOpenChange={dismiss("delete")}
         onConfirm={() => {
-          if (remove) void actions.confirmDelete(remove.props);
+          const entry = remove();
+          if (entry) void actions.confirmDelete(entry.props);
         }}
       />
 
       <ConfirmDialog
-        open={bulkDelete !== undefined}
+        open={bulkDelete() !== undefined}
         title={tr("confirmDialogsDeleteSessions")}
-        description={`Delete ${bulkDelete?.props.items.length ?? 0} session${
-          bulkDelete?.props.items.length === 1 ? "" : "s"
-        }? ${bulkDelete?.props.items.length === 1 ? "Its log is" : "Their logs are"} removed from disk.`}
+        description={`Delete ${bulkDelete()?.props.items.length ?? 0} session${
+          bulkDelete()?.props.items.length === 1 ? "" : "s"
+        }? ${bulkDelete()?.props.items.length === 1 ? "Its log is" : "Their logs are"} removed from disk.`}
         confirmLabel="Delete"
         destructive
         onOpenChange={dismiss("bulk-delete")}
         onConfirm={() => {
-          if (bulkDelete) void actions.confirmBulkDelete(bulkDelete.props.items);
+          const entry = bulkDelete();
+          if (entry) void actions.confirmBulkDelete(entry.props.items);
         }}
       />
 
       <MoveSessionDialog
-        open={move !== undefined}
-        workspaces={workspaces.filter((workspace) => workspace.path !== move?.props.path)}
+        open={move() !== undefined}
+        workspaces={shell.workspaceList.filter((workspace) => workspace.path !== move()?.props.path)}
         onOpenChange={dismiss("move")}
         onConfirm={(toPath) => {
-          if (move) void actions.confirmMove(move.props, toPath);
+          const entry = move();
+          if (entry) void actions.confirmMove(entry.props, toPath);
         }}
       />
 
       <MoveSessionDialog
-        open={bulkMove !== undefined}
-        workspaces={workspaces.filter((workspace) => workspace.path !== bulkMove?.props.items[0]?.path)}
+        open={bulkMove() !== undefined}
+        workspaces={shell.workspaceList.filter((workspace) => workspace.path !== bulkMove()?.props.items[0]?.path)}
         onOpenChange={dismiss("bulk-move")}
         onConfirm={(toPath) => {
-          if (bulkMove) void actions.confirmBulkMove(bulkMove.props.items, toPath);
+          const entry = bulkMove();
+          if (entry) void actions.confirmBulkMove(entry.props.items, toPath);
         }}
       />
 
       <BatchExportDialog
-        open={bulkExport !== undefined}
-        items={bulkExport?.props.items ?? []}
+        open={bulkExport() !== undefined}
+        items={bulkExport()?.props.items ?? []}
         onOpenChange={dismiss("bulk-export")}
       />
 
       <WorktreeDialog
-        open={worktree !== undefined}
+        open={worktree() !== undefined}
         onOpenChange={dismiss("worktree")}
         onConfirm={(value) => {
-          if (worktree) void actions.confirmWorktree(worktree.props.path, value);
+          const entry = worktree();
+          if (entry) void actions.confirmWorktree(entry.props.path, value);
         }}
       />
 
       <TransferDialog
-        open={transfer !== undefined}
-        workspace={transfer?.props.workspace}
-        sessionID={transfer?.props.sessionID}
-        title={transfer?.props.title}
+        open={transfer() !== undefined}
+        workspace={transfer()?.props.workspace}
+        sessionID={transfer()?.props.sessionID}
+        title={transfer()?.props.title}
         onOpenChange={dismiss("transfer")}
         onImported={(session) => {
-          if (!transfer) return;
-          void useWorkspaceStore.getState().loadSessions(transfer.props.workspace);
-          void useChatStore.getState().open(transfer.props.workspace, session.id);
+          const entry = transfer();
+          if (!entry) return;
+          void useWorkspaceStore.getState().loadSessions(entry.props.workspace);
+          void useChatStore.getState().open(entry.props.workspace, session.id);
         }}
       />
 
       <ConfirmDialog
-        open={removeWorkspace !== undefined}
+        open={removeWorkspace() !== undefined}
         title={tr("confirmDialogsRemoveWorkspace")}
-        description={`Remove "${removeWorkspace ? nameOf(removeWorkspace.props.path) : ""}" from the sidebar? Session data stays on disk.`}
+        description={`Remove "${removeWorkspace() ? nameOf(removeWorkspace()!.props.path) : ""}" from the sidebar? Session data stays on disk.`}
         confirmLabel="Remove"
         destructive
         onOpenChange={dismiss("remove-workspace")}
         onConfirm={() => {
-          if (removeWorkspace) void actions.confirmRemoveWorkspace(removeWorkspace.props.path);
+          const entry = removeWorkspace();
+          if (entry) void actions.confirmRemoveWorkspace(entry.props.path);
         }}
       />
     </>

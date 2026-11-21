@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "./solid-testing";
 import { afterEach, test, expect } from "vitest";
 import { Messages } from "@lingzhu/session-ui/Messages";
 import { TooltipProvider } from "@lingzhu/ui/tooltip";
@@ -33,7 +33,7 @@ test("a file row mounts the Pierre renderer with highlighted lines", async () =>
     "",
   ].join("\n");
   const { container } = render(
-    <TooltipProvider>
+    () => <TooltipProvider>
       <Messages
         detail="everything"
         chat={chat([
@@ -71,7 +71,7 @@ test("a long file row mounts the reference VirtualizedFileDiff renderer", async 
   const body = Array.from({ length: 260 }, (_, index) => `+const value${index} = ${index};`).join("\n");
   const patch = `--- a/a.ts\n+++ b/a.ts\n@@ -1 +1,260 @@\n${body}\n`;
   const { container } = render(
-    <TooltipProvider>
+    () => <TooltipProvider>
       <Messages
         detail="everything"
         chat={chat([

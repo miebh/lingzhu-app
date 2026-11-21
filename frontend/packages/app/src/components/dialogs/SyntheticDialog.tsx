@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import { Send, Sparkles } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -18,16 +18,16 @@ interface Props {
 }
 
 /** Injects externally produced text as a synthetic session event. */
-export function SyntheticDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function SyntheticDialog(props: Props) {
   const tr = useT();
-  const [text, setText] = useState("");
-  const [running, setRunning] = useState<boolean>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [text, setText] = createSignal("");
+  const [running, setRunning] = createSignal<boolean>();
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!props.open) {
       setText("");
       setRunning(undefined);
       setBusy(false);
@@ -35,6 +35,8 @@ export function SyntheticDialog({ open, workspace, sessionID, title, onOpenChang
       setNotice("");
       return;
     }
+    const workspace = props.workspace;
+    const sessionID = props.sessionID;
     if (!workspace || !sessionID) return;
     let alive = true;
     api
@@ -43,21 +45,21 @@ export function SyntheticDialog({ open, workspace, sessionID, title, onOpenChang
         if (alive) setRunning(value.running);
       })
       .catch(() => undefined);
-    return () => {
+    onCleanup(() => {
       alive = false;
-    };
-  }, [open, workspace, sessionID]);
+    });
+  });
 
   const send = async () => {
-    if (!workspace || !sessionID) return;
-    const value = text.trim();
+    if (!props.workspace || !props.sessionID) return;
+    const value = text().trim();
     if (!value) {
       setError("Text is required.");
       return;
     }
     setBusy(true);
     try {
-      await api.synthetic(workspace, sessionID, value);
+      await api.synthetic(props.workspace, props.sessionID, value);
       setText("");
       setError("");
       setNotice("Synthetic message delivered");
@@ -70,44 +72,44 @@ export function SyntheticDialog({ open, workspace, sessionID, title, onOpenChang
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col">
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent class="flex flex-col">
         <div>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="size-4 text-text-faint" />
+          <DialogTitle class="flex items-center gap-2">
+            <Sparkles class="size-4 text-text-faint" />
             {tr("dialogSyntheticMessage")}
           </DialogTitle>
-          <DialogDescription className="truncate">
-            {title ? `${title} · ` : ""}
-            {running === undefined ? "session state unknown" : running ? "session is running" : "session is idle"}
+          <DialogDescription class="truncate">
+            {props.title ? `${props.title} · ` : ""}
+            {running() === undefined ? "session state unknown" : running() ? "session is running" : "session is idle"}
           </DialogDescription>
         </div>
 
-        <ErrorBanner error={error} className="mt-3" />
-        <NoticeBanner notice={notice} />
+        <ErrorBanner error={error()} class="mt-3" />
+        <NoticeBanner notice={notice()} />
 
         <Textarea
-          autoFocus
-          value={text}
+          autofocus
+          value={text()}
           aria-label={tr("syntheticSyntheticText")}
           placeholder={tr("syntheticTextToInjectAsAnExternalEvent")}
-          onChange={(event) => setText(event.target.value)}
+          onInput={(event) => setText(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
               event.preventDefault();
               void send();
             }
           }}
-          className="mt-4 min-h-32 select-text"
+          class="mt-4 min-h-32 select-text"
         />
 
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-caption text-text-faint">
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <p class="text-caption text-text-faint">
             Idle sessions start a synthetic turn; running sessions read it before the next model call.
           </p>
-          <Button type="button" size="sm" disabled={busy} onClick={() => void send()}>
+          <Button type="button" size="sm" disabled={busy()} onClick={() => void send()}>
             <Send />
-            {busy ? "Sending…" : "Send"}
+            {busy() ? "Sending…" : "Send"}
           </Button>
         </div>
       </DialogContent>

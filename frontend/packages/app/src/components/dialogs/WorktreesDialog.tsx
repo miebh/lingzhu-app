@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react";
+import { For, Show, createEffect, createSignal } from "solid-js";
+import { update } from "@lingzhu/ui/solid";
 import { GitBranch, Plus, Save, Trash2 } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -23,24 +24,24 @@ interface Props {
 }
 
 /** Lists, creates and removes git worktrees of one workspace. */
-export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWorkspace, startup }: Props) {
+export function WorktreesDialog(props: Props) {
   const tr = useT();
-  const [list, setList] = useState<WorktreeList>();
-  const [newName, setNewName] = useState("");
-  const [force, setForce] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<Worktree>();
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [list, setList] = createSignal<WorktreeList>();
+  const [newName, setNewName] = createSignal("");
+  const [force, setForce] = createSignal(false);
+  const [removeTarget, setRemoveTarget] = createSignal<Worktree>();
+  const [loading, setLoading] = createSignal(false);
+  const [creating, setCreating] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
 
   const load = async () => {
-    if (!workspace) return;
+    if (!props.workspace) return;
     setLoading(true);
     setError("");
     try {
-      setList(await api.worktrees(workspace));
+      setList(await api.worktrees(props.workspace));
     } catch (err) {
       setError(messageOf(err));
     } finally {
@@ -48,8 +49,9 @@ export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWork
     }
   };
 
-  useEffect(() => {
-    if (open) {
+  createEffect(() => {
+    if (props.open) {
+      void props.workspace;
       void load();
     } else {
       setList(undefined);
@@ -60,17 +62,17 @@ export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWork
       setNotice("");
       setSaving(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace]);
+  });
 
   const saveList = async () => {
-    if (!list || list.worktrees.length === 0) return;
+    const current = list();
+    if (!current || current.worktrees.length === 0) return;
     setSaving(true);
     try {
-      const repo = list.repo || workspace || "workspace";
+      const repo = current.repo || props.workspace || "workspace";
       const path = await api.saveTextFile(
-        worktreesExportName(repo, list.worktrees.length),
-        serializeWorktrees({ workspace: workspace ?? "", repo: list.repo, worktrees: list.worktrees }),
+        worktreesExportName(repo, current.worktrees.length),
+        serializeWorktrees({ workspace: props.workspace ?? "", repo: current.repo, worktrees: current.worktrees }),
       );
       if (path) {
         setNotice(`Saved ${path}`);
@@ -85,8 +87,9 @@ export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWork
   };
 
   const create = async () => {
+    const workspace = props.workspace;
     if (!workspace) return;
-    const value = newName.trim();
+    const value = newName().trim();
     if (!value) {
       setError("Worktree name is required.");
       return;
@@ -94,7 +97,7 @@ export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWork
     setCreating(true);
     try {
       const created = await api.createWorktree(workspace, value);
-      const command = startup?.trim();
+      const command = props.startup?.trim();
       if (command) {
         try {
           await api.createShell(workspace, { command, cwd: created.path });
@@ -102,7 +105,7 @@ export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWork
           // The worktree exists; a failed startup command is reported by the shell list.
         }
       }
-      setList((current) =>
+      update(setList, list, (current) =>
         current
           ? { ...current, worktrees: [...current.worktrees, created] }
           : { worktrees: [created], repo: "" },
@@ -118,12 +121,13 @@ export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWork
   };
 
   const remove = async () => {
-    const target = removeTarget;
+    const target = removeTarget();
+    const workspace = props.workspace;
     if (!target || !workspace) return;
     setRemoveTarget(undefined);
     try {
-      await api.removeWorktree(workspace, target.path, force);
-      setList((current) =>
+      await api.removeWorktree(workspace, target.path, force());
+      update(setList, list, (current) =>
         current
           ? { ...current, worktrees: current.worktrees.filter((item) => item.path !== target.path) }
           : current,
@@ -137,121 +141,125 @@ export function WorktreesDialog({ open, workspace, name, onOpenChange, onAddWork
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent size="wide" className="flex flex-col">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <DialogTitle className="flex items-center gap-2">
-                <GitBranch className="size-4 text-text-faint" />
+      <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+        <DialogContent size="wide" class="flex flex-col">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <DialogTitle class="flex items-center gap-2">
+                <GitBranch class="size-4 text-text-faint" />
                 Worktrees
               </DialogTitle>
-              <DialogDescription className="truncate">
-                {name || workspace}
-                {list?.repo ? ` · ${list.repo}` : ""}
+              <DialogDescription class="truncate">
+                {props.name || props.workspace}
+                {list()?.repo ? ` · ${list()!.repo}` : ""}
               </DialogDescription>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div class="flex shrink-0 items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={saving || !list || list.worktrees.length === 0}
+                disabled={saving() || !list() || list()!.worktrees.length === 0}
                 onClick={() => void saveList()}
               >
                 <Save />
-                {saving ? "Saving…" : "Save file"}
+                {saving() ? "Saving…" : "Save file"}
               </Button>
-              <RefreshButton loading={loading} onRefresh={() => void load()} />
+              <RefreshButton loading={loading()} onRefresh={() => void load()} />
             </div>
           </div>
 
-          <ErrorBanner error={error} className="mt-3" />
-          <NoticeBanner notice={notice} />
+          <ErrorBanner error={error()} class="mt-3" />
+          <NoticeBanner notice={notice()} />
 
-          <div className="mt-4 flex shrink-0 items-center gap-2">
+          <div class="mt-4 flex shrink-0 items-center gap-2">
             <Input
-              value={newName}
+              value={newName()}
               aria-label={tr("worktreesWorktreeName")}
               placeholder={tr("worktreesNewWorktreeName")}
-              onChange={(event) => setNewName(event.target.value)}
+              onInput={(event) => setNewName(event.currentTarget.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
                   void create();
                 }
               }}
-              className="select-text"
+              class="select-text"
             />
-            <Button type="button" size="sm" disabled={creating} onClick={() => void create()}>
+            <Button type="button" size="sm" disabled={creating()} onClick={() => void create()}>
               <Plus />
               Create
             </Button>
           </div>
 
-          <label className="mt-2 flex shrink-0 items-center gap-2 text-meta text-text-muted">
-            <input type="checkbox" checked={force} onChange={(event) => setForce(event.target.checked)} />
+          <label class="mt-2 flex shrink-0 items-center gap-2 text-meta text-text-muted">
+            <input type="checkbox" checked={force()} onChange={(event) => setForce(event.currentTarget.checked)} />
             {tr("dialogForceRemoveWorktrees")}
           </label>
 
-          <div className="mt-3 max-h-96 overflow-auto rounded-md border border-border-base">
-            {!list || list.worktrees.length === 0 ? (
-              <p className="p-3 text-meta text-text-faint">
-                {loading ? "Loading…" : "No worktrees."}
-              </p>
-            ) : (
-              list.worktrees.map((item) => (
-                <div
-                  key={item.path}
-                  className="flex items-start gap-3 border-b border-border-base px-3 py-2 last:border-b-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-mono text-meta text-text-base">
-                        {item.path}
-                      </span>
-                      {item.main && (
-                        <span className="rounded-xs border border-border-base px-1 text-caption text-text-faint">
-                          main
+          <div class="mt-3 max-h-96 overflow-auto rounded-md border border-border-base">
+            <Show
+              when={list() && list()!.worktrees.length > 0}
+              fallback={
+                <p class="p-3 text-meta text-text-faint">
+                  {loading() ? "Loading…" : "No worktrees."}
+                </p>
+              }
+            >
+              <For each={list()?.worktrees ?? []}>
+                {(item) => (
+                  <div class="flex items-start gap-3 border-b border-border-base px-3 py-2 last:border-b-0">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="truncate font-mono text-meta text-text-base">
+                          {item.path}
                         </span>
-                      )}
+                        <Show when={item.main}>
+                          <span class="rounded-xs border border-border-base px-1 text-caption text-text-faint">
+                            main
+                          </span>
+                        </Show>
+                      </div>
+                      <p class="mt-0.5 text-caption text-text-faint">
+                        {item.branch || "detached"}
+                        {item.head ? ` · ${item.head.slice(0, 8)}` : ""}
+                      </p>
                     </div>
-                    <p className="mt-0.5 text-caption text-text-faint">
-                      {item.branch || "detached"}
-                      {item.head ? ` · ${item.head.slice(0, 8)}` : ""}
-                    </p>
-                  </div>
-                  {onAddWorkspace && (
+                    <Show when={props.onAddWorkspace}>
+                      {(addWorkspace) => (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() => void addWorkspace()(item.path)}
+                        >
+                          Add
+                        </Button>
+                      )}
+                    </Show>
                     <Button
                       type="button"
                       variant="outline"
-                      size="xs"
-                      onClick={() => void onAddWorkspace(item.path)}
+                      size="icon-xs"
+                      aria-label={`Remove worktree ${item.path}`}
+                      disabled={item.main}
+                      onClick={() => setRemoveTarget(item)}
                     >
-                      Add
+                      <Trash2 />
                     </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-xs"
-                    aria-label={`Remove worktree ${item.path}`}
-                    disabled={item.main}
-                    onClick={() => setRemoveTarget(item)}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              ))
-            )}
+                  </div>
+                )}
+              </For>
+            </Show>
           </div>
         </DialogContent>
       </Dialog>
 
       <ConfirmDialog
-        open={removeTarget !== undefined}
+        open={removeTarget() !== undefined}
         title={tr("worktreesRemoveWorktree")}
-        description={`Remove ${removeTarget?.branch || removeTarget?.path || ""}? ${
-          force ? "Dirty changes are discarded." : "Uncommitted changes will block removal."
+        description={`Remove ${removeTarget()?.branch || removeTarget()?.path || ""}? ${
+          force() ? "Dirty changes are discarded." : "Uncommitted changes will block removal."
         }`}
         confirmLabel="Remove"
         destructive

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { createEffect, createSignal } from "solid-js";
 import { Clock, RefreshCw } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
@@ -18,26 +18,26 @@ interface Props {
 }
 
 /** Blocks until the session has no active turn, with a bounded timeout. */
-export function WaitSessionDialog({ open, workspace, sessionID, title, onOpenChange }: Props) {
+export function WaitSessionDialog(props: Props) {
   const tr = useT();
-  const [timeoutValue, setTimeoutValue] = useState("30000");
-  const [running, setRunning] = useState<boolean>();
-  const [waiting, setWaiting] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [timeoutValue, setTimeoutValue] = createSignal("30000");
+  const [running, setRunning] = createSignal<boolean>();
+  const [waiting, setWaiting] = createSignal(false);
+  const [error, setError] = createSignal("");
+  const [notice, setNotice] = createSignal("");
 
   const refreshState = async () => {
-    if (!workspace || !sessionID) return;
+    if (!props.workspace || !props.sessionID) return;
     try {
-      const env = await api.environment(workspace, sessionID);
+      const env = await api.environment(props.workspace, props.sessionID);
       setRunning(env.running);
     } catch {
       setRunning(undefined);
     }
   };
 
-  useEffect(() => {
-    if (!open) {
+  createEffect(() => {
+    if (!props.open) {
       setTimeoutValue("30000");
       setRunning(undefined);
       setWaiting(false);
@@ -45,13 +45,14 @@ export function WaitSessionDialog({ open, workspace, sessionID, title, onOpenCha
       setNotice("");
       return;
     }
+    void props.workspace;
+    void props.sessionID;
     void refreshState();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, workspace, sessionID]);
+  });
 
   const wait = async () => {
-    if (!workspace || !sessionID) return;
-    const parsed = Number(timeoutValue);
+    if (!props.workspace || !props.sessionID) return;
+    const parsed = Number(timeoutValue());
     if (!Number.isFinite(parsed) || parsed < 0) {
       setError("Timeout must be a non-negative number of milliseconds.");
       return;
@@ -60,7 +61,7 @@ export function WaitSessionDialog({ open, workspace, sessionID, title, onOpenCha
     setNotice("");
     try {
       const bounded = Math.min(Math.floor(parsed), 120_000);
-      await api.waitSession(workspace, sessionID, bounded);
+      await api.waitSession(props.workspace, props.sessionID, bounded);
       setRunning(false);
       setNotice("Session is idle");
       setError("");
@@ -73,56 +74,56 @@ export function WaitSessionDialog({ open, workspace, sessionID, title, onOpenCha
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Clock className="size-4 text-text-faint" />
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent class="flex flex-col">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <DialogTitle class="flex items-center gap-2">
+              <Clock class="size-4 text-text-faint" />
               {tr("paletteWait")}
             </DialogTitle>
-            <DialogDescription className="truncate">
-              {title ? `${title} · ` : ""}
-              {running === undefined ? "state unknown" : running ? "running now" : "idle now"}
+            <DialogDescription class="truncate">
+              {props.title ? `${props.title} · ` : ""}
+              {running() === undefined ? "state unknown" : running() ? "running now" : "idle now"}
             </DialogDescription>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={waiting}
+            disabled={waiting()}
             onClick={() => void refreshState()}
           >
-            <RefreshCw className={waiting ? "motion-safe:animate-spin" : undefined} />
+            <RefreshCw class={waiting() ? "motion-safe:animate-spin" : undefined} />
             Refresh
           </Button>
         </div>
 
-        <ErrorBanner error={error} className="mt-3" />
-        <NoticeBanner notice={notice} />
+        <ErrorBanner error={error()} class="mt-3" />
+        <NoticeBanner notice={notice()} />
 
-        <label className="mt-4 flex flex-col gap-1 text-caption text-text-faint">
+        <label class="mt-4 flex flex-col gap-1 text-caption text-text-faint">
           Timeout (ms)
           <Input
-            value={timeoutValue}
+            value={timeoutValue()}
             aria-label={tr("waitSessionWaitTimeout")}
-            onChange={(event) => setTimeoutValue(event.target.value)}
+            onInput={(event) => setTimeoutValue(event.currentTarget.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
                 void wait();
               }
             }}
-            className="select-text font-mono"
+            class="select-text font-mono"
           />
         </label>
 
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-caption text-text-faint">
+        <div class="mt-2 flex items-center justify-between gap-2">
+          <p class="text-caption text-text-faint">
             0 waits for the server default (30s); the maximum is 120s. Timeout returns an error.
           </p>
-          <Button type="button" size="sm" disabled={waiting} onClick={() => void wait()}>
-            {waiting ? "Waiting…" : "Wait"}
+          <Button type="button" size="sm" disabled={waiting()} onClick={() => void wait()}>
+            {waiting() ? "Waiting…" : "Wait"}
           </Button>
         </div>
       </DialogContent>

@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 /* The workspace sources live above this package. Tailwind scans from the
    imported styles directory, so name the real roots explicitly. */
