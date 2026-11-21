@@ -1,10 +1,11 @@
 /**
  * Development-only element inspector.
  *
- * Holding Alt turns the pointer into a probe: the element under it is outlined
- * and named from its `data-component` / `data-slot` attributes, or from its tag,
- * classes and id when nothing names it, and a click copies that name instead of
- * reaching the app. The desktop entry mounts this module only in a development
+ * Holding Alt turns the pointer into a probe: the element under it is outlined,
+ * named from its `data-component` / `data-slot` attributes (or its tag, classes
+ * and id), and its unique selector is shown. A click copies an executable
+ * locator for that exact element instead of the component name, including any
+ * shadow-root hops. The desktop entry mounts this module only in a development
  * build, so a release bundle never includes it.
  */
 
@@ -20,6 +21,12 @@ export type InspectTarget = {
   component?: string;
   /** Nearest `data-slot`, which names the part inside that surface. */
   slot?: string;
+  /** Unique CSS selector inside the element's document or shadow root. */
+  selector: string;
+  /** Executable expression that resolves to this exact element. */
+  locator: string;
+  /** Short text preview, useful when the selector is not distinctive. */
+  text?: string;
 };
 
 /**
@@ -80,6 +87,112 @@ function fallbackName(element: Element): string {
   return `${tag}${id}${classes}`;
 }
 
+/** Attributes that make a selector stable across re-renders and data changes. */
+const SELECTOR_ATTRIBUTES = ["data-component", "data-slot", "data-action", "data-kind", "data-state"] as const;
+
+/** CSS identifier escaping without requiring `CSS.escape` in older webviews. */
+function escapeIdent(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return value.replace(/([^A-Za-z0-9_-])/g, "\\$1");
+}
+
+/** Attribute values are quoted, so only backslash and quote need escaping. */
+function escapeAttribute(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/** Classes that still describe the element rather than one visual state. */
+function stableClasses(element: Element): string[] {
+  return Array.from(element.classList)
+    .filter((name) => !name.includes(":") && !name.includes("/") && !name.includes("["))
+    .slice(0, 3);
+}
+
+/**
+ * One selector segment. Data attributes identify a design-system surface; an
+ * id is unique by definition; classes and the tag are the fallback for plain
+ * DOM. `:nth-child` is only added when the same segment has siblings.
+ */
+function selectorSegment(element: Element): string {
+  if (element.id) return `#${escapeIdent(element.id)}`;
+
+  const tag = element.tagName.toLowerCase();
+  const attributes = SELECTOR_ATTRIBUTES.filter((name) => element.hasAttribute(name))
+    .map((name) => `[${name}="${escapeAttribute(element.getAttribute(name) ?? "")}"]`)
+    .join("");
+  const classes = attributes
+    ? ""
+    : stableClasses(element)
+        .map((name) => `.${escapeIdent(name)}`)
+        .join("");
+  const base = `${tag}${attributes}${classes}`;
+
+  const parent = element.parentElement;
+  if (!parent) return base;
+  const siblings = Array.from(parent.children);
+  const matches = siblings.filter((sibling) => {
+    try {
+      return sibling.matches(base);
+    } catch {
+      return false;
+    }
+  });
+  if (matches.length <= 1) return base;
+  return `${base}:nth-child(${siblings.indexOf(element) + 1})`;
+}
+
+/** A selector that resolves to `element` inside one document or shadow root. */
+function selectorWithin(root: ParentNode, element: Element): string {
+  if (element === (root as unknown as Element)) return ":scope";
+  const parts: string[] = [];
+  let node: Element | null = element;
+  while (node && node !== (root as unknown as Element)) {
+    parts.unshift(selectorSegment(node));
+    const selector = parts.join(" > ");
+    try {
+      if (root.querySelector(selector) === element) return selector;
+    } catch {
+      // A malformed escaped class should not stop the rest of the path.
+    }
+    node = node.parentElement;
+  }
+  return parts.join(" > ");
+}
+
+/**
+ * An executable expression for the exact element, crossing shadow boundaries.
+ * Shadow roots cannot be represented by a plain CSS selector, so this is the
+ * reliable form to paste into the inspector console.
+ */
+function locatorFor(element: Element): string {
+  const selectors: string[] = [];
+  let node: Element | null = element;
+  while (node) {
+    const root = node.getRootNode();
+    selectors.unshift(selectorWithin(root as ParentNode, node));
+    if (typeof ShadowRoot !== "undefined" && root instanceof ShadowRoot) {
+      node = root.host;
+      continue;
+    }
+    break;
+  }
+
+  let expression = "document";
+  selectors.forEach((selector, index) => {
+    expression +=
+      index === 0
+        ? `.querySelector(${JSON.stringify(selector)})`
+        : `?.shadowRoot?.querySelector(${JSON.stringify(selector)})`;
+  });
+  return expression;
+}
+
+/** A short text preview so identical buttons can still be told apart. */
+function textOf(element: Element): string | undefined {
+  const text = element.textContent?.replace(/\s+/g, " ").trim();
+  return text ? text.slice(0, 120) : undefined;
+}
+
 /**
  * Resolves what sits under the pointer. Like a browser element picker, the
  * outline covers exactly the hovered element rather than the component's whole
@@ -94,35 +207,21 @@ export function describeElement(target: Element): InspectTarget {
     host: target,
     component: attribute(target, "data-component"),
     slot: attribute(target, "data-slot"),
+    selector: selectorWithin(target.getRootNode() as ParentNode, target),
+    locator: locatorFor(target),
+    text: textOf(target),
   };
 }
 
-/** What a click copies: the resolved name. */
+/** What a click copies: an expression that resolves to the exact element. */
 export function copyValue(target: InspectTarget): string {
-  return target.name;
+  return target.locator;
 }
 
-/**
- * A CSS-like selector for one element, the way a browser element picker names
- * it: `div.side-tab[data-kind="chat"]`.
- */
-function describeHost(element: Element): string {
-  const tag = element.tagName.toLowerCase();
-  const classes = Array.from(element.classList).slice(0, 3);
-  const id = element.id ? `#${element.id}` : "";
-  const attributes = ["data-component", "data-slot", "data-kind", "data-state"]
-    .map((name) => {
-      const value = element.getAttribute(name);
-      return value ? `[${name}="${value}"]` : "";
-    })
-    .join("");
-  return `${tag}${id}${classes.map((name) => `.${name}`).join("")}${attributes}`;
-}
-
-/** The badge's second line: the element box, as a browser picker reports it. */
+/** The badge's second line: the unique selector and the element box. */
 function metaOf(target: InspectTarget, rect = target.host.getBoundingClientRect()): string {
   const size = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-  return `${describeHost(target.host)}  ·  ${size}`;
+  return `${target.selector}  ·  ${size}`;
 }
 
 /** Selects the text in a detached field and copies it inside the click gesture. */
@@ -216,7 +315,9 @@ export function mountInspector(): () => void {
   title.className = "title";
   const meta = document.createElement("span");
   meta.className = "meta";
-  badge.append(title, meta);
+  const context = document.createElement("span");
+  context.className = "meta";
+  badge.append(title, meta, context);
 
   shadow.append(style, box, badge);
   document.body.append(host);
@@ -238,6 +339,7 @@ export function mountInspector(): () => void {
   let lastTarget: InspectTarget | undefined;
   let paintedTitle = "";
   let paintedMeta = "";
+  let paintedContext = "";
   let paintedBox = "";
   let boxShown = false;
   let badgeShown = false;
@@ -328,7 +430,12 @@ export function mountInspector(): () => void {
     showBox(true);
 
     const line = metaOf(next, rect);
-    const renamed = paintedTitle !== next.name || paintedMeta !== line;
+    badge.title = next.locator;
+    const contextLine = next.chain.length > 1 ? next.chain.join(" › ") : "";
+    const renamed =
+      paintedTitle !== next.name ||
+      paintedMeta !== line ||
+      paintedContext !== contextLine;
     if (paintedTitle !== next.name) {
       title.textContent = next.name;
       paintedTitle = next.name;
@@ -336,6 +443,10 @@ export function mountInspector(): () => void {
     if (paintedMeta !== line) {
       meta.textContent = line;
       paintedMeta = line;
+    }
+    if (paintedContext !== contextLine) {
+      context.textContent = contextLine;
+      paintedContext = contextLine;
     }
     if (badge.hasAttribute("data-copied")) badge.removeAttribute("data-copied");
     showBadge(true);
@@ -353,9 +464,11 @@ export function mountInspector(): () => void {
     active = true;
     document.documentElement.setAttribute("data-lz-inspector", "");
     paintedTitle = "Inspector";
-    paintedMeta = "Move over a component";
+    paintedMeta = "Move over an element; click copies its locator";
+    paintedContext = "";
     title.textContent = paintedTitle;
     meta.textContent = paintedMeta;
+    context.textContent = "";
     // The badge waits for the first pointer position instead of parking at 0,0.
     showBadge(pointerKnown);
     showBox(false);
@@ -374,6 +487,7 @@ export function mountInspector(): () => void {
     lastTarget = undefined;
     paintedTitle = "";
     paintedMeta = "";
+    paintedContext = "";
     paintedBox = "";
     showBox(false);
     showBadge(false);
@@ -402,7 +516,7 @@ export function mountInspector(): () => void {
     if (!target) return;
 
     writeClipboard(copyValue(target));
-    paintedMeta = "Copied";
+    paintedMeta = "Copied locator";
     meta.textContent = paintedMeta;
     measureBadge();
     badge.setAttribute("data-copied", "");

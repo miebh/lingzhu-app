@@ -134,6 +134,9 @@ frontend/apps/desktop/bindings  Generated from Go; not committed, run `wails3 ge
   tool output, permission resources and inputs stay selectable.
 - `LINGZHU_DEBUG=1` starts WebView2 with the DevTools endpoint on port 9222, so any CDP client
   (screenshots, console, DOM) can inspect the running window.
+- Development builds include the Alt inspector: it outlines the exact element, shows the component
+  chain, unique selector and box size, and an Alt click copies an executable
+  `document.querySelector(...)` locator that also crosses shadow roots.
 - Permission prompts arrive as `permission.asked` events and are answered through the core API, so the UI
   never talks to the core directly.
 - Closing a connection does not stop a turn; the Stop button calls the interrupt endpoint.

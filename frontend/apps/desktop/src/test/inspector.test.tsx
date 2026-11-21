@@ -41,6 +41,10 @@ function Shell() {
   );
 }
 
+function resolve(locator: string): Element | null {
+  return Function("document", `return ${locator}`)(document) as Element | null;
+}
+
 describe("dev component inspector", () => {
   test("names the closest component that owns the element", () => {
     const { container } = render(() => <Shell />);
@@ -66,11 +70,30 @@ describe("dev component inspector", () => {
     expect(target.slot).toBe("session-panel-title");
   });
 
-  test("copies the component name", () => {
+  test("copies a locator for the exact element", () => {
     const { container } = render(() => <Shell />);
     const button = container.querySelector("button")!;
+    const target = describeElement(button)!;
 
-    expect(copyValue(describeElement(button)!)).toBe("session-panel");
+    expect(target.selector.length).toBeGreaterThan(0);
+    expect(target.locator).toContain("document.querySelector");
+    expect(resolve(copyValue(target))).toBe(button);
+  });
+
+  test("the locator distinguishes repeated components", () => {
+    const { container } = render(
+      () => <section>
+        <Panel />
+        <Panel />
+      </section>,
+    );
+    const buttons = container.querySelectorAll("button");
+    const first = describeElement(buttons[0])!;
+    const second = describeElement(buttons[1])!;
+
+    expect(first.locator).not.toBe(second.locator);
+    expect(resolve(first.locator)).toBe(buttons[0]);
+    expect(resolve(second.locator)).toBe(buttons[1]);
   });
 
   test("ignores plain DOM with no component above it", () => {
@@ -168,7 +191,8 @@ describe("dev component inspector", () => {
     expect(down.defaultPrevented).toBe(true);
     expect(click.defaultPrevented).toBe(true);
     expect(onAppClick).not.toHaveBeenCalled();
-    expect(writes).toEqual(["session-panel"]);
+    expect(writes).toHaveLength(1);
+    expect(resolve(writes[0])).toBe(button);
 
     teardown();
     document.elementFromPoint = original;
@@ -199,7 +223,7 @@ describe("dev component inspector", () => {
     expect(target.host).toBe(leaf);
   });
 
-  test("copying a leaf reports the leaf component", () => {
+  test("copying a leaf resolves to the leaf element", () => {
     function Shimmer({ text }: { text: string }) {
       return <span>{text}</span>;
     }
@@ -213,7 +237,8 @@ describe("dev component inspector", () => {
     }
 
     const { container } = render(() => <ToolRow />);
-    expect(copyValue(describeElement(container.querySelector("span")!)!)).toBe("span");
+    const span = container.querySelector("span")!;
+    expect(resolve(copyValue(describeElement(span)!))).toBe(span);
   });
 
   test("the shared disclosure shell is named as itself", () => {
@@ -254,6 +279,7 @@ describe("dev component inspector", () => {
     expect(target.name).toBe("diff-host");
     expect(target.host).toBe(line);
     expect(target.component).toBe("diff-host");
+    expect(resolve(target.locator)).toBe(line);
   });
 
   test("the probe reaches content inside a shadow root", async () => {
@@ -301,7 +327,7 @@ describe("dev component inspector", () => {
     expect(target.host).toBe(title);
   });
 
-  test("copying a label yields that label's component", () => {
+  test("copying a label yields that label's element", () => {
     const { container } = render(
       () => <TooltipProvider>
         <Messages chat={chat([tool("1", "grep"), tool("2", "read")])} detail="compact" />
@@ -309,7 +335,10 @@ describe("dev component inspector", () => {
     );
 
     const title = container.querySelector('[data-slot="basic-tool-tool-title"] span')!;
-    expect(copyValue(describeElement(title)!)).toBe("basic-tool-tool-title");
+    const target = describeElement(title)!;
+
+    expect(target.name).toBe("basic-tool-tool-title");
+    expect(resolve(copyValue(target))).toBe(title);
   });
 
   test("sticky tool headers stop below the session header", () => {
