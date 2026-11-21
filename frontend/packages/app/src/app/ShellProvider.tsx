@@ -7,6 +7,7 @@ import { effectiveKeybinds } from "../lib/keybinds";
 import { t } from "@lingzhu/ui/i18n";
 import { isFilePanelTab, CONFIG_FILE_TAB, type SidePanelTab, type SidePanelTabID } from "../lib/sidePanel";
 import { chatKey } from "@lingzhu/ui/domain/chat";
+import type { WorkspaceInfo } from "@lingzhu/ui/types";
 import { useCatalog } from "../store/catalog";
 import type { Catalog } from "../store/catalog";
 import { useActiveChatID, useChatHome, useChatStore } from "../store/chat";
@@ -67,7 +68,7 @@ export interface Shell {
     select: (path: string) => void;
     refresh: () => Promise<void>;
     loadSessions: (path: string) => Promise<void>;
-    connect: () => Promise<unknown>;
+    connect: () => Promise<WorkspaceInfo | undefined>;
     disconnect: (path: string) => Promise<void>;
     renameSession: (workspace: string, sessionID: string, title: string) => Promise<boolean>;
     deleteSession: (workspace: string, sessionID: string) => Promise<boolean>;
@@ -76,6 +77,7 @@ export interface Shell {
   chatActions: {
     open: (workspace: string, sessionID: string) => Promise<void>;
     newChat: (workspace: string) => Promise<void>;
+    relocateDraft: (draftID: string, workspace: string) => boolean;
     send: (...args: any[]) => Promise<void>;
     runShell: (command: string) => Promise<void>;
     startSession: (...args: any[]) => Promise<void>;
@@ -220,6 +222,7 @@ function buildShell(): Shell {
   const chatActions = useChatStore((state) => ({
     open: state.open,
     newChat: state.newChat,
+    relocateDraft: state.relocateDraft,
     send: state.send,
     runShell: state.runShell,
     startSession: state.startSession,

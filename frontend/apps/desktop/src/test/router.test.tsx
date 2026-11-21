@@ -5,6 +5,7 @@ import { decodeSegment, encodeSegment, sessionHref } from "@/lib/routes";
 import { defaultPreferences } from "@/lib/preferences";
 import { useChatStore } from "@/store/chat";
 import { usePreferencesStore } from "@/store/preferences";
+import { useTabsStore } from "@/store/tabs";
 import { useViewStore } from "@/store/view";
 import { useWorkspaceStore } from "@/store/workspaces";
 import { chatKey } from "@lingzhu/ui/domain/chat";
@@ -103,5 +104,43 @@ describe("route table", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/new-session"));
     expect(new URLSearchParams(window.location.search).get("draftId")).toBe("draft-1");
     expect(useViewStore.getState().homeOpen).toBe(false);
+  });
+
+  test("a draft keeps its route when the project picker re-targets it", async () => {
+    const draftID = "draft-2";
+    useWorkspaceStore.setState({
+      workspaces: [
+        { path: "/w", name: "lingzhu", addr: "127.0.0.1:1", connected: true, error: "" },
+        { path: "/other", name: "Other", addr: "127.0.0.1:2", connected: true, error: "" },
+      ],
+      activePath: "/w",
+    });
+    useChatStore.setState({
+      chats: {
+        [chatKey("/w", draftID)]: {
+          ...chat(draftID, "Draft"),
+          workspace: "/w",
+          draft: true,
+        },
+      },
+      activeByWorkspace: { "/w": draftID },
+    });
+    useTabsStore.setState({
+      tabs: [{ key: chatKey("/w", draftID), path: "/w", sessionID: draftID }],
+    });
+
+    renderApp(`/new-session?draftId=${draftID}`);
+    await waitFor(() => expect(window.location.pathname).toBe("/new-session"));
+
+    // The project picker moves the draft; the move also selects its workspace.
+    useChatStore.getState().relocateDraft(draftID, "/other");
+
+    await waitFor(() => expect(window.location.pathname).toBe("/new-session"));
+    expect(useWorkspaceStore.getState().activePath).toBe("/other");
+    expect(useChatStore.getState().activeByWorkspace["/other"]).toBe(draftID);
+    expect(useChatStore.getState().chats[chatKey("/other", draftID)]?.workspace).toBe("/other");
+    expect(useChatStore.getState().chats[chatKey("/w", draftID)]).toBeUndefined();
+    expect(useTabsStore.getState().tabs.find((tab) => tab.sessionID === draftID)?.path).toBe("/other");
+    expect(useTabsStore.getState().tabs).toHaveLength(1);
   });
 });

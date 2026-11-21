@@ -69,6 +69,8 @@ interface TabsStore {
   hydrate: () => void;
 
   addActiveTab: (path: string, sessionID: string) => void;
+  /** Re-targets the draft tab when its project picker changes workspace. */
+  moveDraft: (draftID: string, path: string) => void;
   markRecent: (path: string, sessionID: string) => void;
   clearRecent: () => void;
   removeTabs: (entries: Array<{ path: string; id: string }>) => void;
@@ -96,11 +98,42 @@ export const useTabsStore = createStore<TabsStore>((set, get) => ({
 
   addActiveTab: (path, sessionID) => {
     const key = chatKey(path, sessionID);
-    set((state) =>
-      state.tabs.some((tab) => tab.key === key)
-        ? state
-        : { tabs: [...state.tabs, { key, path, sessionID }] },
-    );
+    set((state) => {
+      // A draft can be re-targeted while the effects that follow its move are
+      // still running. Session IDs are unique, so an existing row is the same
+      // tab even when its key is stale; move it instead of adding a second one.
+      const existing = state.tabs.filter((tab) => tab.sessionID === sessionID);
+      if (existing.length === 0) {
+        return { tabs: [...state.tabs, { key, path, sessionID }] };
+      }
+      const first = existing[0];
+      if (existing.length === 1 && first.key === key && first.path === path) return state;
+      let kept = false;
+      const tabs = state.tabs.flatMap((tab) => {
+        if (tab.sessionID !== sessionID) return [tab];
+        if (kept) return [];
+        kept = true;
+        return [{ key, path, sessionID }];
+      });
+      return { tabs };
+    });
+  },
+
+  moveDraft: (draftID, path) => {
+    set((state) => {
+      const matches = state.tabs.filter((tab) => tab.sessionID === draftID);
+      if (matches.length === 0) return state;
+      const key = chatKey(path, draftID);
+      if (matches.length === 1 && matches[0].key === key && matches[0].path === path) return state;
+      let kept = false;
+      const tabs = state.tabs.flatMap((tab) => {
+        if (tab.sessionID !== draftID) return [tab];
+        if (kept) return [];
+        kept = true;
+        return [{ key, path, sessionID: draftID }];
+      });
+      return { tabs };
+    });
   },
 
   markRecent: (path, sessionID) => {

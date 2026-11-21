@@ -33,6 +33,8 @@ interface ChatStore {
   activeByWorkspace: Record<string, string>;
   open: (workspace: string, sessionID: string) => Promise<void>;
   newChat: (workspace: string) => Promise<void>;
+  /** Re-targets a draft when the project picker changes its workspace. */
+  relocateDraft: (draftID: string, workspace: string) => boolean;
   send: (text: string, delivery?: 'steer' | 'queue', attachments?: PromptAttachment[], meta?: { comments?: PromptComment[]; references?: PromptReference[]; voice?: boolean }) => Promise<void>;
   /** Drops one pending input after the core accepted its cancellation. */
   removeInboxInput: (workspace: string, sessionID: string, inputID: string) => void;
@@ -290,7 +292,7 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
         api.inbox(workspace, sessionID).catch(() => []),
       ]);
       set((state) => {
-        const chat = state.chats[key] ?? blankChat(sessionID, title);
+        const chat = state.chats[key] ?? { ...blankChat(sessionID, title), workspace };
         // A turn that just ended must not be revived by a snapshot the core
         // produced before it dropped the turn handle.
         const endedAt = turnEndedAt.get(key) ?? 0;
@@ -377,7 +379,7 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
         chats: {
           ...state.chats,
           [key]: {
-            ...(state.chats[key] ?? blankChat(sessionID, title)),
+            ...(state.chats[key] ?? { ...blankChat(sessionID, title), workspace }),
             loading: false,
             // A deleted session is a state the transcript explains, not an
             // error to show: the row survives in a cached list, so opening it
@@ -438,7 +440,7 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
     meta?: { comments?: PromptComment[]; references?: PromptReference[]; voice?: boolean },
   ) => {
     const key = chatKey(workspace, sessionID);
-    const chat = source ?? get().chats[key] ?? blankChat(sessionID);
+    const chat = source ?? get().chats[key] ?? { ...blankChat(sessionID), workspace };
     if ((attachments.length > 0 || meta?.comments?.length || meta?.references?.length || meta?.voice) && chat.running) {
       notify(t("notifyWaitForTurn"));
       return;
@@ -531,7 +533,12 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
             : {
                 chats: {
                   ...state.chats,
-                  [key]: { ...blankChat(sessionID, info?.title ?? ""), draft: false, loading: true },
+                  [key]: {
+                    ...blankChat(sessionID, info?.title ?? ""),
+                    workspace,
+                    draft: false,
+                    loading: true,
+                  },
                 },
               },
         );
@@ -561,12 +568,15 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
         set((state) => ({
           chats: {
             ...state.chats,
-            [chatKey(workspace, id)]: blankChat(
-              id,
-              "New session",
-              usable?.provider ?? catalog?.provider,
-              usable?.model ?? catalog?.model,
-            ),
+            [chatKey(workspace, id)]: {
+              ...blankChat(
+                id,
+                "New session",
+                usable?.provider ?? catalog?.provider,
+                usable?.model ?? catalog?.model,
+              ),
+              workspace,
+            },
           },
         }));
         activate(workspace, id);
@@ -574,6 +584,35 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
       } catch (error) {
         notify(messageOf(error));
       }
+    },
+
+    relocateDraft: (draftID, workspace) => {
+      const state = get();
+      const oldKey = Object.keys(state.chats).find((key) => {
+        const chat = state.chats[key];
+        return chat.id === draftID && chat.draft;
+      });
+      if (!oldKey) return false;
+      const nextKey = chatKey(workspace, draftID);
+      if (oldKey === nextKey) return false;
+
+      const chat = state.chats[oldKey];
+      const chats = { ...state.chats };
+      delete chats[oldKey];
+      chats[nextKey] = { ...chat, workspace };
+      const activeByWorkspace = { ...state.activeByWorkspace };
+      for (const [path, id] of Object.entries(activeByWorkspace)) {
+        if (id === draftID) delete activeByWorkspace[path];
+      }
+      activeByWorkspace[workspace] = draftID;
+      set({ chats, activeByWorkspace });
+      // Re-target the open tab before the destination becomes active, so the
+      // tab sync effect sees the moved row instead of adding a second one.
+      useTabsStore.getState().moveDraft(draftID, workspace);
+      // Moving the draft also moves the active workspace, so the destination
+      // is selected even when a pending route effect still sees the old chat.
+      useWorkspaceStore.getState().select(workspace);
+      return true;
     },
 
     send: async (text, delivery = "steer", attachments = [], meta) => {
@@ -694,7 +733,7 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
       }
       try {
         const id = await api.newSessionID();
-        const chat = blankChat(id, "New session", providerID, modelID, agentID);
+        const chat = { ...blankChat(id, "New session", providerID, modelID, agentID), workspace: path };
         set((state) => ({ chats: { ...state.chats, [chatKey(path, id)]: chat } }));
         activate(path, id);
         useTabsStore.getState().markRecent(path, id);

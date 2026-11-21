@@ -116,28 +116,35 @@ function NewSessionRoute() {
   const [search] = useSearchParams<{ draftId?: string }>();
   const navigate = useNavigate();
   const activePath = useWorkspaceStore((state) => state.activePath);
-  const draft = useChatStore((state) => {
+  // A draft is found by its own ID, not by the global active workspace: the
+  // project picker can re-target it without invalidating the route.
+  const entry = useChatStore((state) => {
     const id = search.draftId;
-    const path = activePath();
-    return id && path ? state.chats[chatKey(path, id)] : undefined;
+    return id ? Object.values(state.chats).find((chat) => chat.id === id) : undefined;
   });
 
   // A draft is only reachable while its chat is still alive; a stale URL (for
   // example after a reload) goes back home instead of opening a broken tab.
   createEffect(() => {
     if (!search.draftId) return;
-    if (!draft()) navigate("/", { replace: true });
+    if (!entry()) navigate("/", { replace: true });
+  });
+
+  // The draft owns its workspace; opening its URL re-selects that workspace.
+  createEffect(() => {
+    const chat = entry();
+    if (chat?.workspace) useWorkspaceStore.getState().select(chat.workspace);
   });
 
   // The first prompt turns the draft into a durable session; the URL follows.
   createEffect(() => {
-    const chat = draft();
-    const path = activePath();
-    if (!chat || !path || chat.draft) return;
-    navigate(sessionHref(path, chat.id), { replace: true });
+    const chat = entry();
+    if (!chat || chat.draft) return;
+    const path = chat.workspace ?? activePath();
+    if (path) navigate(sessionHref(path, chat.id), { replace: true });
   });
 
-  return <NewSessionPane />;
+  return <NewSessionPane draftId={search.draftId} />;
 }
 
 function SettingsRoute() {

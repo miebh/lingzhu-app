@@ -1,9 +1,10 @@
 import { NewSessionHome } from "../../../components/session/NewSessionHome";
+import { useWorkspaceStore } from "../../../store/workspaces";
 import { useShell } from "../../ShellProvider";
 import { useComposerCommands } from "../../useComposerCommands";
 
 /** The wordmark surface: project tray, model picker and composer. */
-export function NewSessionPane() {
+export function NewSessionPane(props: { draftId?: string }) {
   const shell = useShell();
   const dialogs = shell.dialogs;
   const commands = useComposerCommands({
@@ -24,6 +25,31 @@ export function NewSessionPane() {
     compactSession: shell.sessionActions.compactSession,
     reload: shell.agents.reload,
   });
+
+  const selectWorkspace = (path: string) => {
+    // For a draft the move also selects the workspace; only a pane without a
+    // draft falls back to changing the global selection on its own.
+    if (props.draftId && shell.chatActions.relocateDraft(props.draftId, path)) return;
+    shell.workspaceActions.select(path);
+  };
+
+  const selectWorktree = (path: string) => {
+    void shell.sessionActions.addWorktreeWorkspace(path).then(() => {
+      if (!props.draftId) return;
+      // A failed add leaves the path out of the workspace list; only re-target
+      // the draft once the checkout is a real workspace. Read the store rather
+      // than the captured shell, whose workspace list predates the add.
+      if (!useWorkspaceStore.getState().workspaces.some((workspace) => workspace.path === path)) return;
+      shell.chatActions.relocateDraft(props.draftId, path);
+    });
+  };
+
+  const addWorkspace = () => {
+    void shell.workspaceActions.connect().then((added) => {
+      if (!added || !props.draftId) return;
+      shell.chatActions.relocateDraft(props.draftId, added.path);
+    });
+  };
 
   return (
     <NewSessionHome
@@ -46,9 +72,9 @@ export function NewSessionPane() {
       onSend={(text, _delivery, attachments, references) =>
         void shell.chatActions.startSession(text, shell.agents.homeAgent(), attachments, { references })
       }
-      onAddWorkspace={() => void shell.workspaceActions.connect()}
-      onSelectWorkspace={(path) => shell.workspaceActions.select(path)}
-      onSelectWorktree={(path) => void shell.sessionActions.addWorktreeWorkspace(path)}
+      onAddWorkspace={addWorkspace}
+      onSelectWorkspace={selectWorkspace}
+      onSelectWorktree={selectWorktree}
       onOpenWorktrees={() => {
         const workspace = shell.homeWorkspace;
         if (workspace) dialogs.setWorktreesTarget(workspace.path);

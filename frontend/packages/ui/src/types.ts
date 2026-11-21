@@ -794,6 +794,8 @@ export type RunStatus = "completed" | "stopped" | "max-steps" | "failed";
 export interface ChatState {
   id: string;
   title: string;
+  /** Workspace that owns this chat; a draft keeps it when the picker moves it. */
+  workspace?: string;
   draft: boolean;
   provider?: string;
   model?: string;

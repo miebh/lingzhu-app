@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { removeTabsForSessions } from "@/lib/sessionTabs";
+import { useTabsStore } from "@/store/tabs";
 import { chatKey } from "@lingzhu/ui/domain/chat";
 
 const tab = (path: string, id: string) => ({ key: chatKey(path, id), path, sessionID: id });
@@ -30,5 +31,24 @@ describe("removeTabsForSessions", () => {
     expect(result.removedActive).toBe(false);
     expect(result.target).toBeUndefined();
     expect(result.next).toEqual([first]);
+  });
+});
+
+describe("active tab sync", () => {
+  test("re-targets an existing session instead of adding a second tab", () => {
+    useTabsStore.setState({ tabs: [tab("/w", "d1")], closed: [], recent: undefined, seen: {} });
+    useTabsStore.getState().addActiveTab("/other", "d1");
+    expect(useTabsStore.getState().tabs).toEqual([tab("/other", "d1")]);
+  });
+
+  test("moving a draft collapses duplicate rows for the same draft", () => {
+    useTabsStore.setState({
+      tabs: [tab("/w", "d1"), tab("/other", "d1")],
+      closed: [],
+      recent: undefined,
+      seen: {},
+    });
+    useTabsStore.getState().moveDraft("d1", "/third");
+    expect(useTabsStore.getState().tabs).toEqual([tab("/third", "d1")]);
   });
 });
