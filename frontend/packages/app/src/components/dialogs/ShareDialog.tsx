@@ -110,7 +110,7 @@ export function ShareDialog(props: Props) {
       <DialogContent size="wide" class="flex flex-col">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <DialogTitle>Share</DialogTitle>
+            <DialogTitle>{tr("shareTitle")}</DialogTitle>
             <DialogDescription class="truncate">{props.title || props.sessionID}</DialogDescription>
           </div>
           <Button type="button" variant="outline" size="sm" disabled={busy()} onClick={() => void load()}>
@@ -128,7 +128,7 @@ export function ShareDialog(props: Props) {
                 <Share2 class="size-3.5" />
                 {current().mode}
               </span>
-              <span class="text-text-faint">{current().remote ? "remote endpoint" : "local link"}</span>
+              <span class="text-text-faint">{current().remote ? tr("remoteEndpoint") : tr("localLink")}</span>
               <Show when={current().endpoint}>
                 <span class="min-w-0 truncate font-mono text-caption text-text-faint">
                   {current().endpoint}
@@ -138,7 +138,7 @@ export function ShareDialog(props: Props) {
                 <span class="text-text-faint">expires {current().expiry}</span>
               </Show>
               <Show when={disabled()}>
-                <span class="text-state-fg-warning">Sharing is disabled in the configuration.</span>
+                <span class="text-state-fg-warning">{tr("sharingDisabled")}</span>
               </Show>
             </div>
           )}
@@ -150,7 +150,7 @@ export function ShareDialog(props: Props) {
             fallback={
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-meta text-text-muted">
-                  {state() ? "This session is not shared." : "Loading share status…"}
+                  {state() ? tr("notShared") : tr("loadingShareStatus")}
                 </p>
                 <Button
                   type="button"
@@ -183,7 +183,7 @@ export function ShareDialog(props: Props) {
                     onClick={() => void copy(info())}
                   >
                     <Copy />
-                    {copied() ? "Copied" : "Copy"}
+                    {copied() ? tr("copied") : tr("copy")}
                   </Button>
                   <Button
                     type="button"

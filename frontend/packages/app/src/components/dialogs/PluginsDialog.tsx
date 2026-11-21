@@ -170,7 +170,7 @@ export function PluginsDialog(props: Props) {
             when={plugins().length > 0}
             fallback={
               <p class="rounded-md border border-border-base p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No plugins connected."}
+                {loading() ? tr("loading") : tr("noPlugins")}
               </p>
             }
           >
@@ -185,10 +185,10 @@ export function PluginsDialog(props: Props) {
                     <Capability label="hooks" on={plugin.capabilities.hooks} />
                   </div>
                   <div class="border-b border-border-base px-3 py-2">
-                    <p class="text-caption text-text-faint">Tools</p>
+                    <p class="text-caption text-text-faint">{tr("pluginTools")}</p>
                     <Show
                       when={plugin.tools.length > 0}
-                      fallback={<p class="mt-1 text-meta text-text-faint">No tools.</p>}
+                      fallback={<p class="mt-1 text-meta text-text-faint">{tr("pluginNoTools")}</p>}
                     >
                       <ul class="mt-1 flex flex-col gap-1">
                         <For each={plugin.tools}>
@@ -220,10 +220,10 @@ export function PluginsDialog(props: Props) {
                     </Show>
                   </div>
                   <div class="px-3 py-2">
-                    <p class="text-caption text-text-faint">Commands</p>
+                    <p class="text-caption text-text-faint">{tr("pluginCommands")}</p>
                     <Show
                       when={plugin.commands.length > 0}
-                      fallback={<p class="mt-1 text-meta text-text-faint">No commands.</p>}
+                      fallback={<p class="mt-1 text-meta text-text-faint">{tr("pluginNoCommands")}</p>}
                     >
                       <div class="mt-1 flex flex-wrap gap-1">
                         <For each={plugin.commands}>
@@ -243,7 +243,7 @@ export function PluginsDialog(props: Props) {
         </div>
 
         <div class="mt-3 shrink-0 rounded-md border border-border-base bg-bg-layer-01 p-3">
-          <p class="text-caption text-text-faint">Invoke tool</p>
+          <p class="text-caption text-text-faint">{tr("pluginInvokeTool")}</p>
           <div class="mt-1 flex flex-wrap items-center gap-2">
             <Input
               value={toolPlugin()}
@@ -260,7 +260,7 @@ export function PluginsDialog(props: Props) {
               class="min-w-32 flex-1 select-text font-mono"
             />
             <Button type="button" size="xs" disabled={toolBusy()} onClick={() => void callTool()}>
-              {toolBusy() ? "Calling…" : "Call"}
+              {toolBusy() ? tr("calling") : tr("call")}
             </Button>
           </div>
           <Textarea
@@ -278,7 +278,7 @@ export function PluginsDialog(props: Props) {
               <div class="mt-2 rounded-md border border-border-base bg-bg-base">
                 <div class="flex items-center gap-2 border-b border-border-base px-2 py-1 text-caption text-text-faint">
                   <span class={result().isError ? "text-state-fg-danger" : "text-state-fg-success"}>
-                    {result().isError ? "error" : "ok"}
+                    {result().isError ? tr("errorLabel") : tr("ok")}
                   </span>
                   <Button
                     type="button"

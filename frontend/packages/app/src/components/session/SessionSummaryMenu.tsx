@@ -148,7 +148,7 @@ export function SessionSummaryMenu(props: Props) {
   };
 
   const emptyLabel = (empty: string) =>
-    loading() && !summary() ? "Loading…" : loadError() ? loadError() : tr(empty as never);
+    loading() && !summary() ? tr("loading") : loadError() ? loadError() : tr(empty as never);
 
   return (
     <>
@@ -175,7 +175,7 @@ export function SessionSummaryMenu(props: Props) {
                 <DropdownMenuSeparator />
                 <SummarySub
                   icon={<Plug class="size-4" />}
-                  label="MCP"
+                  label={tr("mcp")}
                   value={mcpCount()}
                   tone={mcpTone()}
                 >
@@ -427,7 +427,7 @@ function MobileSummarySheet(props: {
     action?.();
   };
   const emptyLabel = (empty: string) =>
-    props.loading && !props.summary ? "Loading…" : props.loadError ? props.loadError : tr(empty as never);
+    props.loading && !props.summary ? tr("loading") : props.loadError ? props.loadError : tr(empty as never);
   const statusLabel = (status: string) =>
     status === "connected"
       ? tr("connected")

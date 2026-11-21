@@ -180,7 +180,7 @@ export function PromptOnceDialog(props: Props) {
           </p>
           <Button type="button" size="sm" disabled={busy()} onClick={() => void submit()}>
             <Play />
-            {busy() ? "Starting…" : "Run once"}
+            {busy() ? tr("startingNow") : tr("runOnce")}
           </Button>
         </div>
       </DialogContent>

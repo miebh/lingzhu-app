@@ -190,7 +190,7 @@ export function OAuthDialog(props: Props) {
               onClick={() => void saveStatuses()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -204,7 +204,7 @@ export function OAuthDialog(props: Props) {
             when={items().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No OAuth endpoints configured."}
+                {loading() ? tr("loading") : tr("noOAuth")}
               </p>
             }
           >
@@ -225,7 +225,7 @@ export function OAuthDialog(props: Props) {
                             : "text-state-fg-warning"
                         }`}
                       >
-                        {item.authorized ? (item.expired ? "expired" : "authorized") : "not authorized"}
+                        {item.authorized ? (item.expired ? tr("expired") : tr("authorized")) : tr("notAuthorized")}
                       </span>
                       <span class="text-caption text-text-faint">{item.client_id}</span>
                     </div>

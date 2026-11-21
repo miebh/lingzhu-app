@@ -10,9 +10,9 @@ export function relativeTime(iso: string, now = new Date()): string {
   if (!Number.isFinite(updated)) return "";
   const diff = now.getTime() - updated;
   if (diff < MINUTE) return t("relativeNow");
-  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m`;
-  if (diff < DAY) return `${Math.floor(diff / HOUR)}h`;
-  if (diff < 7 * DAY) return `${Math.floor(diff / DAY)}d`;
+  if (diff < HOUR) return t("relativeMinutes", { count: Math.floor(diff / MINUTE) });
+  if (diff < DAY) return t("relativeHours", { count: Math.floor(diff / HOUR) });
+  if (diff < 7 * DAY) return t("relativeDays", { count: Math.floor(diff / DAY) });
   return new Date(updated).toLocaleDateString(currentLanguage() === "zh" ? "zh-CN" : "en", {
     month: "short",
     day: "numeric",

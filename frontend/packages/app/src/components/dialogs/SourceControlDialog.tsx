@@ -137,7 +137,7 @@ export function SourceControlDialog(props: Props) {
       <DialogContent size="wide" height="body" class="flex flex-col">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <DialogTitle>Source control</DialogTitle>
+            <DialogTitle>{tr("sourceControl")}</DialogTitle>
             <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
           <Button
@@ -191,7 +191,7 @@ export function SourceControlDialog(props: Props) {
                 size="xs"
                 onClick={() => changeMode(item)}
               >
-                {item === "working" ? "Working tree" : item === "branch" ? "Against branch" : "Committed"}
+                {item === "working" ? tr("workingTree") : item === "branch" ? tr("againstBranch") : tr("committed")}
               </Button>
             )}
           </For>
@@ -217,7 +217,7 @@ export function SourceControlDialog(props: Props) {
                 disabled={branchesLoading()}
                 onClick={() => void loadBranches()}
               >
-                {branchesLoading() ? "Loading…" : "List branches"}
+                {branchesLoading() ? tr("loading") : tr("listBranches")}
               </Button>
               <Show when={branch()}>
                 <span class="text-caption text-text-faint">base {branch()}</span>
@@ -257,14 +257,14 @@ export function SourceControlDialog(props: Props) {
               disabled={initializing()}
               onClick={() => void initialize()}
             >
-              {initializing() ? "Initializing…" : "Initialize repository"}
+              {initializing() ? tr("initializing") : tr("initializeRepository")}
             </Button>
           </div>
         </Show>
 
         <Show when={!error() && files().length === 0 && !loading()}>
           <p class="mt-4 text-meta text-text-faint">
-            {mode() === "working" ? "Working tree is clean." : "No changes to show for this view."}
+            {mode() === "working" ? tr("workingTreeClean") : tr("noChangesView")}
           </p>
         </Show>
 
@@ -308,7 +308,7 @@ export function SourceControlDialog(props: Props) {
             <div class="min-w-0 flex-1 overflow-auto rounded-md border border-border-base bg-bg-base">
               <Show
                 when={current()}
-                fallback={<p class="p-3 text-meta text-text-faint">Select a file to see its diff.</p>}
+                fallback={<p class="p-3 text-meta text-text-faint">{tr("sourceControlSelectDiff")}</p>}
               >
                 {(item) => (
                   <pre class="min-h-full p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
@@ -321,7 +321,7 @@ export function SourceControlDialog(props: Props) {
         </Show>
 
         <Show when={loading() && files().length === 0 && !error()}>
-          <p class="mt-4 text-meta text-text-faint">Loading…</p>
+          <p class="mt-4 text-meta text-text-faint">{tr("loading")}</p>
         </Show>
       </DialogContent>
     </Dialog>

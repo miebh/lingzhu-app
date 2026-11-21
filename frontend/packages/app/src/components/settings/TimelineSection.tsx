@@ -52,7 +52,7 @@ export function TimelineSection(props: Props) {
     return index >= 0 ? index : 2;
   });
   const detailId = createMemo(() => (levels[detailIndex()] ?? "compact") as keyof typeof DETAIL_LABELS);
-  const presetLabel = createMemo(() => (presetIndex() >= 0 ? t(DETAIL_LABELS[detailId()]) : "Custom"));
+  const presetLabel = createMemo(() => (presetIndex() >= 0 ? t(DETAIL_LABELS[detailId()]) : t("timelineCustom")));
   const [advancedOpen, setAdvancedOpen] = createSignal(!preset());
   const visiblePlacements: Partial<Record<TimelineCategory, TimelinePlacement>> = {};
 

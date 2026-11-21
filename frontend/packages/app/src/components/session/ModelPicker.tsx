@@ -167,8 +167,8 @@ export function ModelPicker(props: Props) {
         .filter((row): row is Row => !!row && !favoriteKeys.has(row.key)),
     );
     return [
-      ...(favorites.length > 0 ? [{ key: "section:favorites", title: "Favorites", rows: favorites }] : []),
-      ...(recentRows.length > 0 ? [{ key: "section:recent", title: "Recent", rows: recentRows }] : []),
+      ...(favorites.length > 0 ? [{ key: "section:favorites", title: tr("favorites"), rows: favorites }] : []),
+      ...(recentRows.length > 0 ? [{ key: "section:recent", title: tr("recent"), rows: recentRows }] : []),
       ...groups()
         .map((group) => ({
           key: group.provider.id,
@@ -353,7 +353,7 @@ export function ModelPicker(props: Props) {
           </Show>
           <Show when={active() && variants().length > 0}>
             <span class="flex shrink-0 items-center gap-1 text-body capitalize text-text-muted">
-              <span class="max-w-[84px] truncate">{variantFor(row) ?? "Default"}</span>
+              <span class="max-w-[84px] truncate">{variantFor(row) ?? tr("defaultOption")}</span>
               <ChevronRight class="size-4" />
             </span>
           </Show>
@@ -464,7 +464,7 @@ export function ModelPicker(props: Props) {
                 >
                   <Plus class="size-4" />
                 </TooltipTrigger>
-                <TooltipContent side="top">Connect provider</TooltipContent>
+                <TooltipContent side="top">{tr("connectProvider")}</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger
@@ -478,7 +478,7 @@ export function ModelPicker(props: Props) {
                 >
                   <SlidersHorizontal class="size-4" />
                 </TooltipTrigger>
-                <TooltipContent side="top">Manage models</TooltipContent>
+                <TooltipContent side="top">{tr("manageModels")}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -492,7 +492,7 @@ export function ModelPicker(props: Props) {
             >
               <Show when={sections().length === 0}>
                 <div class="grid min-h-[120px] place-items-center text-body font-[440] text-text-muted">
-                  {query().trim() ? "No matching models" : "No models available"}
+                  {query().trim() ? tr("noMatchingModels") : tr("noModelsAvailable")}
                 </div>
               </Show>
               <For each={sections()}>
@@ -501,7 +501,7 @@ export function ModelPicker(props: Props) {
                     <div class="sticky top-0 z-[1] flex items-center gap-1.5 bg-bg-base pt-4 pb-0.5 ps-[34px] pe-1.5 text-meta leading-[18px] text-text-faint">
                       <span class="truncate">{section.title}</span>
                       <Show when={!section.key.startsWith("section:") && !section.rows[0]?.provider.ready}>
-                        <span class="shrink-0 text-state-fg-warning">No API key</span>
+                        <span class="shrink-0 text-state-fg-warning">{tr("noAPIKey")}</span>
                       </Show>
                     </div>
                     <div class="flex flex-col gap-1">
@@ -538,7 +538,7 @@ export function ModelPicker(props: Props) {
                       onClick={() => choose(flyoutRow()!, value)}
                       class="interactive flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-body text-text-base"
                     >
-                      <span class="min-w-0 flex-1 truncate capitalize">{value ?? "Default"}</span>
+                      <span class="min-w-0 flex-1 truncate capitalize">{value ?? tr("defaultOption")}</span>
                       <Show when={variantFor(flyoutRow()!) === (value ?? undefined)}>
                         <Check class="size-3.5 shrink-0 text-icon-base" />
                       </Show>

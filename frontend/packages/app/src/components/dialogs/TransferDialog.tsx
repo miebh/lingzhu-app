@@ -178,9 +178,9 @@ export function TransferDialog(props: Props) {
           <Show when={props.sessionID}>
             <section class="flex min-h-0 flex-col">
               <div class="flex shrink-0 items-center gap-2">
-                <p class="text-body text-text-base">Export</p>
+                <p class="text-body text-text-base">{tr("transferExport")}</p>
                 <span class="text-caption text-text-faint">
-                  {bundle() ? `${bundle()!.events.length} events` : loading() ? "loading…" : ""}
+                  {bundle() ? tr("eventsCount", { count: bundle()!.events.length }) : loading() ? tr("loading") : ""}
                 </span>
                 <span class="ml-auto flex items-center gap-2">
                   <Button
@@ -191,11 +191,11 @@ export function TransferDialog(props: Props) {
                     onClick={() => void copy("json", exportText())}
                   >
                     <Clipboard />
-                    {copied() === "json" ? "Copied" : "Copy JSON"}
+                    {copied() === "json" ? tr("copied") : tr("copyJson")}
                   </Button>
                   <Button type="button" variant="outline" size="xs" onClick={() => void copyMarkdown()}>
                     <Download />
-                    {copied() === "markdown" ? "Copied" : "Copy Markdown"}
+                    {copied() === "markdown" ? tr("copied") : tr("copyMarkdown")}
                   </Button>
                   <Button type="button" variant="outline" size="xs" disabled={!exportText()} onClick={() => void saveBundle()}>
                     <Save />
@@ -211,7 +211,7 @@ export function TransferDialog(props: Props) {
                 readOnly
                 value={exportText()}
                 aria-label={tr("transferSessionBundleJSON")}
-                placeholder={loading() ? "Loading bundle…" : "Open a session to export"}
+                placeholder={loading() ? tr("loadingBundle") : tr("openSessionToExport")}
                 class="mt-2 min-h-40 resize-y rounded-md border border-border-base bg-bg-layer-01 p-2 font-mono text-caption leading-5 text-text-muted outline-none select-text"
               />
             </section>
@@ -219,8 +219,8 @@ export function TransferDialog(props: Props) {
 
           <section class="flex min-h-0 flex-col">
             <div class="flex shrink-0 items-center gap-2">
-              <p class="text-body text-text-base">Import</p>
-              <span class="text-caption text-text-faint">Load a bundle JSON or paste one</span>
+              <p class="text-body text-text-base">{tr("transferImport")}</p>
+              <span class="text-caption text-text-faint">{tr("transferLoadBundle")}</span>
               <span class="ml-auto flex items-center gap-2">
                 <Button type="button" variant="outline" size="sm" disabled={importing()} onClick={() => void loadBundle()}>
                   <FolderOpen />
@@ -228,7 +228,7 @@ export function TransferDialog(props: Props) {
                 </Button>
                 <Button type="button" size="sm" disabled={importing()} onClick={() => void runImport()}>
                   <Upload />
-                  {importing() ? "Importing…" : "Import session"}
+                  {importing() ? tr("importing") : tr("importSession")}
                 </Button>
               </span>
             </div>

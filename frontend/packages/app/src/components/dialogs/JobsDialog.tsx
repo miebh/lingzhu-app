@@ -215,7 +215,7 @@ export function JobsDialog(props: Props) {
           />
           <Button type="button" size="sm" disabled={running() || busy()} onClick={() => void run()}>
             <Play />
-            {running() ? "Running…" : "Run"}
+            {running() ? tr("runningNow") : tr("run")}
           </Button>
           <Button
             type="button"
@@ -274,7 +274,7 @@ export function JobsDialog(props: Props) {
             when={jobs().length > 0}
             fallback={
               <p class="grid h-full place-items-center p-6 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No background jobs for this session."}
+                {loading() ? tr("loading") : tr("noSessionJobs")}
               </p>
             }
           >

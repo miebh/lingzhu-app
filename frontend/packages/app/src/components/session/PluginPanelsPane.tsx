@@ -108,12 +108,12 @@ export function PluginPanelsPane(props: Props) {
       </Show>
       <Show
         when={plugin()}
-        fallback={<p class="p-3 text-meta text-text-faint">No plugins connected for this workspace.</p>}
+        fallback={<p class="p-3 text-meta text-text-faint">{tr("pluginPanelsPaneNoPlugins")}</p>}
       >
         {(current) => (
           <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
             <p class="text-caption text-text-faint">
-              {current().capabilities.tools ? "tools" : "no tools"} · {current().tools.length} ·{" "}
+              {current().capabilities.tools ? tr("toolsEnabled") : tr("toolsDisabled")} · {current().tools.length} ·{" "}
               {current().commands.length} commands
             </p>
             <div class="flex flex-wrap gap-1">

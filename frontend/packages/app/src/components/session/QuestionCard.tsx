@@ -101,10 +101,10 @@ function QuestionForm(props: { request: QuestionRequest; onReply: Props["onReply
     <div class="flex flex-col">
       <div class="flex min-h-7 items-center justify-between gap-3">
         <div class="flex min-w-0 flex-col gap-1">
-          <span class="text-body leading-4 font-[440] text-text-muted">Question</span>
+          <span class="text-body leading-4 font-[440] text-text-muted">{tr("questionTitle")}</span>
           <Show when={total() > 1}>
             <p class="text-meta leading-4 text-text-faint">
-              {active() + 1} of {total()}
+              {tr("questionProgress", { current: active() + 1, total: total() })}
             </p>
           </Show>
         </div>
@@ -205,7 +205,7 @@ function QuestionForm(props: { request: QuestionRequest; onReply: Props["onReply
             </Button>
           </Show>
           <Button size="lg" disabled={!current() || (last() && !complete())} onClick={advance}>
-            {last() ? "Answer" : "Next"}
+            {last() ? tr("questionAnswer") : tr("questionNext")}
           </Button>
         </div>
       </div>

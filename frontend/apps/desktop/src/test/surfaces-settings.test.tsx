@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { api } from "@/lib/api";
 import { SettingsNav, type SettingsSearchEntry } from "@/components/settings/SettingsNav";
 import { GeneralSection } from "@/components/settings/GeneralSection";
@@ -19,6 +19,19 @@ const { api: mockApi } = await vi.hoisted(async () => await import("./support/ap
 vi.mock("@/lib/api", () => ({ api: mockApi }));
 
 describe("settings surfaces", () => {
+  beforeEach(() => {
+    vi.mocked(api.worktrees).mockResolvedValue({ repo: "", worktrees: [] });
+    vi.mocked(api.worktreeSessions).mockResolvedValue({});
+    vi.mocked(api.worktreeSessionDetails).mockResolvedValue({});
+    vi.mocked(api.worktreeInspect).mockResolvedValue({
+      active: false,
+      dirty: false,
+      known: true,
+      sessions: [],
+    });
+    vi.mocked(api.removeWorktree).mockResolvedValue(undefined);
+  });
+
   test("settings search reveals a row with the keyboard", async () => {
     const index: SettingsSearchEntry[] = [
       { key: "general\u0000Color scheme", section: "general", sectionLabel: "General", title: "Color scheme", keywords: "system dark light" },
@@ -115,16 +128,22 @@ describe("settings surfaces", () => {
     expect(save.mock.calls.some(([next]) => next.projectWorktreeStartup["/w"] === "npm install")).toBe(true);
   });
 
-  test("worktrees list sizes and delete all", async () => {
+  test("worktrees list sizes, sessions and delete all", async () => {
+    const updated = "2026-11-21T00:00:00Z";
+    const linked = Array.from({ length: 5 }, (_, index) => ({
+      id: `s${index}`,
+      title: `Session ${index + 1}`,
+      updated,
+    }));
     vi.mocked(api.worktrees).mockResolvedValue({
       repo: "/repo",
       worktrees: [
-        { path: "/repo", branch: "main", main: true, size: 1024 },
-        { path: "/repo-feature", branch: "feature", main: false, size: 2048 },
+        { path: "/repo", branch: "main", main: true, managed: false, size: 1024 },
+        { path: "/repo-feature", branch: "feature", main: false, managed: true, size: 2048 },
       ],
     });
+    vi.mocked(api.worktreeSessionDetails).mockResolvedValue({ "/repo-feature": linked });
     vi.mocked(api.removeWorktree).mockClear();
-    vi.mocked(api.worktreeSessions).mockResolvedValue({ "/repo-feature": 5 });
     render(
       () => <WorktreesSection
         workspaces={[{ path: "/repo", name: "Repo", addr: "", connected: true, error: "" }]}
@@ -133,10 +152,165 @@ describe("settings surfaces", () => {
     );
     expect(await screen.findByText("2.0 KB")).toBeTruthy();
     expect(screen.getByText("5 sessions")).toBeTruthy();
+    expect(screen.getByText("Session 1")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Worktree actions" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Delete all worktrees" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Remove all" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Delete worktrees" }));
     await waitFor(() => expect(api.removeWorktree).toHaveBeenCalledWith("/repo", "/repo-feature", false));
+  });
+
+  test("worktrees list one repository once and skip plain folders", async () => {
+    const list = {
+      repo: "/repo",
+      worktrees: [
+        { path: "/repo", branch: "main", main: true, managed: false, size: 1024 },
+        { path: "/repo-feature", branch: "feature", main: false, managed: true, size: 2048 },
+      ],
+    };
+    vi.mocked(api.worktrees).mockImplementation(async (workspace) => {
+      if (workspace === "/plain") throw new Error("worktrees require a git repository");
+      return list;
+    });
+    vi.mocked(api.worktrees).mockClear();
+    render(
+      () => <WorktreesSection
+        workspaces={[
+          { path: "/repo", name: "Repo", addr: "", connected: true, error: "" },
+          { path: "/repo-feature", name: "Feature", addr: "", connected: true, error: "" },
+          { path: "/plain", name: "Plain", addr: "", connected: true, error: "" },
+        ]}
+      />,
+    );
+    expect(await screen.findByTitle("/repo-feature")).toBeTruthy();
+    expect(screen.getAllByTitle("/repo-feature")).toHaveLength(1);
+    expect(screen.queryByText("main")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await waitFor(() => expect(api.worktrees).toHaveBeenCalledTimes(2));
+  });
+
+  test("worktrees wait until their settings page is active", async () => {
+    vi.mocked(api.worktrees).mockClear();
+    render(
+      () => <WorktreesSection
+        active={false}
+        workspaces={[{ path: "/repo", name: "Repo", addr: "", connected: true, error: "" }]}
+      />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(api.worktrees).not.toHaveBeenCalled();
+  });
+
+  test("worktrees can delete only the ones without sessions", async () => {
+    const updated = "2026-11-21T00:00:00Z";
+    vi.mocked(api.worktrees).mockResolvedValue({
+      repo: "/repo",
+      worktrees: [
+        { path: "/repo", branch: "main", main: true, managed: false, size: 1024 },
+        { path: "/repo-feature", branch: "feature", main: false, managed: true, size: 2048 },
+        { path: "/repo-scratch", branch: "scratch", main: false, managed: true, size: 2048 },
+      ],
+    });
+    vi.mocked(api.worktreeSessionDetails).mockResolvedValue({
+      "/repo-feature": Array.from({ length: 4 }, (_, index) => ({
+        id: `s${index}`,
+        title: `Session ${index + 1}`,
+        updated,
+      })),
+      "/repo-scratch": [],
+    });
+    vi.mocked(api.removeWorktree).mockClear();
+    render(
+      () => <WorktreesSection
+        workspaces={[{ path: "/repo", name: "Repo", addr: "", connected: true, error: "" }]}
+      />,
+    );
+    expect(await screen.findByText("4 sessions")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Worktree actions" }));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Delete worktrees without sessions" }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Delete worktrees" }));
+    await waitFor(() => expect(api.removeWorktree).toHaveBeenCalledWith("/repo", "/repo-scratch", false));
+    expect(api.removeWorktree).not.toHaveBeenCalledWith("/repo", "/repo-feature", false);
+  });
+
+  test("single worktree removal checks the checkout and deletes with force", async () => {
+    const updated = "2026-11-21T00:00:00Z";
+    vi.mocked(api.worktrees).mockResolvedValue({
+      repo: "/repo",
+      worktrees: [
+        { path: "/repo", branch: "main", main: true, managed: false, size: 1024 },
+        { path: "/repo-feature", branch: "feature", main: false, managed: true, size: 2048 },
+      ],
+    });
+    vi.mocked(api.worktreeInspect).mockResolvedValue({
+      active: false,
+      dirty: true,
+      known: true,
+      sessions: [{ id: "s1", title: "Feature work", updated }],
+    });
+    vi.mocked(api.removeWorktree).mockClear();
+    render(
+      () => <WorktreesSection
+        workspaces={[{ path: "/repo", name: "Repo", addr: "", connected: true, error: "" }]}
+      />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Remove worktree feature" }));
+    expect(await screen.findByText(/Uncommitted changes will be lost/)).toBeTruthy();
+    expect(screen.getByText(/Linked sessions will remain/)).toBeTruthy();
+    await userEvent.click(await screen.findByRole("button", { name: "Delete worktree" }));
+    await waitFor(() => expect(api.removeWorktree).toHaveBeenCalledWith("/repo", "/repo-feature", true));
+  });
+
+  test("an active worktree cannot be removed", async () => {
+    vi.mocked(api.worktrees).mockResolvedValue({
+      repo: "/repo",
+      worktrees: [
+        { path: "/repo", branch: "main", main: true, managed: false, size: 1024 },
+        { path: "/repo-feature", branch: "feature", main: false, managed: true, size: 2048 },
+      ],
+    });
+    vi.mocked(api.worktreeInspect).mockResolvedValue({
+      active: true,
+      dirty: false,
+      known: true,
+      sessions: [],
+    });
+    render(
+      () => <WorktreesSection
+        workspace="/repo-feature"
+        workspaces={[{ path: "/repo", name: "Repo", addr: "", connected: true, error: "" }]}
+      />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Remove worktree feature" }));
+    expect(await screen.findByText(/The active worktree cannot be deleted/)).toBeTruthy();
+    const remove = screen.getByRole("button", { name: "Delete worktree" }) as HTMLButtonElement;
+    expect(remove.disabled).toBe(true);
+  });
+
+  test("a failed status check offers Retry", async () => {
+    vi.mocked(api.worktrees).mockResolvedValue({
+      repo: "/repo",
+      worktrees: [
+        { path: "/repo", branch: "main", main: true, managed: false, size: 1024 },
+        { path: "/repo-feature", branch: "feature", main: false, managed: true, size: 2048 },
+      ],
+    });
+    vi.mocked(api.worktreeInspect)
+      .mockResolvedValueOnce({ active: false, dirty: false, known: false, error: "git failed", sessions: [] })
+      .mockResolvedValueOnce({ active: false, dirty: false, known: true, sessions: [] });
+    render(
+      () => <WorktreesSection
+        workspaces={[{ path: "/repo", name: "Repo", addr: "", connected: true, error: "" }]}
+      />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "Remove worktree feature" }));
+    expect(await screen.findByText("git failed")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Delete worktree" }) as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect((screen.getByRole("button", { name: "Delete worktree" }) as HTMLButtonElement).disabled).toBe(false),
+    );
   });
 
   test("servers page lists local core addresses", async () => {

@@ -50,7 +50,7 @@ export function GeneralSection(props: Props) {
             options={[
               { value: "last-used", label: t("lastUsedPerProject") },
               { value: "local", label: t("localDirectory") },
-              { value: "new", label: "None" },
+              { value: "new", label: t("noneOption") },
             ]}
             onChange={(value) =>
               props.preferences.save({

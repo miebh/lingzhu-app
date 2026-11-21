@@ -8,6 +8,7 @@ import { projectExportName, serializeProject } from "../../lib/projectExport";
 import type { ProjectInfo, SessionLocation } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner, DetailRow } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
+import { t } from "@lingzhu/ui/i18n";
 
 interface Props {
   open: boolean;
@@ -106,7 +107,7 @@ export function ProjectDialog(props: Props) {
           <div class="min-w-0">
             <DialogTitle class="flex items-center gap-2">
               <FolderCog class="size-4 text-text-faint" />
-              Project
+              {t("project")}
             </DialogTitle>
             <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
@@ -119,7 +120,7 @@ export function ProjectDialog(props: Props) {
               onClick={() => void saveProject()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? t("saving") : t("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -131,22 +132,22 @@ export function ProjectDialog(props: Props) {
         <Show
           when={project()}
           fallback={
-            <p class="mt-4 text-meta text-text-faint">{loading() ? "Loading…" : "No project metadata."}</p>
+            <p class="mt-4 text-meta text-text-faint">{loading() ? t("loading") : t("noProjectMetadata")}</p>
           }
         >
           {(current) => (
             <>
               <div class="mt-4 rounded-md border border-border-base">
-                <DetailRow label="Directory" value={current().directory} />
-                <DetailRow label="Config" value={current().config || "not loaded from a file"} />
-                <DetailRow label="Instructions" value={current().instructions || "no AGENTS.md"} />
-                <DetailRow label="Sessions" value={String(current().sessions)} />
+                <DetailRow label={t("directory")} value={current().directory} />
+                <DetailRow label={t("config")} value={current().config || t("notLoadedConfig")} />
+                <DetailRow label={t("instructions")} value={current().instructions || t("noAgentsFile")} />
+                <DetailRow label={t("sessions")} value={String(current().sessions)} />
                 <DetailRow
-                  label="VCS"
+                  label={t("vcs")}
                   value={
                     current().vcs
-                      ? `${current().vcs!.provider} · ${current().vcs!.branch.current || current().vcs!.branch.default || "detached"}`
-                      : "not a git repository"
+                      ? `${current().vcs!.provider} · ${current().vcs!.branch.current || current().vcs!.branch.default || t("detached")}`
+                      : t("notGitRepo")
                   }
                 />
               </div>
@@ -159,7 +160,7 @@ export function ProjectDialog(props: Props) {
                   onClick={() => void copy(current().directory)}
                 >
                   <Copy />
-                  {copied() === current().directory ? "Copied" : "Copy directory"}
+                  {copied() === current().directory ? t("copied") : t("copyDirectory")}
                 </Button>
                 <Show when={current().config}>
                   {(configPath) => (
@@ -170,36 +171,36 @@ export function ProjectDialog(props: Props) {
                       onClick={() => void copy(configPath())}
                     >
                       <Copy />
-                      {copied() === configPath() ? "Copied" : "Copy config path"}
+                      {copied() === configPath() ? t("copied") : t("copyConfigPath")}
                     </Button>
                   )}
                 </Show>
               </div>
 
               <div class="mt-4">
-                <p class="text-caption text-text-faint">Session location</p>
+                <p class="text-caption text-text-faint">{t("projectSessionLocation")}</p>
                 <Show
                   when={location()}
                   fallback={
                     <p class="mt-2 text-meta text-text-faint">
                       {props.sessionID
-                        ? "Location is unavailable for this session."
-                        : "Open a session in this workspace to see its model and permissions."}
+                        ? t("locationUnavailable")
+                        : t("openSessionForModel")}
                     </p>
                   }
                 >
                   {(spot) => (
                     <>
                       <div class="mt-2 rounded-md border border-border-base">
-                        <DetailRow label="Session" value={spot().sessionId} />
-                        <DetailRow label="Provider" value={spot().provider} />
-                        <DetailRow label="Model" value={spot().model} />
-                        <DetailRow label="Agent" value={spot().agent || "default"} />
+                        <DetailRow label={t("sessionLabel")} value={spot().sessionId} />
+                        <DetailRow label={t("providerLabel")} value={spot().provider} />
+                        <DetailRow label={t("modelLabel")} value={spot().model} />
+                        <DetailRow label={t("agent")} value={spot().agent || t("defaultValue")} />
                       </div>
                       <div class="mt-2 rounded-md border border-border-base">
                         <Show
                           when={spot().permissions.length > 0}
-                          fallback={<p class="p-3 text-meta text-text-faint">No permission rules.</p>}
+                          fallback={<p class="p-3 text-meta text-text-faint">{t("projectNoPermissionRules")}</p>}
                         >
                           <For each={spot().permissions}>
                             {(rule) => (

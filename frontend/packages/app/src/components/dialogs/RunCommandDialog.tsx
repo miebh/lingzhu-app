@@ -119,7 +119,7 @@ export function RunCommandDialog(props: Props) {
               when={commands().length > 0}
               fallback={
                 <p class="p-3 text-meta text-text-faint">
-                  {loading() ? "Loading…" : "No commands available."}
+                  {loading() ? tr("loading") : tr("noCommandsAvailable")}
                 </p>
               }
             >
@@ -180,12 +180,12 @@ export function RunCommandDialog(props: Props) {
                 }
                 class="h-control-md rounded-md border border-border-base bg-bg-base px-2 text-meta text-text-base outline-none"
               >
-                <option value="steer">Steer</option>
-                <option value="queue">Queue</option>
+                <option value="steer">{tr("steer")}</option>
+                <option value="queue">{tr("queue")}</option>
               </select>
               <Button type="button" size="sm" class="ml-auto" disabled={busy()} onClick={() => void run()}>
                 <Play />
-                {busy() ? "Sending…" : "Run"}
+                {busy() ? tr("sending") : tr("run")}
               </Button>
             </label>
           </div>

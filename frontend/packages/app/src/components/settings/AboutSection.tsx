@@ -25,7 +25,7 @@ export function AboutSection(props: Props) {
     setUpdateError("");
     let path: string;
     try {
-      path = await api.pickInstaller("Choose a Lingzhu installer");
+      path = await api.pickInstaller(t("chooseInstallerTitle"));
     } catch (err) {
       setUpdateError(messageOf(err));
       return;
@@ -96,11 +96,10 @@ export function AboutSection(props: Props) {
                 disabled={installing()}
                 onClick={() => void installUpdate()}
               >
-                {installing() ? "Installing..." : "Install update..."}
+                {installing() ? t("installingUpdate") : t("installUpdate")}
               </Button>
               <p class="max-w-[420px] text-caption leading-4 text-text-faint">
-                Choose a downloaded Lingzhu installer. The app closes, the installer replaces both binaries,
-                and the app starts again with your sessions intact.
+                {t("installUpdateHint")}
               </p>
               <Show when={updateError()}>
                 <p role="alert" class="text-caption leading-4 text-state-fg-danger">

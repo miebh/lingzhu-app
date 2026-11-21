@@ -153,7 +153,7 @@ export function ManageModelsDialog(props: Props) {
         >
           <div class="flex shrink-0 items-start gap-3 px-3.5 pt-2.5 pb-1.5">
             <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-              <DialogTitle>Manage models</DialogTitle>
+              <DialogTitle>{tr("manageModelsTitle")}</DialogTitle>
               <DialogDescription class="mt-0 text-meta leading-5">
                 Choose which models appear in the model picker. Changes save as you toggle.
               </DialogDescription>
@@ -231,7 +231,7 @@ export function ManageModelsDialog(props: Props) {
 
             <Show when={groups().length === 0 && (draft() || providers().length > 0)}>
               <div class="grid min-h-32 place-items-center text-meta text-text-faint">
-                {needle() ? "No matching models" : "No models available. Connect a provider first."}
+                {needle() ? tr("noMatchingModels") : tr("noModelsConnect")}
               </div>
             </Show>
 
@@ -268,10 +268,10 @@ export function ManageModelsDialog(props: Props) {
                         />
                         <span class="min-w-0 flex-1 truncate text-body font-[530] text-text-base">{name}</span>
                         <Show when={!group.provider.ready}>
-                          <span class="shrink-0 text-caption text-state-fg-warning">No API key</span>
+                          <span class="shrink-0 text-caption text-state-fg-warning">{tr("noAPIKey")}</span>
                         </Show>
                         <Show when={group.provider.models.length === 0}>
-                          <span class="shrink-0 text-caption text-text-faint">No models</span>
+                          <span class="shrink-0 text-caption text-text-faint">{tr("noModels")}</span>
                         </Show>
                       </button>
                       <Switch

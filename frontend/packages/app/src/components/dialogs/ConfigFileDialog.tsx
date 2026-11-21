@@ -99,7 +99,7 @@ export function ConfigFileDialog(props: Props) {
         </Show>
 
         <pre class="mt-3 min-h-24 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md bg-bg-layer-01 p-3 font-mono text-caption leading-5 text-text-base select-text">
-          {loading() ? "Loading…" : content() || tr("configFileEmpty")}
+          {loading() ? tr("loading") : content() || tr("configFileEmpty")}
         </pre>
       </DialogContent>
     </Dialog>

@@ -158,7 +158,7 @@ export function PairingDialog(props: Props) {
       <DialogContent size="wide" class="flex flex-col">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <DialogTitle>Pairing</DialogTitle>
+            <DialogTitle>{tr("pairingTitle")}</DialogTitle>
             <DialogDescription class="truncate">
               {props.title ? `${props.title} · ` : ""}
               {tr("dialogPairingHint")}
@@ -192,7 +192,7 @@ export function PairingDialog(props: Props) {
             when={items().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No active pairing codes."}
+                {loading() ? tr("loading") : tr("noPairingCodes")}
               </p>
             }
           >
@@ -205,7 +205,7 @@ export function PairingDialog(props: Props) {
                   </span>
                   <Button type="button" variant="outline" size="xs" onClick={() => void copy(item)}>
                     <Copy />
-                    {copied() === item.code ? "Copied" : "Copy"}
+                    {copied() === item.code ? tr("copied") : tr("copy")}
                   </Button>
                   <Button
                     type="button"
@@ -215,7 +215,7 @@ export function PairingDialog(props: Props) {
                     onClick={() => void savePairing(item)}
                   >
                     <Save />
-                    {saving() === item.code ? "Saving…" : "Save"}
+                    {saving() === item.code ? tr("saving") : tr("save")}
                   </Button>
                   <Button
                     type="button"
@@ -233,7 +233,7 @@ export function PairingDialog(props: Props) {
         </div>
 
         <div class="mt-4 rounded-md border border-border-base bg-bg-layer-01 p-3">
-          <p class="text-caption text-text-faint">Redeem a code</p>
+          <p class="text-caption text-text-faint">{tr("pairingRedeemCode")}</p>
           <div class="mt-2 flex items-center gap-2">
             <Input
               value={code()}

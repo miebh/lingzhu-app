@@ -211,7 +211,7 @@ export function FormsDialog(props: Props) {
               onClick={() => void saveForms()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -225,7 +225,7 @@ export function FormsDialog(props: Props) {
             when={forms().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No forms yet."}
+                {loading() ? tr("loading") : tr("noForms")}
               </p>
             }
           >
@@ -241,7 +241,7 @@ export function FormsDialog(props: Props) {
                     when={form.status === "pending"}
                     fallback={
                       <p class="mt-1 text-caption text-text-faint">
-                        {form.cancelled ? "Cancelled" : "Answered"}
+                        {form.cancelled ? tr("toolCancelled") : tr("answered")}
                         {form.values && Object.keys(form.values).length > 0
                           ? ` · ${Object.entries(form.values)
                               .map(([key, value]) => `${key}=${String(value)}`)
@@ -301,7 +301,7 @@ export function FormsDialog(props: Props) {
                                   }
                                   class="h-control-md rounded-md border border-border-base bg-bg-layer-01 px-2 text-body text-text-base outline-none"
                                 >
-                                  <option value="">Select…</option>
+                                  <option value="">{tr("formSelect")}</option>
                                   <For each={field.options ?? []}>
                                     {(option) => <option value={option}>{option}</option>}
                                   </For>
@@ -329,7 +329,7 @@ export function FormsDialog(props: Props) {
         </div>
 
         <div class="mt-3 shrink-0 rounded-md border border-border-base bg-bg-layer-01 p-3">
-          <p class="text-caption text-text-faint">Create form</p>
+          <p class="text-caption text-text-faint">{tr("formCreate")}</p>
           <Input
             value={formTitle()}
             aria-label={tr("formsFormTitle")}
@@ -361,10 +361,10 @@ export function FormsDialog(props: Props) {
                     onChange={(event) => updateField(index(), { type: event.currentTarget.value })}
                     class="h-control-md rounded-md border border-border-base bg-bg-base px-2 text-meta text-text-base outline-none"
                   >
-                    <option value="text">text</option>
-                    <option value="textarea">textarea</option>
-                    <option value="select">select</option>
-                    <option value="boolean">boolean</option>
+                    <option value="text">{tr("formText")}</option>
+                    <option value="textarea">{tr("formTextarea")}</option>
+                    <option value="select">{tr("formSelectType")}</option>
+                    <option value="boolean">{tr("formBoolean")}</option>
                   </select>
                   <Input
                     value={field.options}

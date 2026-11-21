@@ -42,7 +42,7 @@ export function ReferenceDialog(props: Props) {
     if (!workspace || !sessionID) return;
     const term = query().trim();
     if (!term) {
-      setError("Enter a term to search.");
+      setError(tr("enterSearchTerm"));
       return;
     }
     setLoading(true);
@@ -145,7 +145,7 @@ export function ReferenceDialog(props: Props) {
       <DialogContent size="wide" height="body" class="flex flex-col">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <DialogTitle>References</DialogTitle>
+            <DialogTitle>{tr("referencesTitle")}</DialogTitle>
             <DialogDescription class="truncate">
               {props.title ? `${props.title} · ` : ""}
               {tr("dialogReferenceHint")}
@@ -160,7 +160,7 @@ export function ReferenceDialog(props: Props) {
               onClick={() => void saveResults()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <Button type="button" variant="outline" size="sm" disabled={loading()} onClick={() => void search()}>
               <Search class={loading() ? "motion-safe:animate-pulse" : undefined} />
@@ -210,7 +210,7 @@ export function ReferenceDialog(props: Props) {
               when={results().length > 0}
               fallback={
                 <p class="px-2 py-1 text-meta text-text-faint">
-                  {loading() ? "Searching…" : "No matches yet."}
+                  {loading() ? tr("searching") : tr("noMatchesYet")}
                 </p>
               }
             >
@@ -257,12 +257,12 @@ export function ReferenceDialog(props: Props) {
                       {current().path}:{current().line}:{current().column}
                     </span>
                     <Show when={preview()?.truncated}>
-                      <span class="shrink-0">preview truncated</span>
+                      <span class="shrink-0">{tr("referencePreviewTruncated")}</span>
                     </Show>
                   </div>
                   <div class="min-h-0 flex-1 overflow-auto py-2 font-mono text-meta leading-5">
                     <Show when={previewLoading()}>
-                      <p class="px-3 text-text-faint">Loading file…</p>
+                      <p class="px-3 text-text-faint">{tr("referenceLoadingFile")}</p>
                     </Show>
                     <Show when={preview()}>
                       {(file) => (

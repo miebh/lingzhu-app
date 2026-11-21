@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { buttonVariants } from "@lingzhu/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lingzhu/ui/tooltip";
 import { cn } from "@lingzhu/ui/utils";
+import { t } from "@lingzhu/ui/i18n";
 import { highlightBlock, plainLines } from "@lingzhu/session-ui/highlight";
 import { renderMermaidSvg } from "@lingzhu/session-ui/mermaid";
 
@@ -148,7 +149,7 @@ function CodeBlock(props: { language?: string; children?: string; streaming?: bo
         </code>
       </pre>
       <div class="absolute top-1 right-1 opacity-0 transition-opacity group-hover/code:opacity-100 focus-within:opacity-100">
-        <CopyButton text={props.children ?? ""} label="Copy code" iconClass="size-4" />
+        <CopyButton text={props.children ?? ""} label={t("copyCode")} iconClass="size-4" />
       </div>
     </div>
   );

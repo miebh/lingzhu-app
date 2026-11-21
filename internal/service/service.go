@@ -24,6 +24,16 @@ import (
 // eventChannel is the Wails event name the frontend subscribes to.
 const eventChannel = "lingzhu:event"
 
+// worktreeEventChannel tells the webview that a worktree was created or
+// removed, so an open settings page can refresh its inventory.
+const worktreeEventChannel = "lingzhu:worktrees"
+
+// WorktreeEvent identifies the workspace a worktree change belongs to.
+type WorktreeEvent struct {
+	Workspace string `json:"workspace"`
+	Path      string `json:"path,omitempty"`
+}
+
 // CoreService bridges the webview and one core process per workspace.
 type CoreService struct {
 	ctx         context.Context
@@ -803,6 +813,14 @@ func (s *CoreService) emitCore(status CoreStatus) {
 	}
 	if app := application.Get(); app != nil {
 		app.Event.Emit(coreEventChannel, status)
+	}
+}
+
+// emitWorktreeChange refreshes any open worktree inventory after the app
+// creates or removes a checkout.
+func (s *CoreService) emitWorktreeChange(workspace, path string) {
+	if app := application.Get(); app != nil {
+		app.Event.Emit(worktreeEventChannel, WorktreeEvent{Workspace: workspace, Path: path})
 	}
 }
 

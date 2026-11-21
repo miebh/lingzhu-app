@@ -95,7 +95,9 @@ import type {
   WebSearchStatus,
   WorkspaceInfo,
   Worktree,
+  WorktreeInspection,
   WorktreeList,
+  WorktreeSession,
 } from "@lingzhu/ui/types";
 
 // The generated bindings are plain JS with JSDoc types, so results are cast
@@ -269,6 +271,10 @@ export const api = {
     call.SelectAgent(workspace, sessionID, agent),
   worktrees: (workspace: string): Promise<WorktreeList> => call.Worktrees(workspace),
   worktreeSessions: (paths: string[]): Promise<Record<string, number>> => call.WorktreeSessions(paths),
+  worktreeSessionDetails: (paths: string[]): Promise<Record<string, WorktreeSession[]>> =>
+    call.WorktreeSessionDetails(paths),
+  worktreeInspect: (path: string, active: string): Promise<WorktreeInspection> =>
+    call.WorktreeInspect(path, active),
   createWorktree: (workspace: string, name: string): Promise<Worktree> =>
     call.CreateWorktree(workspace, name),
   removeWorktree: (workspace: string, path: string, force: boolean): Promise<void> =>
@@ -437,6 +443,12 @@ export const api = {
   /** The provider catalog changed; the payload is the projected settings. */
   onCatalog(handler: (settings: AppSettings) => void): () => void {
     return Events.On("lingzhu:catalog", (payload: any) => handler(payload.data as AppSettings));
+  },
+  /** Fires after the app creates or removes a worktree. */
+  onWorktreesChanged(handler: (workspace?: string) => void): () => void {
+    return Events.On("lingzhu:worktrees", (payload: any) =>
+      handler(typeof payload.data?.workspace === "string" ? payload.data.workspace : undefined),
+    );
   },
 
   /** Starts a downloaded installer and quits so it can replace the binaries. */

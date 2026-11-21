@@ -196,7 +196,7 @@ export function SchedulesDialog(props: Props) {
       <DialogContent size="wide" height="body" class="flex flex-col">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <DialogTitle>Schedules</DialogTitle>
+            <DialogTitle>{tr("schedules")}</DialogTitle>
             <DialogDescription class="truncate">{props.title || props.sessionID}</DialogDescription>
           </div>
           <RefreshButton loading={loading()} onRefresh={() => void load()} />
@@ -223,9 +223,9 @@ export function SchedulesDialog(props: Props) {
                 }}
                 class="h-control-md rounded-md border border-border-base bg-bg-layer-01 px-2 text-body text-text-base outline-none"
               >
-                <option value="in">In</option>
-                <option value="every">Every</option>
-                <option value="at">At</option>
+                <option value="in">{tr("scheduleIn")}</option>
+                <option value="every">{tr("scheduleEvery")}</option>
+                <option value="at">{tr("scheduleAt")}</option>
               </select>
               <Input
                 value={value()}
@@ -257,7 +257,7 @@ export function SchedulesDialog(props: Props) {
             when={items().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No schedules yet."}
+                {loading() ? tr("loading") : tr("noSchedules")}
               </p>
             }
           >
@@ -283,8 +283,10 @@ export function SchedulesDialog(props: Props) {
                             {item.prompt}
                           </p>
                           <p class="mt-0.5 text-caption text-text-faint">
-                            {item.nextDueAt ? `Next ${formatDateTime(item.nextDueAt)}` : "No next run"}
-                            {item.runCount > 0 ? ` · ${item.runCount} run${item.runCount === 1 ? "" : "s"}` : ""}
+                            {item.nextDueAt
+                              ? tr("nextRun", { time: formatDateTime(item.nextDueAt) })
+                              : tr("noNextRun")}
+                            {item.runCount > 0 ? ` · ${tr("runCount", { count: item.runCount })}` : ""}
                             {item.lastError ? ` · ${item.lastError}` : ""}
                           </p>
                         </>
@@ -308,9 +310,9 @@ export function SchedulesDialog(props: Props) {
                             }}
                             class="h-control-md rounded-md border border-border-base bg-bg-layer-01 px-2 text-body text-text-base outline-none"
                           >
-                            <option value="in">In</option>
-                            <option value="every">Every</option>
-                            <option value="at">At</option>
+                            <option value="in">{tr("scheduleIn")}</option>
+                            <option value="every">{tr("scheduleEvery")}</option>
+                            <option value="at">{tr("scheduleAt")}</option>
                           </select>
                           <Input
                             value={editValue()}
@@ -338,7 +340,7 @@ export function SchedulesDialog(props: Props) {
                             Cancel
                           </Button>
                           <Button type="button" size="xs" disabled={saving()} onClick={() => void saveEdit()}>
-                            {saving() ? "Saving…" : "Save"}
+                            {saving() ? tr("saving") : tr("save")}
                           </Button>
                         </div>
                       </div>
@@ -349,7 +351,7 @@ export function SchedulesDialog(props: Props) {
                       type="button"
                       variant="outline"
                       size="icon-xs"
-                      aria-label={item.status === "paused" ? "Resume schedule" : "Pause schedule"}
+                      aria-label={item.status === "paused" ? tr("resumeSchedule") : tr("pauseSchedule")}
                       disabled={item.status === "done"}
                       onClick={() => void togglePause(item)}
                     >

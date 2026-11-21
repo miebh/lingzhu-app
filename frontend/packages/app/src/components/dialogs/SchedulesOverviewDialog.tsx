@@ -109,7 +109,7 @@ export function SchedulesOverviewDialog(props: Props) {
             when={items().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No schedules in this workspace."}
+                {loading() ? tr("loading") : tr("noWorkspaceSchedules")}
               </p>
             }
           >
@@ -141,8 +141,10 @@ export function SchedulesOverviewDialog(props: Props) {
                       {item.prompt}
                     </p>
                     <p class="mt-0.5 text-caption text-text-faint">
-                      {item.nextDueAt ? `Next ${formatDateTime(item.nextDueAt)}` : "No next run"}
-                      {item.runCount > 0 ? ` · ${item.runCount} run${item.runCount === 1 ? "" : "s"}` : ""}
+                      {item.nextDueAt
+                        ? tr("nextRun", { time: formatDateTime(item.nextDueAt) })
+                        : tr("noNextRun")}
+                      {item.runCount > 0 ? ` · ${tr("runCount", { count: item.runCount })}` : ""}
                       {item.lastError ? ` · ${item.lastError}` : ""}
                     </p>
                   </div>
@@ -150,7 +152,7 @@ export function SchedulesOverviewDialog(props: Props) {
                     type="button"
                     variant="outline"
                     size="icon-xs"
-                    aria-label={item.status === "paused" ? "Resume schedule" : "Pause schedule"}
+                    aria-label={item.status === "paused" ? tr("resumeSchedule") : tr("pauseSchedule")}
                     disabled={busy() === item.id || item.status === "done"}
                     onClick={() => void toggle(item)}
                   >

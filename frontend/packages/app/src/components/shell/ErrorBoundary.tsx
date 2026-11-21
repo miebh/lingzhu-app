@@ -1,5 +1,6 @@
 import type { JSX } from "solid-js";
 import { ErrorBoundary as SolidErrorBoundary, createSignal } from "solid-js";
+import { t } from "@lingzhu/ui/i18n";
 
 /**
  * Keeps a render failure from turning the whole window black. The fallback is
@@ -29,9 +30,9 @@ export function ErrorBoundary(props: { children?: JSX.Element }) {
             class="flex h-full min-h-0 flex-col items-center justify-center gap-6 overflow-auto bg-bg-base px-6 py-12 text-center text-text-base"
           >
             <div class="flex max-w-xl flex-col gap-2">
-              <h1 class="text-row font-semibold">Something went wrong</h1>
+              <h1 class="text-row font-semibold">{t("somethingWentWrong")}</h1>
               <p class="text-body text-text-muted">
-                The window hit an unexpected error. Reloading usually fixes it.
+                {t("errorBoundaryHint")}
               </p>
             </div>
 
@@ -45,21 +46,21 @@ export function ErrorBoundary(props: { children?: JSX.Element }) {
                 onClick={() => void copy()}
                 class="interactive inline-flex h-control-md items-center justify-center rounded-md border border-border-base px-3 text-body font-medium text-text-base"
               >
-                {copied() ? "Copied" : "Copy details"}
+                {copied() ? t("copied") : t("copyDetails")}
               </button>
               <button
                 type="button"
                 onClick={() => window.location.reload()}
                 class="contrast inline-flex h-control-md items-center justify-center rounded-md border border-transparent px-3 text-body font-medium"
               >
-                Reload
+                {t("reload")}
               </button>
               <button
                 type="button"
                 onClick={reset}
                 class="interactive inline-flex h-control-md items-center justify-center rounded-md border border-border-base px-3 text-body font-medium text-text-base"
               >
-                Retry
+                {t("retry")}
               </button>
             </div>
           </div>

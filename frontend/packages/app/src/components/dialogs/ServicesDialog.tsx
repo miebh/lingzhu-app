@@ -8,7 +8,7 @@ import { serializeServices, servicesExportName } from "../../lib/servicesExport"
 import type { ImageStatus, WebSearchStatus } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner, DetailRow } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
-import { useT } from "@lingzhu/ui/i18n";
+import { t, useT } from "@lingzhu/ui/i18n";
 
 interface Props {
   open: boolean;
@@ -24,7 +24,7 @@ function Badge(props: { configured: boolean }) {
         props.configured ? "text-state-fg-success" : "text-state-fg-warning"
       }`}
     >
-      {props.configured ? "configured" : "not configured"}
+      {props.configured ? t("configured") : t("notConfigured")}
     </span>
   );
 }
@@ -99,7 +99,7 @@ export function ServicesDialog(props: Props) {
           <div class="min-w-0">
             <DialogTitle class="flex items-center gap-2">
               <Server class="size-4 text-text-faint" />
-              Services
+              {tr("servicesTitle")}
             </DialogTitle>
             <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
@@ -112,7 +112,7 @@ export function ServicesDialog(props: Props) {
               onClick={() => void saveStatus()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -136,13 +136,13 @@ export function ServicesDialog(props: Props) {
             </div>
             <Show
               when={search()}
-              fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No status."}</p>}
+              fallback={<p class="p-3 text-meta text-text-faint">{loading() ? tr("loading") : tr("noStatus")}</p>}
             >
               {(status) => (
                 <>
-                  <DetailRow label="Provider" value={status().provider} />
-                  <DetailRow label="Endpoint" value={status().endpoint} />
-                  <DetailRow label="Max results" value={String(status().maxResults)} />
+                  <DetailRow label={tr("providerLabel")} value={status().provider} />
+                  <DetailRow label={tr("endpoint")} value={status().endpoint} />
+                  <DetailRow label={tr("maxResults")} value={String(status().maxResults)} />
                 </>
               )}
             </Show>
@@ -162,14 +162,14 @@ export function ServicesDialog(props: Props) {
             </div>
             <Show
               when={image()}
-              fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No status."}</p>}
+              fallback={<p class="p-3 text-meta text-text-faint">{loading() ? tr("loading") : tr("noStatus")}</p>}
             >
               {(status) => (
                 <>
-                  <DetailRow label="Provider" value={status().provider} />
-                  <DetailRow label="Endpoint" value={status().endpoint} />
-                  <DetailRow label="Model" value={status().model} />
-                  <DetailRow label="Size" value={status().size} />
+                  <DetailRow label={tr("providerLabel")} value={status().provider} />
+                  <DetailRow label={tr("endpoint")} value={status().endpoint} />
+                  <DetailRow label={tr("modelLabel")} value={status().model} />
+                  <DetailRow label={tr("size")} value={status().size} />
                 </>
               )}
             </Show>

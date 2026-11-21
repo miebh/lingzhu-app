@@ -383,7 +383,7 @@ export function FileTreeDialog(props: Props) {
             class="px-2 py-1 text-body leading-4 font-[440] text-text-faint"
             style={{ "padding-left": `${10 + level.depth * 14}px` }}
           >
-            {children()[level.path] ? "Empty" : "Loading…"}
+            {children()[level.path] ? tr("empty") : tr("loading")}
           </p>
         }
       >
@@ -498,7 +498,7 @@ export function FileTreeDialog(props: Props) {
         <DialogContent size="wide" height="body" class="flex flex-col">
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0">
-              <DialogTitle>Files</DialogTitle>
+              <DialogTitle>{tr("files")}</DialogTitle>
               <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
             </div>
             <div class="flex shrink-0 items-center gap-2">
@@ -507,7 +507,7 @@ export function FileTreeDialog(props: Props) {
                 <input
                   value={query()}
                   aria-label={tr("fileTreeSearchWorkspaceFiles")}
-                  placeholder={searchMode() === "name" ? "Search files" : "Search contents"}
+                  placeholder={searchMode() === "name" ? tr("searchFiles") : tr("searchContents")}
                   onInput={(event) => setQuery(event.currentTarget.value)}
                   class="w-36 bg-transparent text-meta text-text-base outline-none placeholder:text-text-faint select-text"
                 />
@@ -520,8 +520,8 @@ export function FileTreeDialog(props: Props) {
                 }
                 class="h-control-sm rounded-md border border-border-base bg-bg-base px-1 text-caption text-text-muted outline-none"
               >
-                <option value="name">Name</option>
-                <option value="content">Content</option>
+                <option value="name">{tr("fileTreeName")}</option>
+                <option value="content">{tr("fileTreeContent")}</option>
               </select>
               <Button type="button" variant="outline" size="sm" onClick={() => startCreate("file")}>
                 <FilePlus />
@@ -539,7 +539,7 @@ export function FileTreeDialog(props: Props) {
                 onClick={() => setHidden(!hidden())}
               >
                 {hidden() ? <EyeOff /> : <Eye />}
-                {hidden() ? "Hide hidden" : "Show hidden"}
+                {hidden() ? tr("hideHidden") : tr("showHidden")}
               </Button>
               <Button type="button" variant="outline" size="sm" disabled={loading()} onClick={() => void refresh()}>
                 <RefreshCw class={loading() ? "motion-safe:animate-spin" : undefined} />
@@ -562,10 +562,16 @@ export function FileTreeDialog(props: Props) {
                           <input
                             autofocus
                             value={target().value}
-                            aria-label={`New ${target().kind === "dir" ? "folder" : "file"}`}
-                            placeholder={`New ${target().kind === "dir" ? "folder" : "file"} in ${
-                              target().dir || "/"
-                            }`}
+                            aria-label={tr("newFileIn", {
+                              kind:
+                                target().kind === "dir" ? tr("fileKindFolder") : tr("fileKindFile"),
+                              dir: target().dir || "/",
+                            })}
+                            placeholder={tr("newFileIn", {
+                              kind:
+                                target().kind === "dir" ? tr("fileKindFolder") : tr("fileKindFile"),
+                              dir: target().dir || "/",
+                            })}
                             onInput={(event) =>
                               setCreating({ ...target(), value: event.currentTarget.value })
                             }
@@ -599,7 +605,7 @@ export function FileTreeDialog(props: Props) {
                           when={grepHits().length > 0}
                           fallback={
                             <p class="px-2 py-1 text-meta text-text-faint">
-                              {searching() ? "Searching…" : "No matching lines."}
+                              {searching() ? tr("searching") : tr("noMatchingLines")}
                             </p>
                           }
                         >
@@ -625,7 +631,7 @@ export function FileTreeDialog(props: Props) {
                           </For>
                         </Show>
                         <Show when={grepTruncated()}>
-                          <p class="px-2 py-1 text-caption text-text-faint">Showing the first 50 matches.</p>
+                          <p class="px-2 py-1 text-caption text-text-faint">{tr("fileTreeShowingFirst50")}</p>
                         </Show>
                       </>
                     }
@@ -635,7 +641,7 @@ export function FileTreeDialog(props: Props) {
                         when={hits().length > 0}
                         fallback={
                           <p class="px-2 py-1 text-meta text-text-faint">
-                            {searching() ? "Searching…" : "No matching files."}
+                            {searching() ? tr("searching") : tr("noMatchingFiles")}
                           </p>
                         }
                       >
@@ -662,7 +668,7 @@ export function FileTreeDialog(props: Props) {
                         </For>
                       </Show>
                       <Show when={hitsTruncated()}>
-                        <p class="px-2 py-1 text-caption text-text-faint">Showing the first 50 matches.</p>
+                        <p class="px-2 py-1 text-caption text-text-faint">{tr("fileTreeShowingFirst50")}</p>
                       </Show>
                     </>
                   </Show>
@@ -673,7 +679,7 @@ export function FileTreeDialog(props: Props) {
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
               <Show
                 when={preview()}
-                fallback={<p class="p-3 text-meta text-text-faint">Select a file to preview it.</p>}
+                fallback={<p class="p-3 text-meta text-text-faint">{tr("fileTreeSelectPreview")}</p>}
               >
                 {(file) => (
                   <>
@@ -686,7 +692,7 @@ export function FileTreeDialog(props: Props) {
                           <span class="flex shrink-0 items-center gap-1">
                             <Button type="button" size="xs" disabled={saving()} onClick={() => void save()}>
                               <Save />
-                              {saving() ? "Saving…" : "Save"}
+                              {saving() ? tr("saving") : tr("save")}
                             </Button>
                             <Button
                               type="button"
@@ -709,7 +715,7 @@ export function FileTreeDialog(props: Props) {
                             onClick={() => void formatFile()}
                           >
                             <Wand2 />
-                            {formatting() ? "Formatting…" : "Format"}
+                            {formatting() ? tr("formatting") : tr("formatAction")}
                           </Button>
                           <Button
                             type="button"
@@ -735,7 +741,7 @@ export function FileTreeDialog(props: Props) {
                         <Show
                           when={!file().binary}
                           fallback={
-                            <p class="p-3 text-meta text-text-faint">Binary file, no preview available.</p>
+                            <p class="p-3 text-meta text-text-faint">{tr("fileTreeBinaryPreview")}</p>
                           }
                         >
                           <pre class="min-h-0 flex-1 overflow-auto p-3 font-mono text-meta leading-5 whitespace-pre text-text-muted select-text">
@@ -769,7 +775,7 @@ export function FileTreeDialog(props: Props) {
         open={deleteTarget() !== undefined}
         title={tr("fileTreeDeleteEntry")}
         description={`Delete "${deleteTarget()?.path ?? ""}"? ${
-          deleteTarget()?.type === "dir" ? "Only empty directories can be deleted." : "This cannot be undone."
+          deleteTarget()?.type === "dir" ? tr("onlyEmptyDirs") : tr("cannotUndo")
         }`}
         confirmLabel="Delete"
         destructive

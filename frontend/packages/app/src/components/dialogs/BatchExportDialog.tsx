@@ -159,7 +159,7 @@ export function BatchExportDialog(props: Props) {
               onClick={() => void copyAll()}
             >
               <Clipboard />
-              {copied() === "all" ? "Copied" : "Copy all"}
+              {copied() === "all" ? tr("copied") : tr("copyAll")}
             </Button>
             <Button
               type="button"
@@ -179,7 +179,7 @@ export function BatchExportDialog(props: Props) {
               onClick={() => void saveMarkdown()}
             >
               <Save />
-              {savingMarkdown() ? "Saving…" : "Save MD"}
+              {savingMarkdown() ? tr("saving") : tr("dialogSaveMd")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -200,7 +200,7 @@ export function BatchExportDialog(props: Props) {
               when={entries().length > 0}
               fallback={
                 <p class="px-2 py-1 text-meta text-text-faint">
-                  {loading() ? "Collecting bundles…" : "No sessions selected."}
+                  {loading() ? tr("collectingBundles") : tr("noSessionsSelected")}
                 </p>
               }
             >
@@ -234,7 +234,7 @@ export function BatchExportDialog(props: Props) {
               when={current()}
               fallback={
                 <p class="p-3 text-meta text-text-faint">
-                  {loading() ? "Collecting bundles…" : "Select a session to view its bundle."}
+                  {loading() ? tr("collectingBundles") : tr("selectSessionBundle")}
                 </p>
               }
             >
@@ -253,7 +253,7 @@ export function BatchExportDialog(props: Props) {
                       }
                     >
                       <Clipboard />
-                      {copied() === entry().item.id ? "Copied" : "Copy JSON"}
+                      {copied() === entry().item.id ? tr("copied") : tr("copyJson")}
                     </Button>
                   </div>
                   <textarea

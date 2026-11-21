@@ -115,7 +115,7 @@ export function SessionScreen() {
                   shell.workspaceActions.select(workspace.path);
                   void shell.chatActions.open(workspace.path, sessionID);
                 }}
-                title={activeTitle() || "New session"}
+                title={activeTitle() || t("newSession")}
                 onOpenProjectHome={() => {
                   const workspace = activeWorkspace();
                   if (!workspace) return;

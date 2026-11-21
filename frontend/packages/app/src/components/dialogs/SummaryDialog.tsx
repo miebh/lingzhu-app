@@ -50,7 +50,7 @@ export function SummaryDialog(props: Props) {
           </div>
           <Button type="button" variant="outline" size="sm" disabled={!props.text} onClick={() => void copy()}>
             <Copy />
-            {copied() ? "Copied" : "Copy"}
+            {copied() ? tr("copied") : tr("copy")}
           </Button>
         </div>
 
@@ -58,7 +58,7 @@ export function SummaryDialog(props: Props) {
 
         <Show
           when={!props.loading}
-          fallback={<p class="mt-4 text-body text-text-muted">Summarizing…</p>}
+          fallback={<p class="mt-4 text-body text-text-muted">{tr("summarizing")}</p>}
         >
           <pre class="mt-4 min-h-24 flex-1 overflow-auto whitespace-pre-wrap rounded-md bg-bg-layer-01 p-3 font-mono text-caption leading-5 text-text-base select-text">
             {props.text || "No summary returned."}

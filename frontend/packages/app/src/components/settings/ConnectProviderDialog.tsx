@@ -137,7 +137,7 @@ export function ConnectProviderDialog(props: Props) {
         >
           <div class="flex shrink-0 items-start gap-3 px-3.5 pt-2.5 pb-1.5">
             <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-              <DialogTitle class="text-body leading-5 font-[440] tracking-[-0.04px]">Connect provider</DialogTitle>
+              <DialogTitle class="text-body leading-5 font-[440] tracking-[-0.04px]">{tr("connectProviderTitle")}</DialogTitle>
               <DialogDescription class="mt-0 text-meta leading-5">
                 {tr("dialogConnectProviderHint")}
               </DialogDescription>
@@ -183,13 +183,13 @@ export function ConnectProviderDialog(props: Props) {
               <span class="grid size-4 shrink-0 place-items-center text-text-muted">
                 <Plus class="size-4" />
               </span>
-              <span class="min-w-0 flex-1 truncate text-body text-text-base">Custom endpoint</span>
-              <span class="hidden shrink-0 text-caption text-text-faint sm:block">Any base URL</span>
+              <span class="min-w-0 flex-1 truncate text-body text-text-base">{tr("connectProviderCustomEndpoint")}</span>
+              <span class="hidden shrink-0 text-caption text-text-faint sm:block">{tr("connectProviderAnyBaseURL")}</span>
               <ChevronRight class="size-3.5 shrink-0 text-text-faint" />
             </button>
 
             <Show when={connected().length > 0}>
-              <div class="mt-2 flex h-control-sm items-center px-2 text-meta text-text-faint">Connected</div>
+              <div class="mt-2 flex h-control-sm items-center px-2 text-meta text-text-faint">{tr("connected")}</div>
               <For each={connected()}>
                 {(provider) => (
                   <div class="flex h-9 w-full min-w-0 items-center gap-3 rounded-md px-2">
@@ -207,7 +207,7 @@ export function ConnectProviderDialog(props: Props) {
                       when={props.onDisconnect && props.canDisconnect}
                       fallback={
                         <Badge variant="secondary" class="shrink-0">
-                          Connected
+                          {tr("connected")}
                         </Badge>
                       }
                     >
@@ -220,7 +220,7 @@ export function ConnectProviderDialog(props: Props) {
                         class="shrink-0 text-text-faint hover:text-state-fg-danger"
                       >
                         <Unplug />
-                        Disconnect
+                        {tr("disconnectAction")}
                       </Button>
                     </Show>
                   </div>
@@ -228,14 +228,14 @@ export function ConnectProviderDialog(props: Props) {
               </For>
             </Show>
 
-            <div class="mt-2 flex h-control-sm items-center px-2 text-meta text-text-faint">Providers</div>
+            <div class="mt-2 flex h-control-sm items-center px-2 text-meta text-text-faint">{tr("connectProviderProviders")}</div>
 
             <Show when={presets() === undefined}>
-              <div class="grid min-h-32 place-items-center text-meta text-text-faint">Loading providers…</div>
+              <div class="grid min-h-32 place-items-center text-meta text-text-faint">{tr("connectProviderLoading")}</div>
             </Show>
             <Show when={presets() !== undefined && available().length === 0 && connected().length === 0}>
               <div class="grid min-h-32 place-items-center text-meta text-text-faint">
-                {query().trim() ? "No matching providers" : "No presets available"}
+                {query().trim() ? tr("connectProviderNoMatching") : tr("connectProviderNoPresets")}
               </div>
             </Show>
             <For each={available()}>
@@ -251,9 +251,11 @@ export function ConnectProviderDialog(props: Props) {
                   <span class="hidden shrink-0 text-caption text-text-faint sm:block">
                     {preset.dynamicModels
                       ? magpie()?.available
-                        ? `Gateway ${magpie()!.version || "running"}`
-                        : "Discover models"
-                      : `${preset.models?.length ?? 0} models`}
+                        ? tr("connectProviderGateway", {
+                            version: magpie()!.version || tr("connectProviderGatewayRunning"),
+                          })
+                        : tr("connectProviderDiscoverModels")
+                      : tr("connectProviderModelCount", { count: preset.models?.length ?? 0 })}
                   </span>
                   <ChevronRight class="size-3.5 shrink-0 text-text-faint" />
                 </button>
@@ -282,9 +284,11 @@ export function ConnectProviderDialog(props: Props) {
 
       <ConfirmDialog
         open={disconnecting() !== undefined}
-        title={`Disconnect ${disconnecting()?.name || disconnecting()?.id || "provider"}?`}
-        description="This removes the provider and its saved key. The session keeps its current model until another provider is selected."
-        confirmLabel="Disconnect"
+        title={tr("connectProviderDisconnectTitle", {
+          name: disconnecting()?.name || disconnecting()?.id || tr("providerDefaultName"),
+        })}
+        description={tr("connectProviderDisconnectDesc")}
+        confirmLabel={tr("disconnectAction")}
         destructive
         onOpenChange={(next) => {
           if (!next) setDisconnecting(undefined);

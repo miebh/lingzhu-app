@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, type JSX } from "solid-js";
 import { Button } from "@lingzhu/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@lingzhu/ui/dialog";
 import { Input } from "@lingzhu/ui/input";
@@ -66,8 +66,11 @@ interface ConfirmDialogProps {
   description: string;
   confirmLabel: string;
   destructive?: boolean;
+  confirmDisabled?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  /** Extra choices, such as a force switch, between the copy and the buttons. */
+  children?: JSX.Element;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps) {
@@ -76,11 +79,18 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
       <DialogContent hideClose class="select-none">
         <DialogTitle>{props.title}</DialogTitle>
         <DialogDescription>{props.description}</DialogDescription>
+        <Show when={props.children}>
+          <div class="mt-3">{props.children}</div>
+        </Show>
         <div class="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => props.onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button variant={props.destructive ? "destructive" : "default"} onClick={props.onConfirm}>
+          <Button
+            variant={props.destructive ? "destructive" : "default"}
+            disabled={props.confirmDisabled}
+            onClick={props.onConfirm}
+          >
             {props.confirmLabel}
           </Button>
         </div>

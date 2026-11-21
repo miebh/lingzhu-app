@@ -9,6 +9,7 @@ import type { UsageStats } from "@lingzhu/ui/types";
 import { formatDateTime } from "@lingzhu/ui/format";
 import { RefreshButton, ErrorBanner } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
+import { useT } from "@lingzhu/ui/i18n";
 
 interface Props {
   open: boolean;
@@ -24,6 +25,7 @@ function formatNumber(value: number): string {
 
 /** Read-only provider usage totals for one session. */
 export function UsageDialog(props: Props) {
+  const tr = useT();
   const [stats, setStats] = createSignal<UsageStats>();
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal("");
@@ -83,10 +85,10 @@ export function UsageDialog(props: Props) {
     const current = stats();
     if (!current) return [];
     return [
-      { label: "Input", value: current.input },
-      { label: "Output", value: current.output },
-      { label: "Cache read", value: current.cacheRead },
-      { label: "Cache write", value: current.cacheWrite },
+      { label: tr("usageInput"), value: current.input },
+      { label: tr("usageOutput"), value: current.output },
+      { label: tr("usageCacheRead"), value: current.cacheRead },
+      { label: tr("usageCacheWrite"), value: current.cacheWrite },
     ];
   };
 
@@ -95,7 +97,7 @@ export function UsageDialog(props: Props) {
       <DialogContent class="flex w-[min(calc(100vw-48px),512px)] flex-col">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <DialogTitle>Usage</DialogTitle>
+            <DialogTitle>{tr("usage")}</DialogTitle>
             <DialogDescription class="sr-only">{props.title || props.sessionID}</DialogDescription>
           </div>
           <div class="flex shrink-0 items-center gap-2">
@@ -107,7 +109,7 @@ export function UsageDialog(props: Props) {
               onClick={() => void saveUsage()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -118,24 +120,24 @@ export function UsageDialog(props: Props) {
 
         <Show
           when={stats()}
-          fallback={<p class="mt-4 text-meta text-text-faint">{loading() ? "Loading…" : "No usage."}</p>}
+          fallback={<p class="mt-4 text-meta text-text-faint">{loading() ? tr("loading") : tr("usageNoData")}</p>}
         >
           {(current) => (
             <>
               <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <div class="rounded-lg border-[0.5px] border-border-base bg-bg-base p-4">
-                  <p class="text-caption text-text-faint">Calls</p>
+                  <p class="text-caption text-text-faint">{tr("usageCalls")}</p>
                   <p class="mt-1 flex items-center gap-1.5 font-mono text-reading text-text-base">
                     <Gauge class="size-4 text-text-faint" />
                     {formatNumber(current().calls)}
                   </p>
                 </div>
                 <div class="rounded-lg border-[0.5px] border-border-base bg-bg-base p-4">
-                  <p class="text-caption text-text-faint">Total tokens</p>
+                  <p class="text-caption text-text-faint">{tr("usageTotalTokens")}</p>
                   <p class="mt-1 font-mono text-reading text-text-base">{formatNumber(current().total)}</p>
                 </div>
                 <div class="rounded-lg border-[0.5px] border-border-base bg-bg-base p-4">
-                  <p class="text-caption text-text-faint">Last call</p>
+                  <p class="text-caption text-text-faint">{tr("usageLastCall")}</p>
                   <p class="mt-1 truncate text-meta text-text-muted">
                     {formatDateTime(current().lastAt) || "—"}
                   </p>
@@ -156,10 +158,10 @@ export function UsageDialog(props: Props) {
               <Show when={current().last}>
                 {(last) => (
                   <div class="mt-4 rounded-lg border-[0.5px] border-border-base bg-bg-base p-4">
-                    <p class="text-caption text-text-faint">Latest request</p>
+                    <p class="text-caption text-text-faint">{tr("usageLatestRequest")}</p>
                     <p class="mt-1 font-mono text-meta text-text-muted">
-                      input {formatNumber(last().input)} · output {formatNumber(last().output)} ·
-                      cache read {formatNumber(last().cacheRead)} · cache write{" "}
+                      {tr("usageInput")} {formatNumber(last().input)} · {tr("usageOutput")} {formatNumber(last().output)} ·{" "}
+                      {tr("usageCacheRead")} {formatNumber(last().cacheRead)} · {tr("usageCacheWrite")}{" "}
                       {formatNumber(last().cacheWrite)}
                     </p>
                   </div>
@@ -167,7 +169,7 @@ export function UsageDialog(props: Props) {
               </Show>
 
               <Show when={current().calls === 0}>
-                <p class="mt-3 text-meta text-text-faint">No provider usage recorded yet.</p>
+                <p class="mt-3 text-meta text-text-faint">{tr("usageNoUsage")}</p>
               </Show>
             </>
           )}

@@ -1988,7 +1988,7 @@ function AssistantText(props: {
           <Show when={props.sources && props.sources.length > 0}>
             <SourcesChip sources={props.sources!} />
           </Show>
-          <CopyButton text={props.text} label="Copy response" />
+          <CopyButton text={props.text} label={t("copyResponse")} />
           <Show when={props.meta && props.meta.length > 0}>
             <span class="flex min-w-0 items-center gap-1 overflow-hidden text-[12px] font-[440] leading-[18px] tracking-[0.05px] whitespace-nowrap text-text-faint">
               <For each={props.meta}>

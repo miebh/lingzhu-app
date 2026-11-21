@@ -1,5 +1,6 @@
 import { createStore } from "./create";
 import type { ClosedSideTab, SideTab } from "../lib/sessionTabs";
+import { t } from "@lingzhu/ui/i18n";
 import { workspaceName } from "../lib/history";
 import { planTabDelete, removeTabsForSessions } from "../lib/sessionTabs";
 import { chatKey } from "@lingzhu/ui/domain/chat";
@@ -319,7 +320,7 @@ export function selectSideTabs(tabs: TabEntry[], chats: Record<string, ChatState
     return {
       key: tab.key,
       sessionID: tab.sessionID,
-      label: chat?.title || info?.title || "New session",
+      label: chat?.title || info?.title || t("newSession"),
       subtitle: workspaceName(tab.path),
       directory: tab.path,
       kind: "chat",
@@ -341,7 +342,7 @@ export function selectClosedTabs(
     const info = sessionsByWorkspace[entry.path]?.find((session) => session.id === entry.sessionID);
     return {
       key: entry.key,
-      label: chat?.title || info?.title || "New session",
+      label: chat?.title || info?.title || t("newSession"),
       subtitle: workspaceName(entry.path),
     };
   });

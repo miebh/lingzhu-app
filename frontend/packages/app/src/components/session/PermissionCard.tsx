@@ -2,7 +2,7 @@ import { For, Show, createSignal } from "solid-js";
 import { Warning } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import type { PermissionRequest } from "@lingzhu/ui/types";
-import { useT } from "@lingzhu/ui/i18n";
+import { useT, t } from "@lingzhu/ui/i18n";
 
 interface Props {
   requests: PermissionRequest[];
@@ -14,7 +14,7 @@ function PermissionHeader() {
   return (
     <div class="grid grid-cols-[20px_1fr] items-center gap-2">
       <Warning class="size-4 shrink-0 text-state-fg-warning" />
-      <div class="min-w-0 text-body leading-5 font-[530] text-text-base">Permission required</div>
+      <div class="min-w-0 text-body leading-5 font-[530] text-text-base">{t("permissionRequired")}</div>
     </div>
   );
 }
@@ -149,26 +149,26 @@ export function PermissionCard(props: Props) {
 function permissionHint(action: string): string {
   switch (action) {
     case "shell":
-      return "Run this shell command?";
+      return t("permissionHintShell");
     case "read":
-      return "Read this file?";
+      return t("permissionHintRead");
     case "edit":
-      return "Edit this file?";
+      return t("permissionHintEdit");
     case "glob":
-      return "Search the workspace for files?";
+      return t("permissionHintGlob");
     case "grep":
-      return "Search the workspace for matching text?";
+      return t("permissionHintGrep");
     case "webfetch":
-      return "Fetch this URL?";
+      return t("permissionHintWebfetch");
     case "skill":
-      return "Load this skill?";
+      return t("permissionHintSkill");
     case "subagent":
-      return "Run this subagent?";
+      return t("permissionHintSubagent");
     case "question":
-      return "Ask this question?";
+      return t("permissionHintQuestion");
     case "external_directory":
-      return "Access a directory outside the workspace?";
+      return t("permissionHintExternalDirectory");
     default:
-      return `Allow ${action}?`;
+      return t("permissionHintDefault", { action });
   }
 }

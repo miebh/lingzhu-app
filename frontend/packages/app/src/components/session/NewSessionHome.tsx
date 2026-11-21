@@ -101,7 +101,7 @@ export function NewSessionHome(props: Props) {
                       class="flex h-7 min-w-0 max-w-[160px] items-center gap-1.5 rounded-sm px-2 text-[13px] leading-5 font-[440] tracking-[-0.04px] text-text-faint transition-colors hover:bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))]"
                     >
                       <FolderPlus class="size-4 shrink-0 text-text-faint" />
-                      <span class="min-w-0 truncate leading-5">Add workspace</span>
+                      <span class="min-w-0 truncate leading-5">{tr("addWorkspace")}</span>
                       <ChevronDown class="size-4 shrink-0 text-text-faint" />
                     </button>
                   }
@@ -113,14 +113,14 @@ export function NewSessionHome(props: Props) {
                           <TooltipTrigger
                             type="button"
                             aria-haspopup="dialog"
-                            aria-label={`Session location: ${workspaceName()}`}
+                            aria-label={tr("sessionLocationNamed", { name: workspaceName() })}
                             onClick={() => setLocationStep("projects")}
                             class="interactive flex h-7 min-w-0 items-center gap-1.5 rounded-sm ps-1.5 pe-2 text-text-muted hover:text-text-base"
                           >
                             <ProjectAvatar name={workspaceName()} />
                             <span class="min-w-0 truncate">{workspaceName()}</span>
                           </TooltipTrigger>
-                          <TooltipContent side="top">Choose project</TooltipContent>
+                          <TooltipContent side="top">{tr("chooseProject")}</TooltipContent>
                         </Tooltip>
                         <span class="mx-[1.5px] shrink-0 font-normal text-icon-faint" aria-hidden="true">
                           /
@@ -134,9 +134,9 @@ export function NewSessionHome(props: Props) {
                             class="interactive flex h-7 min-w-12 shrink-[1000] items-center gap-1.5 rounded-sm ps-1.5 pe-2 text-text-faint hover:text-text-base"
                           >
                             <Monitor class="size-3.5 shrink-0" />
-                            <span class="min-w-0 truncate">Local</span>
+                            <span class="min-w-0 truncate">{tr("localWorkspace")}</span>
                           </TooltipTrigger>
-                          <TooltipContent side="top">Choose worktree</TooltipContent>
+                          <TooltipContent side="top">{tr("chooseWorktree")}</TooltipContent>
                         </Tooltip>
                       </div>
                     </div>

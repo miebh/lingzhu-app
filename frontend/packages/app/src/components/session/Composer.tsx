@@ -1042,11 +1042,11 @@ export function Composer(props: Props) {
                 <Tooltip>
                   <TooltipTrigger
                     type="button"
-                    aria-label={`Send as ${delivery() === "steer" ? "queue" : "steer"}`}
+                    aria-label={delivery() === "steer" ? t("sendAsQueue") : t("sendAsSteer")}
                     title={
                       delivery() === "steer"
-                        ? "Mod+Enter queues this prompt for the next turn"
-                        : "Mod+Enter steers the active turn"
+                        ? t("queueHint")
+                        : t("steerHint")
                     }
                     onClick={() => submit(true)}
                     class="interactive me-3 flex h-6 shrink-0 items-center gap-1.5 rounded-xs px-1.5 text-body font-[530] text-text-faint"
@@ -1055,7 +1055,7 @@ export function Composer(props: Props) {
                     <Keybind keys={formatKeybind("mod+enter")?.split("+") ?? []} variant="neutral" />
                   </TooltipTrigger>
                   <TooltipContent side="top">
-                    {delivery() === "steer" ? "Queue this prompt for the next turn" : "Steer the active turn"}
+                    {delivery() === "steer" ? t("queueHint") : t("steerHint")}
                   </TooltipContent>
                 </Tooltip>
               </Show>
@@ -1068,7 +1068,7 @@ export function Composer(props: Props) {
                       <TooltipTrigger
                         type="button"
                         disabled={!canSubmit()}
-                        aria-label={shellMode() ? "Run command" : t("send")}
+                        aria-label={shellMode() ? t("runCommandTooltip") : t("send")}
                         aria-busy={sending()}
                         onClick={(event) => {
                           event.preventDefault();
@@ -1080,7 +1080,7 @@ export function Composer(props: Props) {
                           <Loader class="size-4" />
                         </Show>
                       </TooltipTrigger>
-                      <TooltipContent side="top">{shellMode() ? "Run command" : t("send")}</TooltipContent>
+                      <TooltipContent side="top">{shellMode() ? t("runCommandTooltip") : t("send")}</TooltipContent>
                     </Tooltip>
                   }
                 >

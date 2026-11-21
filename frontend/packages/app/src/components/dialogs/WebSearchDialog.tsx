@@ -122,7 +122,7 @@ export function WebSearchDialog(props: Props) {
               onClick={() => void saveResults()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <Show when={status()}>
               {(current) => (
@@ -131,7 +131,7 @@ export function WebSearchDialog(props: Props) {
                     current().configured ? "text-state-fg-success" : "text-state-fg-warning"
                   }`}
                 >
-                  {current().provider || "no provider"} · {current().configured ? "configured" : "not configured"}
+                  {current().provider || tr("noProvider")} · {current().configured ? tr("configured") : tr("notConfigured")}
                 </span>
               )}
             </Show>
@@ -160,7 +160,7 @@ export function WebSearchDialog(props: Props) {
             onClick={() => void search()}
           >
             <Search />
-            {loading() ? "Searching…" : "Search"}
+            {loading() ? tr("searching") : tr("search")}
           </Button>
         </div>
 
@@ -178,7 +178,7 @@ export function WebSearchDialog(props: Props) {
             when={results().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Searching…" : searched() ? "No results." : "Enter a query to search."}
+                {loading() ? tr("searching") : searched() ? tr("noResultsShort") : tr("enterQuerySearch")}
               </p>
             }
           >

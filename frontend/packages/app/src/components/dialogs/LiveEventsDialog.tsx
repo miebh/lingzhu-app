@@ -118,7 +118,7 @@ export function LiveEventsDialog(props: Props) {
             </DialogTitle>
             <DialogDescription class="truncate">
               {props.name ? `${props.name} · ` : ""}
-              {paused() ? "paused" : "tailing"} · {shown().length} captured
+              {paused() ? tr("paused") : tr("tailing")} · {tr("captured", { count: shown().length })}
             </DialogDescription>
           </div>
           <div class="flex shrink-0 items-center gap-2">
@@ -130,11 +130,11 @@ export function LiveEventsDialog(props: Props) {
               onClick={() => void saveVisible()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={togglePause}>
               {paused() ? <Play /> : <Pause />}
-              {paused() ? "Resume" : "Pause"}
+              {paused() ? tr("resume") : tr("pause")}
             </Button>
             <Button
               type="button"
@@ -181,7 +181,7 @@ export function LiveEventsDialog(props: Props) {
             when={visible().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {shown().length === 0 ? "Waiting for live events…" : "No events match the filter."}
+                {shown().length === 0 ? tr("waitingLiveEvents") : tr("noEventsFilter")}
               </p>
             }
           >

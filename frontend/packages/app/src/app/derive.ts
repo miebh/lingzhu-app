@@ -1,3 +1,4 @@
+import { t } from "@lingzhu/ui/i18n";
 import { workspaceName } from "../lib/history";
 import { chatKey } from "@lingzhu/ui/domain/chat";
 import { type AppPreferences, type ChatState, type HomeSessionRow, type SessionInfo, type SessionLocation, type WorkspaceInfo } from "@lingzhu/ui/types";
@@ -43,7 +44,7 @@ export function buildHomeRows(
         key,
         path,
         sessionID: session.id,
-        title: chats[key]?.title || session.title || "New session",
+        title: chats[key]?.title || session.title || t("newSession"),
         workspaceName: workspaceList.find((workspace) => workspace.path === path)?.name ?? workspaceName(path),
         icon: preferences.projectIcons[path] || undefined,
         color: preferences.projectColors[path] || undefined,

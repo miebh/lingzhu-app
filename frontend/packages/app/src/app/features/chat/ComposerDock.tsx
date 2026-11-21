@@ -123,12 +123,12 @@ export function ComposerDock(props: {
             {(child) => {
               const status = () =>
                 child().running
-                  ? "Running"
+                  ? t("runRunning")
                   : chat().lastRunStatus === "failed"
-                    ? "Failed"
+                    ? t("runFailed")
                     : chat().lastRunStatus === "stopped"
-                      ? "Interrupted"
-                      : "Finished";
+                      ? t("interrupted")
+                      : t("runFinished");
               const elapsed = () => (child().running ? chat().runStartedAt : undefined);
               const meta = () => {
                 const startedAt = elapsed();

@@ -75,7 +75,7 @@ export function WorktreesDialog(props: Props) {
         serializeWorktrees({ workspace: props.workspace ?? "", repo: current.repo, worktrees: current.worktrees }),
       );
       if (path) {
-        setNotice(`Saved ${path}`);
+        setNotice(tr("savedPath", { path }));
         setError("");
       }
     } catch (err) {
@@ -91,7 +91,7 @@ export function WorktreesDialog(props: Props) {
     if (!workspace) return;
     const value = newName().trim();
     if (!value) {
-      setError("Worktree name is required.");
+      setError(tr("worktreeNameRequired"));
       return;
     }
     setCreating(true);
@@ -111,7 +111,11 @@ export function WorktreesDialog(props: Props) {
           : { worktrees: [created], repo: "" },
       );
       setNewName("");
-      setNotice(command ? `Created ${created.branch || created.path} and started startup command` : `Created ${created.branch || created.path}`);
+      setNotice(
+        command
+          ? tr("worktreeCreatedWithStartup", { name: created.branch || created.path })
+          : tr("worktreeCreated", { name: created.branch || created.path }),
+      );
       setError("");
     } catch (err) {
       setError(messageOf(err));
@@ -132,7 +136,7 @@ export function WorktreesDialog(props: Props) {
           ? { ...current, worktrees: current.worktrees.filter((item) => item.path !== target.path) }
           : current,
       );
-      setNotice(`Removed ${target.branch || target.path}`);
+      setNotice(tr("worktreeRemoved", { name: target.branch || target.path }));
       setError("");
     } catch (err) {
       setError(messageOf(err));
@@ -147,7 +151,7 @@ export function WorktreesDialog(props: Props) {
             <div class="min-w-0">
               <DialogTitle class="flex items-center gap-2">
                 <GitBranch class="size-4 text-text-faint" />
-                Worktrees
+                {tr("worktrees")}
               </DialogTitle>
               <DialogDescription class="truncate">
                 {props.name || props.workspace}
@@ -163,7 +167,7 @@ export function WorktreesDialog(props: Props) {
                 onClick={() => void saveList()}
               >
                 <Save />
-                {saving() ? "Saving…" : "Save file"}
+                {saving() ? tr("saving") : tr("dialogSaveFile")}
               </Button>
               <RefreshButton loading={loading()} onRefresh={() => void load()} />
             </div>
@@ -188,7 +192,7 @@ export function WorktreesDialog(props: Props) {
             />
             <Button type="button" size="sm" disabled={creating()} onClick={() => void create()}>
               <Plus />
-              Create
+              {tr("create")}
             </Button>
           </div>
 
@@ -202,7 +206,7 @@ export function WorktreesDialog(props: Props) {
               when={list() && list()!.worktrees.length > 0}
               fallback={
                 <p class="p-3 text-meta text-text-faint">
-                  {loading() ? "Loading…" : "No worktrees."}
+                  {loading() ? tr("loading") : tr("worktreesNone")}
                 </p>
               }
             >
@@ -216,12 +220,12 @@ export function WorktreesDialog(props: Props) {
                         </span>
                         <Show when={item.main}>
                           <span class="rounded-xs border border-border-base px-1 text-caption text-text-faint">
-                            main
+                            {tr("mainWorktree")}
                           </span>
                         </Show>
                       </div>
                       <p class="mt-0.5 text-caption text-text-faint">
-                        {item.branch || "detached"}
+                        {item.branch || tr("detached")}
                         {item.head ? ` · ${item.head.slice(0, 8)}` : ""}
                       </p>
                     </div>
@@ -233,7 +237,7 @@ export function WorktreesDialog(props: Props) {
                           size="xs"
                           onClick={() => void addWorkspace()(item.path)}
                         >
-                          Add
+                          {tr("add")}
                         </Button>
                       )}
                     </Show>
@@ -241,7 +245,7 @@ export function WorktreesDialog(props: Props) {
                       type="button"
                       variant="outline"
                       size="icon-xs"
-                      aria-label={`Remove worktree ${item.path}`}
+                      aria-label={tr("worktreesRemoveNamed", { name: item.branch || item.path })}
                       disabled={item.main}
                       onClick={() => setRemoveTarget(item)}
                     >
@@ -258,10 +262,12 @@ export function WorktreesDialog(props: Props) {
       <ConfirmDialog
         open={removeTarget() !== undefined}
         title={tr("worktreesRemoveWorktree")}
-        description={`Remove ${removeTarget()?.branch || removeTarget()?.path || ""}? ${
-          force() ? "Dirty changes are discarded." : "Uncommitted changes will block removal."
+        description={`${tr("removeWorktreeDesc", {
+          name: removeTarget()?.branch || removeTarget()?.path || "",
+        })} ${
+          force() ? tr("worktreeDeleteDirty") : tr("worktreeUncommittedBlock")
         }`}
-        confirmLabel="Remove"
+        confirmLabel={tr("removeAction")}
         destructive
         onOpenChange={(next) => {
           if (!next) setRemoveTarget(undefined);

@@ -386,7 +386,7 @@ export function MCPDialog(props: Props) {
               when={servers().length > 0}
               fallback={
                 <p class="p-3 text-meta text-text-faint">
-                  {loading() ? "Loading…" : "No MCP servers connected."}
+                  {loading() ? tr("loading") : tr("noMcpServers")}
                 </p>
               }
             >
@@ -437,7 +437,7 @@ export function MCPDialog(props: Props) {
               when={current()}
               fallback={
                 <p class="p-3 text-meta text-text-faint">
-                  {loading() ? "Loading…" : "Select a server to see its tools and resources."}
+                  {loading() ? tr("loading") : tr("selectMcpServer")}
                 </p>
               }
             >
@@ -549,10 +549,10 @@ export function MCPDialog(props: Props) {
                   <Show when={currentConnected()}>
                     <div class="min-h-0 flex-1 overflow-auto">
                       <div class="border-b border-border-base px-3 py-2">
-                        <p class="text-caption font-[530] text-text-faint">Tools</p>
+                        <p class="text-caption font-[530] text-text-faint">{tr("mcpTools")}</p>
                         <Show
                           when={server().tools.length > 0}
-                          fallback={<p class="mt-1 text-meta text-text-faint">No tools.</p>}
+                          fallback={<p class="mt-1 text-meta text-text-faint">{tr("mcpNoTools")}</p>}
                         >
                           <ul class="mt-1 flex flex-col gap-1">
                             <For each={server().tools}>
@@ -596,10 +596,10 @@ export function MCPDialog(props: Props) {
                       </div>
                       <Show when={server().events}>
                         <div class="border-b border-border-base px-3 py-2">
-                          <p class="text-caption font-[530] text-text-faint">Events</p>
+                          <p class="text-caption font-[530] text-text-faint">{tr("mcpEvents")}</p>
                           <Show
                             when={!eventsLoading()}
-                            fallback={<p class="mt-1 text-meta text-text-faint">Loading…</p>}
+                            fallback={<p class="mt-1 text-meta text-text-faint">{tr("loading")}</p>}
                           >
                             <Show
                               when={!eventsError()}
@@ -607,7 +607,7 @@ export function MCPDialog(props: Props) {
                             >
                               <Show
                                 when={events().length > 0}
-                                fallback={<p class="mt-1 text-meta text-text-faint">No events.</p>}
+                                fallback={<p class="mt-1 text-meta text-text-faint">{tr("mcpNoEvents")}</p>}
                               >
                                 <ul class="mt-1 flex flex-col gap-1">
                                   <For each={events()}>
@@ -628,10 +628,10 @@ export function MCPDialog(props: Props) {
                         </div>
                       </Show>
                       <div class="border-b border-border-base px-3 py-2">
-                        <p class="text-caption font-[530] text-text-faint">Resources</p>
+                        <p class="text-caption font-[530] text-text-faint">{tr("mcpResources")}</p>
                         <Show
                           when={server().resources.length > 0}
-                          fallback={<p class="mt-1 text-meta text-text-faint">No resources.</p>}
+                          fallback={<p class="mt-1 text-meta text-text-faint">{tr("mcpNoResources")}</p>}
                         >
                           <ul class="mt-1 flex flex-col gap-1">
                             <For each={server().resources}>
@@ -664,7 +664,7 @@ export function MCPDialog(props: Props) {
                                       disabled={reading() === resource.uri}
                                       onClick={() => void readResource(server().name, resource.uri ?? "")}
                                     >
-                                      {reading() === resource.uri ? "Reading…" : "Read"}
+                                      {reading() === resource.uri ? tr("reading") : tr("read")}
                                     </Button>
                                   </Show>
                                 </li>
@@ -689,7 +689,7 @@ export function MCPDialog(props: Props) {
                             <div class="max-h-48 overflow-auto px-3 pb-2">
                               <Show
                                 when={parts().length > 0}
-                                fallback={<p class="text-meta text-text-faint">Resource returned no content.</p>}
+                                fallback={<p class="text-meta text-text-faint">{tr("mcpResourceNoContent")}</p>}
                               >
                                 <For each={parts()}>
                                   {(part) => (
@@ -721,7 +721,7 @@ export function MCPDialog(props: Props) {
                         )}
                       </Show>
                       <div class="px-3 py-2">
-                        <p class="text-caption font-[530] text-text-faint">Invoke tool</p>
+                        <p class="text-caption font-[530] text-text-faint">{tr("mcpInvokeTool")}</p>
                         <div class="mt-1 flex items-center gap-2">
                           <Input
                             value={toolName()}
@@ -731,7 +731,7 @@ export function MCPDialog(props: Props) {
                             class="min-w-32 flex-1 select-text font-mono"
                           />
                           <Button type="button" size="xs" disabled={toolBusy()} onClick={() => void callTool()}>
-                            {toolBusy() ? "Calling…" : "Call"}
+                            {toolBusy() ? tr("calling") : tr("call")}
                           </Button>
                         </div>
                         <Textarea
@@ -749,7 +749,7 @@ export function MCPDialog(props: Props) {
                             <div class="mt-2 rounded-md border border-border-base bg-bg-layer-01">
                               <div class="flex items-center gap-2 border-b border-border-base px-2 py-1 text-caption text-text-faint">
                                 <span class={result().isError ? "text-state-fg-danger" : "text-state-fg-success"}>
-                                  {result().isError ? "error" : "ok"}
+                                  {result().isError ? tr("errorLabel") : tr("ok")}
                                 </span>
                                 <Button
                                   type="button"
@@ -772,7 +772,7 @@ export function MCPDialog(props: Props) {
                               </div>
                               <div class="max-h-48 overflow-auto p-2">
                                 <Show when={result().content.length === 0 && result().structuredContent === undefined}>
-                                  <p class="text-caption text-text-faint">No content.</p>
+                                  <p class="text-caption text-text-faint">{tr("mcpNoContent")}</p>
                                 </Show>
                                 <For each={result().content}>
                                   {(part) => (

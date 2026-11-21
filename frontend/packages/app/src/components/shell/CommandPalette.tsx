@@ -142,7 +142,7 @@ export function CommandPalette(props: Props) {
           document.getElementById("command-palette-input")?.focus();
         }}
       >
-        <DialogTitle class="sr-only">Command palette</DialogTitle>
+        <DialogTitle class="sr-only">{tr("commandPaletteTitle")}</DialogTitle>
         <DialogDescription class="sr-only">{tr("dialogPaletteHint")}</DialogDescription>
 
         <div class="command-palette-search">
@@ -190,7 +190,7 @@ export function CommandPalette(props: Props) {
           >
             <Show
               when={ordered().length > 0}
-              fallback={<p class="command-palette-state">No results found</p>}
+              fallback={<p class="command-palette-state">{tr("noResultsFound")}</p>}
             >
               <For each={sections()}>
                 {(section) => (

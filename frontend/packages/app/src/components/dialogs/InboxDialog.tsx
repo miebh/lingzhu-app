@@ -127,7 +127,7 @@ export function InboxDialog(props: Props) {
               onClick={() => void saveInbox()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -141,7 +141,7 @@ export function InboxDialog(props: Props) {
             when={items().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No pending input for this session."}
+                {loading() ? tr("loading") : tr("noPendingInput")}
               </p>
             }
           >
@@ -163,7 +163,7 @@ export function InboxDialog(props: Props) {
                     title={tr("inboxToggleDeliveryMode")}
                     onClick={() => void toggle(item)}
                   >
-                    {item.delivery === "queue" ? "Queue" : "Steer"}
+                    {item.delivery === "queue" ? tr("queue") : tr("steer")}
                   </Button>
                   <Button
                     type="button"

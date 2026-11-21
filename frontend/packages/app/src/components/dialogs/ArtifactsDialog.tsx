@@ -342,7 +342,7 @@ export function ArtifactsDialog(props: Props) {
         <DialogContent size="wide" height="body" class="flex flex-col">
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0">
-              <DialogTitle>Artifacts</DialogTitle>
+              <DialogTitle>{tr("artifactsTitle")}</DialogTitle>
               <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={startCreate} disabled={loading()}>
@@ -364,7 +364,7 @@ export function ArtifactsDialog(props: Props) {
                     when={items().length > 0}
                     fallback={
                       <p class="px-2 py-1 text-meta text-text-faint">
-                        {loading() ? "Loading…" : "No artifacts yet."}
+                        {loading() ? tr("loading") : tr("noArtifacts")}
                       </p>
                     }
                   >
@@ -398,7 +398,7 @@ export function ArtifactsDialog(props: Props) {
                     when={selected()}
                     fallback={
                       <p class="p-3 text-meta text-text-faint">
-                        {loading() ? "Loading…" : "Select an artifact to preview its entry file."}
+                        {loading() ? tr("loading") : tr("selectArtifact")}
                       </p>
                     }
                   >
@@ -425,7 +425,7 @@ export function ArtifactsDialog(props: Props) {
                             size="xs"
                             onClick={() => setMode(mode() === "preview" ? "source" : "preview")}
                           >
-                            {mode() === "preview" ? "Source" : "Preview"}
+                            {mode() === "preview" ? tr("source") : tr("preview")}
                           </Button>
                           <Button type="button" variant="outline" size="xs" onClick={() => void startEdit(artifact())}>
                             <Pencil />
@@ -439,7 +439,7 @@ export function ArtifactsDialog(props: Props) {
                             onClick={() => void saveFile()}
                           >
                             <Save />
-                            {savingFile() ? "Saving…" : "Save file"}
+                            {savingFile() ? tr("saving") : tr("dialogSaveFile")}
                           </Button>
                           <Button type="button" variant="outline" size="xs" onClick={() => openRaw(artifact())}>
                             <ExternalLink />
@@ -447,7 +447,7 @@ export function ArtifactsDialog(props: Props) {
                           </Button>
                           <Button type="button" variant="outline" size="xs" onClick={() => void copyURL(artifact())}>
                             <Copy />
-                            {copied() ? "Copied" : "Copy URL"}
+                            {copied() ? tr("copied") : tr("copyUrl")}
                           </Button>
                           <Button
                             type="button"
@@ -472,7 +472,7 @@ export function ArtifactsDialog(props: Props) {
                           <div class="flex min-h-0 flex-1 flex-col overflow-auto">
                             <Show
                               when={!rawLoading()}
-                              fallback={<p class="p-3 text-meta text-text-faint">Loading preview…</p>}
+                              fallback={<p class="p-3 text-meta text-text-faint">{tr("artifactsLoadingPreview")}</p>}
                             >
                               <Show
                                 when={!rawError()}
@@ -482,7 +482,7 @@ export function ArtifactsDialog(props: Props) {
                               >
                                 <Show
                                   when={raw()}
-                                  fallback={<p class="p-3 text-meta text-text-faint">No preview.</p>}
+                                  fallback={<p class="p-3 text-meta text-text-faint">{tr("artifactsNoPreview")}</p>}
                                 >
                                   {(fileData) => (
                                     <Show
@@ -636,7 +636,7 @@ export function ArtifactsDialog(props: Props) {
                     Cancel
                   </Button>
                   <Button type="button" size="sm" disabled={saving()} onClick={() => void save()}>
-                    {saving() ? "Saving…" : draft().id ? "Save changes" : "Create artifact"}
+                    {saving() ? tr("saving") : draft().id ? tr("saveChanges") : tr("createArtifact")}
                   </Button>
                 </div>
               </div>

@@ -706,16 +706,25 @@ func (s *CoreService) Worktrees(workspace string) (core.WorktreeList, error) {
 
 // CreateWorktree creates a git worktree from one workspace.
 func (s *CoreService) CreateWorktree(workspace, name string) (core.Worktree, error) {
-	return callClient(s, workspace, func(client *core.Client) (core.Worktree, error) {
+	entry, err := callClient(s, workspace, func(client *core.Client) (core.Worktree, error) {
 		return client.CreateWorktree(s.ctx, name, "", "")
 	})
+	if err != nil {
+		return entry, err
+	}
+	s.emitWorktreeChange(workspace, entry.Path)
+	return entry, nil
 }
 
 // RemoveWorktree deletes a git worktree.
 func (s *CoreService) RemoveWorktree(workspace, path string, force bool) error {
-	return doClient(s, workspace, func(client *core.Client) error {
+	err := doClient(s, workspace, func(client *core.Client) error {
 		return client.RemoveWorktree(s.ctx, path, force)
 	})
+	if err == nil {
+		s.emitWorktreeChange(workspace, path)
+	}
+	return err
 }
 
 // Formatters lists the formatters resolved for one workspace.

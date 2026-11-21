@@ -201,7 +201,7 @@ export function LogDialog(props: Props) {
               onClick={() => void saveLog()}
             >
               <Save />
-              {savingLog() ? "Saving…" : "Save file"}
+              {savingLog() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -229,7 +229,7 @@ export function LogDialog(props: Props) {
             class="w-32 select-text font-mono"
           />
           <Button type="button" variant="outline" size="sm" disabled={replaying()} onClick={() => void replay()}>
-            {replaying() ? "Replaying…" : "Replay stream"}
+            {replaying() ? tr("replaying") : tr("replayStream")}
           </Button>
           <Button
             type="button"
@@ -238,7 +238,7 @@ export function LogDialog(props: Props) {
             disabled={replaying() || startingTail()}
             onClick={() => (tailing() ? setTailing(false) : void startTail())}
           >
-            {tailing() ? "Stop tail" : startingTail() ? "Starting…" : "Tail"}
+            {tailing() ? tr("stopTail") : startingTail() ? tr("startingNow") : tr("tail")}
           </Button>
           <Show when={notice()}>
             <span class="text-caption text-text-faint">{notice()}</span>
@@ -252,7 +252,7 @@ export function LogDialog(props: Props) {
             when={visible().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No events match."}
+                {loading() ? tr("loading") : tr("noEventsMatch")}
               </p>
             }
           >
@@ -264,7 +264,7 @@ export function LogDialog(props: Props) {
                     <div class="flex items-center gap-2 px-2 py-1.5 text-meta">
                       <button
                         type="button"
-                        aria-label={isOpen() ? "Collapse event" : "Expand event"}
+                        aria-label={isOpen() ? tr("collapseEvent") : tr("expandEvent")}
                         onClick={() =>
                           update(setExpanded, expanded, (current) => ({ ...current, [event.seq]: !isOpen() }))
                         }
@@ -293,7 +293,7 @@ export function LogDialog(props: Props) {
                       </pre>
                     </Show>
                     <Show when={copied() === event.seq}>
-                      <p class="px-10 pb-1 text-caption text-text-faint">Copied event JSON.</p>
+                      <p class="px-10 pb-1 text-caption text-text-faint">{tr("logCopiedEvent")}</p>
                     </Show>
                   </div>
                 );

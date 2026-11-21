@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show, untrack }
 import { ChevronRight, FolderClosed, Plus, Search, X } from "@lingzhu/ui/icons";
 import { Button } from "@lingzhu/ui/button";
 import { Input } from "@lingzhu/ui/input";
+import { Textarea } from "@lingzhu/ui/textarea";
 import { Switch } from "@lingzhu/ui/switch";
 import { api } from "../../lib/api";
 import { messageOf } from "../../lib/errors";
@@ -18,7 +19,7 @@ interface Props {
   onAdd: () => void;
   onRemove: (path: string) => void;
   preferences: AppPreferences;
-  onSavePreferences: (preferences: AppPreferences) => void;
+  onSavePreferences: (preferences: AppPreferences) => Promise<boolean> | void;
 }
 
 /** Project cards, search, and the nested project settings page. */
@@ -29,13 +30,34 @@ export function ProjectsSection(props: Props) {
   const [error, setError] = createSignal("");
   const [name, setName] = createSignal("");
   const [startup, setStartup] = createSignal("");
+  const [startupSaved, setStartupSaved] = createSignal<boolean>();
   const needle = createMemo(() => query().trim().toLowerCase());
   const nameFor = (project: WorkspaceInfo) => props.preferences.projectNames[project.path] || project.name;
   const saveMap = (key: "projectIcons" | "projectColors" | "projectWorktreeStartup", path: string, value: string) => {
+    const trimmed = value.trim();
+    if (trimmed === (props.preferences[key][path] ?? "")) return;
     const next = { ...props.preferences[key] };
-    if (value.trim()) next[path] = value.trim();
+    if (trimmed) next[path] = trimmed;
     else delete next[path];
     props.onSavePreferences({ ...props.preferences, [key]: next });
+  };
+  const saveStartup = async () => {
+    const project = selected();
+    if (!project) return;
+    const value = startup().trim();
+    if (value === (props.preferences.projectWorktreeStartup[project.path] ?? "")) {
+      setStartupSaved(undefined);
+      return;
+    }
+    const next = { ...props.preferences.projectWorktreeStartup };
+    if (value) next[project.path] = value;
+    else delete next[project.path];
+    try {
+      const saved = await props.onSavePreferences({ ...props.preferences, projectWorktreeStartup: next });
+      setStartupSaved(saved !== false);
+    } catch {
+      setStartupSaved(false);
+    }
   };
   const filtered = createMemo(() =>
     needle()
@@ -53,6 +75,7 @@ export function ProjectsSection(props: Props) {
     const preferences = untrack(() => props.preferences);
     setName(preferences.projectNames[project.path] || project.name);
     setStartup(preferences.projectWorktreeStartup[project.path] || "");
+    setStartupSaved(undefined);
     let live = true;
     void api
       .project(project.path)
@@ -229,19 +252,34 @@ export function ProjectsSection(props: Props) {
               />
             </SettingsRow>
             <SettingsField label={t("worktreeStartup")} hint={t("worktreeStartupHint")}>
-              <Input
+              <Textarea
+                rows={5}
                 value={startup()}
                 aria-label={t("worktreeStartup")}
                 placeholder="npm install"
-                onInput={(event) => setStartup(event.currentTarget.value)}
-                onBlur={() => saveMap("projectWorktreeStartup", project().path, startup())}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") return;
-                  event.preventDefault();
-                  event.currentTarget.blur();
+                spellcheck={false}
+                onInput={(event) => {
+                  setStartup(event.currentTarget.value);
+                  setStartupSaved(undefined);
                 }}
-                class="select-text font-mono"
+                onBlur={() => void saveStartup()}
+                class="select-text resize-y font-mono"
               />
+              <Show when={startupSaved() === false}>
+                <div class="flex items-center gap-2">
+                  <span class="text-caption leading-4 text-state-fg-danger">
+                    {t("worktreeStartupSaveFailed")}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void saveStartup()}
+                  >
+                    {t("retry")}
+                  </Button>
+                </div>
+              </Show>
             </SettingsField>
             <SettingsRow title={t("projectAutoApprove")} description={t("projectAutoApproveDesc")}>
               <Switch

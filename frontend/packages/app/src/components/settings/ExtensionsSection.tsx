@@ -192,7 +192,7 @@ export function ExtensionsSection(props: Props) {
   return (
     <div class="flex flex-col gap-6">
       <SegmentedControl
-        label="Extensions"
+        label={t("extensions")}
         value={tab()}
         options={TAB_OPTIONS.map((item) => ({ value: item.value, label: t(item.key as never) }))}
         onChange={(value) => setTab(value)}

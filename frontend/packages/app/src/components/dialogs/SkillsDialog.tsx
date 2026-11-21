@@ -241,7 +241,7 @@ export function SkillsDialog(props: Props) {
           </div>
           <div class="flex items-center gap-2">
             <Button type="button" variant="outline" size="xs" onClick={() => setCreating(!creating())}>
-              {creating() ? "Cancel" : "New skill"}
+              {creating() ? tr("cancel") : tr("newSkill")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load(true)} />
           </div>
@@ -297,7 +297,7 @@ export function SkillsDialog(props: Props) {
               when={skills().length > 0}
               fallback={
                 <p class="p-3 text-meta text-text-faint">
-                  {loading() ? "Loading…" : "No skills discovered for this workspace."}
+                  {loading() ? tr("loading") : tr("noSkills")}
                 </p>
               }
             >
@@ -314,7 +314,7 @@ export function SkillsDialog(props: Props) {
                       <span class="text-body text-text-base">{skill.name || skill.id}</span>
                       <span class="font-mono text-caption text-text-faint">{skill.id}</span>
                       <Show when={skill.autoinvoke === false}>
-                        <span class="text-caption text-text-faint">manual</span>
+                        <span class="text-caption text-text-faint">{tr("skillManual")}</span>
                       </Show>
                     </span>
                     <Show when={skill.description}>
@@ -333,7 +333,7 @@ export function SkillsDialog(props: Props) {
                   {detail()?.name || name() || "No skill selected"}
                 </p>
                 <Show when={detail()?.autoinvoke}>
-                  <span class="shrink-0 text-caption text-state-fg-success">auto</span>
+                  <span class="shrink-0 text-caption text-state-fg-success">{tr("skillAuto")}</span>
                 </Show>
                 <Show when={name().trim()}>
                   <Button
@@ -364,11 +364,11 @@ export function SkillsDialog(props: Props) {
                 )}
               </Show>
               <Show when={detailLoading()}>
-                <p class="mt-2 text-meta text-text-faint">Loading…</p>
+                <p class="mt-2 text-meta text-text-faint">{tr("loading")}</p>
               </Show>
               <Show when={detail()?.files && detail()!.files!.length > 0}>
                 <div class="mt-2">
-                  <p class="text-caption text-text-faint">Files</p>
+                  <p class="text-caption text-text-faint">{tr("skillFiles")}</p>
                   <div class="mt-1 flex flex-wrap gap-1">
                     <For each={detail()?.files ?? []}>
                       {(file) => (
@@ -385,7 +385,7 @@ export function SkillsDialog(props: Props) {
                   </div>
                 </div>
               </Show>
-              <p class="mt-2 text-caption text-text-faint">Instructions</p>
+              <p class="mt-2 text-caption text-text-faint">{tr("skillInstructions")}</p>
               <pre class="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-caption leading-5 text-text-muted select-text">
                 {detail()?.content || "Select a skill to preview its instructions."}
               </pre>
@@ -395,7 +395,7 @@ export function SkillsDialog(props: Props) {
               <div class="rounded-md border border-border-base bg-bg-layer-01 p-2">
                 <div class="flex items-center gap-2">
                   <p class="min-w-0 flex-1 truncate font-mono text-caption text-text-muted">
-                    {preview()?.path || "Loading…"}
+                    {preview()?.path || tr("loading")}
                   </p>
                   <Show when={preview()?.path}>
                     {(path) => (
@@ -415,7 +415,7 @@ export function SkillsDialog(props: Props) {
                 </div>
                 <Show
                   when={!previewLoading()}
-                  fallback={<p class="mt-2 text-meta text-text-faint">Loading…</p>}
+                  fallback={<p class="mt-2 text-meta text-text-faint">{tr("loading")}</p>}
                 >
                   <Show
                     when={!preview()?.error}
@@ -460,7 +460,7 @@ export function SkillsDialog(props: Props) {
             </label>
             <Button type="button" size="sm" class="self-end" disabled={busy()} onClick={() => void invoke()}>
               <Play />
-              {busy() ? "Starting…" : "Run skill"}
+              {busy() ? tr("startingNow") : tr("runSkill")}
             </Button>
             <p class="text-caption text-text-faint">
               The skill becomes a new user turn; its output appears in the chat.

@@ -10,7 +10,7 @@ interface PreferencesStore {
   preferences: AppPreferences;
   /** Reads the stored preferences once; later calls reuse the same promise. */
   hydrate: () => Promise<void>;
-  save: (next: AppPreferences) => Promise<void>;
+  save: (next: AppPreferences) => Promise<boolean>;
 }
 
 let hydration: Promise<void> | undefined;
@@ -41,10 +41,12 @@ export const usePreferencesStore = createStore<PreferencesStore>((set, get) => (
     applyPreferences(preferences);
     try {
       await api.savePreferences(preferences);
+      return true;
     } catch (error) {
       set({ preferences: previous });
       applyPreferences(previous);
       notify(messageOf(error));
+      return false;
     }
   },
 }));

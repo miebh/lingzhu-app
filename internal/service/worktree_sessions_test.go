@@ -27,7 +27,7 @@ func TestWorktreeSessionsCountsByPlacement(t *testing.T) {
 CREATE TABLE events (session_id TEXT NOT NULL, seq INTEGER NOT NULL, type TEXT NOT NULL, at INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (session_id, seq));`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO sessions(id, directory, updated) VALUES('s1', ?, 1);
+	if _, err := db.Exec(`INSERT INTO sessions(id, title, directory, updated) VALUES('s1', 'Session one', ?, 1700000000000);
 INSERT INTO events(session_id, seq, type, at, data) VALUES('s1', 1, 'user.message', 1, '{}');`, opened); err != nil {
 		t.Fatal(err)
 	}
@@ -41,5 +41,18 @@ INSERT INTO events(session_id, seq, type, at, data) VALUES('s1', 1, 'user.messag
 	}
 	if counts[unopened] != 0 {
 		t.Fatalf("unopened worktree count = %d, want 0", counts[unopened])
+	}
+	details, err := service.WorktreeSessionDetails([]string{opened, unopened})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(details[opened]) != 1 || details[opened][0].Title != "Session one" {
+		t.Fatalf("opened worktree sessions = %+v, want the recorded session", details[opened])
+	}
+	if len(details[unopened]) != 0 {
+		t.Fatalf("unopened worktree sessions = %+v, want none", details[unopened])
+	}
+	if !pathContains(opened, filepath.Join(opened, "nested")) || pathContains(opened, unopened) {
+		t.Fatal("path containment should include children and exclude siblings")
 	}
 }

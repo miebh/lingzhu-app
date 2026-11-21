@@ -113,7 +113,7 @@ export function MediaDialog(props: Props) {
       <DialogContent size="wide" height="body" class="flex flex-col">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <DialogTitle>Media</DialogTitle>
+            <DialogTitle>{tr("mediaTitle")}</DialogTitle>
             <DialogDescription class="truncate">
               {props.title ? `${props.title} · ` : ""}
               {tr("dialogMediaHint")}
@@ -128,7 +128,7 @@ export function MediaDialog(props: Props) {
               onClick={() => void saveIndex()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save index"}
+              {saving() ? tr("saving") : tr("saveIndex")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -143,7 +143,7 @@ export function MediaDialog(props: Props) {
               when={items().length > 0}
               fallback={
                 <p class="px-2 py-1 text-meta text-text-faint">
-                  {loading() ? "Loading…" : "No media in this session."}
+                  {loading() ? tr("loading") : tr("noMedia")}
                 </p>
               }
             >
@@ -178,7 +178,7 @@ export function MediaDialog(props: Props) {
           <div class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border-base bg-bg-base">
             <Show
               when={current()}
-              fallback={<p class="p-3 text-meta text-text-faint">Select media to preview it.</p>}
+              fallback={<p class="p-3 text-meta text-text-faint">{tr("mediaSelectPreview")}</p>}
             >
               {(item) => (
                 <>

@@ -58,12 +58,12 @@ const GROUPS: { label?: string; items: SectionItem[] }[] = [
       { id: "general", label: "General", description: "settingsGeneralDesc", icon: SlidersHorizontal },
       { id: "notifications", label: "Notifications", description: "settingsNotificationsDesc", icon: Bell },
       { id: "shortcuts", label: "Shortcuts", description: "settingsShortcutsDesc", icon: Keyboard },
-      { id: "servers", label: "Servers", description: "Local cores, permissions and execution limits.", icon: Server },
+      { id: "servers", label: "Servers", description: "settingsServersDesc", icon: Server },
     ],
   },
   {
     items: [
-      { id: "experimental", label: "Experimental", description: "Opt-in sidebar organization.", icon: Flask },
+      { id: "experimental", label: "Experimental", description: "settingsExperimentalDesc", icon: Flask },
       { id: "about", label: "About", description: "settingsAboutDesc", icon: Info },
     ],
   },
@@ -100,7 +100,7 @@ interface Props {
   /** Session counts keyed by directory, for the Worktrees page. */
   sessionCounts?: Record<string, number>;
   preferences: AppPreferences;
-  onSavePreferences: (preferences: AppPreferences) => Promise<void>;
+  onSavePreferences: (preferences: AppPreferences) => Promise<boolean>;
   /** Receives the workspaces whose core was not restarted by this app. */
   onSaved: (reused: string[]) => void;
   /** Leaves settings; the rail's back button uses it. */
@@ -147,9 +147,7 @@ export function SettingsPage(props: Props) {
     });
   });
 
-  const savePreferences = (next: AppPreferences) => {
-    void props.onSavePreferences(next);
-  };
+  const savePreferences = (next: AppPreferences) => props.onSavePreferences(next);
 
   const active = () => SECTIONS.find((item) => item.id === props.section) ?? SECTIONS[0];
 
@@ -240,7 +238,7 @@ export function SettingsPage(props: Props) {
           <div class="flex min-w-0 max-w-settings flex-1 flex-col">
             <div class="flex items-center gap-2 px-3 pt-4 md:hidden">
               <SettingsSelect
-                label="Settings section"
+                label={t("settingsSectionLabel")}
                 value={props.section}
                 options={SECTIONS.map((item) => ({
                   value: item.id,
@@ -285,7 +283,7 @@ export function SettingsPage(props: Props) {
               <div class="flex shrink-0 flex-col gap-1 border-b border-border-base py-2">
                 <Show when={props.busy}>
                   <p class="text-caption leading-4 text-state-fg-warning">
-                    A session is still running. Stop it before changing core settings.
+                    {t("settingsBusy")}
                   </p>
                 </Show>
                 <Show when={saveError()}>
@@ -332,7 +330,7 @@ export function SettingsPage(props: Props) {
                           {settingsError()}
                         </p>
                         <Button variant="outline" size="sm" onClick={reload}>
-                          Retry
+                          {t("retry")}
                         </Button>
                       </div>
                     </Show>
@@ -389,6 +387,7 @@ export function SettingsPage(props: Props) {
                           </Show>
                           <Show when={item.id === "worktrees"}>
                             <WorktreesSection
+                              active={props.section === "worktrees"}
                               workspace={props.workspace}
                               workspaces={props.workspaces}
                               sessionCounts={props.sessionCounts}

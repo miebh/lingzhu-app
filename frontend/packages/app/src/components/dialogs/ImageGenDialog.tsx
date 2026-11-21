@@ -135,7 +135,7 @@ export function ImageGenDialog(props: Props) {
                   current().configured ? "text-state-fg-success" : "text-state-fg-warning"
                 }`}
               >
-                {current().model || "no model"} · {current().configured ? "configured" : "not configured"}
+                {current().model || tr("noModel")} · {current().configured ? tr("configured") : tr("notConfigured")}
               </span>
             )}
           </Show>
@@ -166,7 +166,7 @@ export function ImageGenDialog(props: Props) {
               onClick={() => void generate()}
             >
               {loading() ? <Loader /> : <ImagePlus />}
-              {loading() ? "Generating…" : "Generate"}
+              {loading() ? tr("generating") : tr("generate")}
             </Button>
           </div>
 
@@ -183,7 +183,7 @@ export function ImageGenDialog(props: Props) {
               when={result()}
               fallback={
                 <p class="p-3 text-meta text-text-faint">
-                  {loading() ? "Generating image…" : "Generated images appear here."}
+                  {loading() ? tr("generatingImage") : tr("generatedImages")}
                 </p>
               }
             >
@@ -201,7 +201,7 @@ export function ImageGenDialog(props: Props) {
                       onClick={() => void saveResult()}
                     >
                       <Save />
-                      {saving() ? "Saving…" : "Save file"}
+                      {saving() ? tr("saving") : tr("dialogSaveFile")}
                     </Button>
                     <Button type="button" variant="outline" size="xs" onClick={openResult}>
                       <ExternalLink />

@@ -49,7 +49,7 @@ export function ProviderDialog(props: Props) {
     try {
       const models = await api.providerModels(source.id, source.baseUrl, source.apiKey, source.apiKeyEnv);
       if (models.length === 0) {
-        setError("The endpoint returned no models.");
+        setError(tr("providerNoModels"));
         return;
       }
       update(setDraft, draft, (current) => {
@@ -134,7 +134,7 @@ export function ProviderDialog(props: Props) {
     if (!current) return;
     const id = newModel().trim();
     if (!id) {
-      setError("Model id is required.");
+      setError(tr("providerModelIDRequired"));
       return;
     }
     if (current.models.some((model) => model.id === id)) {
@@ -151,7 +151,7 @@ export function ProviderDialog(props: Props) {
     if (!current) return;
     const id = current.id.trim();
     if (!id) {
-      setError("Provider id is required.");
+      setError(tr("providerIDRequired"));
       setAdvancedOpen(true);
       return;
     }
@@ -161,7 +161,7 @@ export function ProviderDialog(props: Props) {
     }
     const baseUrl = current.baseUrl.trim();
     if (!/^https?:\/\/[^\s/]+/i.test(baseUrl)) {
-      setError("Base URL must be an absolute http(s) URL.");
+      setError(tr("providerBaseURLInvalid"));
       setAdvancedOpen(true);
       return;
     }
@@ -169,7 +169,7 @@ export function ProviderDialog(props: Props) {
     for (const model of current.models) {
       const modelID = model.id.trim();
       if (!modelID) {
-        setError("Every model needs an id.");
+        setError(tr("providerEveryModelID"));
         setAdvancedOpen(true);
         return;
       }
@@ -218,40 +218,42 @@ export function ProviderDialog(props: Props) {
               </span>
               <div class="flex min-w-0 flex-1 flex-col gap-0.5">
                 <DialogTitle>
-                  {editing() ? `Edit ${draft()!.name || draft()!.id}` : `Connect ${draft()!.name || "provider"}`}
+                  {editing()
+                    ? tr("providerEditTitle", { name: draft()!.name || draft()!.id })
+                    : tr("providerConnectTitle", {
+                        name: draft()!.name || tr("providerDefaultName"),
+                      })}
                 </DialogTitle>
                 <Show when={!connect()}>
                   <span class="truncate font-mono text-caption text-text-faint" title={draft()!.baseUrl}>
-                    {draft()!.baseUrl || "Custom endpoint"}
+                    {draft()!.baseUrl || tr("providerCustomEndpoint")}
                   </span>
                 </Show>
               </div>
             </div>
             <DialogDescription class={connect() ? "mt-0 px-5 text-body leading-5" : "mt-0 px-6"}>
-              {draft()!.apiKeySet
-                ? "A key is stored. Leave this blank to keep it."
-                : "The key is written to the shared config and never returned to the client."}
+              {draft()!.apiKeySet ? tr("providerAPIKeyStored") : tr("providerAPIKeyWritten")}
             </DialogDescription>
 
             <div class={connect() ? "mt-0 flex flex-col gap-5 px-5 pb-2" : "mt-0 flex flex-col gap-6 px-4 pt-4 pb-2"}>
               <label class="flex flex-col gap-2">
-                <span class="text-body font-[530] leading-4 text-text-base">API key</span>
+                <span class="text-body font-[530] leading-4 text-text-base">{tr("providerProviderAPIKey")}</span>
                 <Input
                   type="password"
                   autocomplete="off"
                   autofocus
                   value={draft()!.apiKey}
                   aria-label={tr("providerProviderAPIKey")}
-                  placeholder={draft()!.apiKeySet ? "Stored in config" : "sk-…"}
+                  placeholder={draft()!.apiKeySet ? tr("providerStoredInConfig") : "sk-…"}
                   onInput={(event) => patchDraft({ apiKey: event.currentTarget.value })}
                   class="select-text"
                 />
                 <Show when={draft()!.clearKey}>
-                  <span class="text-caption text-state-fg-warning">Key will be removed on save.</span>
+                  <span class="text-caption text-state-fg-warning">{tr("providerAPIKeyWillBeRemoved")}</span>
                 </Show>
                 <Show when={draft()!.id === "magpie"}>
                   <span class="text-caption text-text-faint">
-                    The local gateway accepts any key; magpie-lingzhu attributes usage to Lingzhu.
+                    {tr("providerMagpieKeyHint")}
                   </span>
                 </Show>
               </label>
@@ -263,13 +265,13 @@ export function ProviderDialog(props: Props) {
                 class="interactive flex h-control-xs items-center gap-1 self-start rounded-md px-1 text-meta text-text-muted hover:text-text-base"
               >
                 <ChevronDown class={`size-3 transition-transform ${advancedOpen() ? "rotate-180" : ""}`} />
-                Advanced
+                {tr("advanced")}
               </button>
 
               <Show when={advancedOpen()}>
                 <div class="flex flex-col gap-4 border-t border-border-base pt-4">
                   <div class="flex flex-col gap-3">
-                    <Field label="Provider id">
+                    <Field label={tr("providerProviderId")}>
                       <Input
                         size="sm"
                         value={draft()!.id}
@@ -279,7 +281,7 @@ export function ProviderDialog(props: Props) {
                         class="select-text font-mono"
                       />
                     </Field>
-                    <Field label="Name">
+                    <Field label={tr("providerProviderName")}>
                       <Input
                         size="sm"
                         value={draft()!.name}
@@ -288,7 +290,7 @@ export function ProviderDialog(props: Props) {
                         class="select-text"
                       />
                     </Field>
-                    <Field label="Base URL">
+                    <Field label={tr("providerProviderBaseURL")}>
                       <Input
                         size="sm"
                         value={draft()!.baseUrl}
@@ -298,7 +300,7 @@ export function ProviderDialog(props: Props) {
                         class="select-text font-mono"
                       />
                     </Field>
-                    <Field label="Key environment variable">
+                    <Field label={tr("providerProviderKeyEnvironmentVariable")}>
                       <Input
                         size="sm"
                         value={draft()!.apiKeyEnv}
@@ -308,7 +310,7 @@ export function ProviderDialog(props: Props) {
                         class="select-text font-mono"
                       />
                     </Field>
-                    <Field label="Hidden models (blacklist)">
+                    <Field label={tr("providerProviderModelBlacklist")}>
                       <Input
                         size="sm"
                         value={draft()!.blacklist ?? ""}
@@ -318,7 +320,7 @@ export function ProviderDialog(props: Props) {
                         class="select-text font-mono"
                       />
                     </Field>
-                    <Field label="Only these models (whitelist)">
+                    <Field label={tr("providerProviderModelWhitelist")}>
                       <Input
                         size="sm"
                         value={draft()!.whitelist ?? ""}
@@ -332,7 +334,7 @@ export function ProviderDialog(props: Props) {
 
                   <div class="flex flex-col gap-2">
                     <div class="flex items-center gap-2">
-                      <span class="text-meta text-text-muted">Models</span>
+                      <span class="text-meta text-text-muted">{tr("models")}</span>
                       <span class="text-caption text-text-faint">{draft()!.models.length}</span>
                       <span class="flex-1" />
                       <Button
@@ -344,7 +346,7 @@ export function ProviderDialog(props: Props) {
                         class="text-text-faint hover:text-text-base"
                       >
                         <RefreshCw class={fetchingModels() ? "animate-spin" : undefined} />
-                        {fetchingModels() ? "Fetching" : "Refresh"}
+                        {fetchingModels() ? tr("providerFetching") : tr("refresh")}
                       </Button>
                       <Button
                         type="button"
@@ -392,12 +394,12 @@ export function ProviderDialog(props: Props) {
                             size="sm"
                             value={model.name}
                             aria-label={`Model ${index() + 1} name`}
-                            placeholder={model.id || "Display name"}
+                            placeholder={model.id || tr("providerDisplayName")}
                             onInput={(event) => updateModel(index(), { name: event.currentTarget.value })}
                             class="select-text"
                           />
                           <div class="grid grid-cols-2 gap-2">
-                            <Field label="Max output tokens">
+                            <Field label={tr("providerMaxOutputTokens")}>
                               <Input
                                 size="sm"
                                 inputmode="numeric"
@@ -410,7 +412,7 @@ export function ProviderDialog(props: Props) {
                                 class="select-text text-right"
                               />
                             </Field>
-                            <Field label="Input $/M tokens">
+                            <Field label={tr("providerInputCost")}>
                               <Input
                                 size="sm"
                                 inputmode="decimal"
@@ -421,7 +423,7 @@ export function ProviderDialog(props: Props) {
                                 class="select-text text-right"
                               />
                             </Field>
-                            <Field label="Output $/M tokens">
+                            <Field label={tr("providerOutputCost")}>
                               <Input
                                 size="sm"
                                 inputmode="decimal"
@@ -432,7 +434,7 @@ export function ProviderDialog(props: Props) {
                                 class="select-text text-right"
                               />
                             </Field>
-                            <Field label="Cache read $/M">
+                            <Field label={tr("providerCacheReadCost")}>
                               <Input
                                 size="sm"
                                 inputmode="decimal"
@@ -445,7 +447,7 @@ export function ProviderDialog(props: Props) {
                                 class="select-text text-right"
                               />
                             </Field>
-                            <Field label="Cache write $/M">
+                            <Field label={tr("providerCacheWriteCost")}>
                               <Input
                                 size="sm"
                                 inputmode="decimal"
@@ -461,7 +463,7 @@ export function ProviderDialog(props: Props) {
                           </div>
                           <div class="flex flex-wrap items-center gap-4">
                             <label class="flex items-center gap-2 text-caption text-text-muted">
-                              Tools
+                              {tr("providerTools")}
                               <Switch
                                 aria-label={`Model ${index() + 1} supports tools`}
                                 checked={model.toolCall !== false}
@@ -471,7 +473,7 @@ export function ProviderDialog(props: Props) {
                               />
                             </label>
                             <label class="flex items-center gap-2 text-caption text-text-muted">
-                              Reasoning
+                              {tr("providerReasoning")}
                               <Switch
                                 aria-label={`Model ${index() + 1} returns reasoning`}
                                 checked={model.reasoning === true}
@@ -481,7 +483,7 @@ export function ProviderDialog(props: Props) {
                               />
                             </label>
                             <label class="flex items-center gap-2 text-caption text-text-muted">
-                              Vision
+                              {tr("providerVision")}
                               <Switch
                                 aria-label={`Model ${index() + 1} takes images`}
                                 checked={model.attachment === true}
@@ -492,7 +494,7 @@ export function ProviderDialog(props: Props) {
                             </label>
                           </div>
                           <label class="flex flex-col gap-1">
-                            <span class="text-caption text-text-faint">Modalities (JSON)</span>
+                            <span class="text-caption text-text-faint">{tr("providerModalities")}</span>
                             <Textarea
                               value={model.modalities ?? ""}
                               aria-label={`Model ${index() + 1} modalities`}
@@ -502,7 +504,7 @@ export function ProviderDialog(props: Props) {
                             />
                           </label>
                           <label class="flex flex-col gap-1">
-                            <span class="text-caption text-text-faint">Request options (JSON)</span>
+                            <span class="text-caption text-text-faint">{tr("providerRequestOptions")}</span>
                             <Textarea
                               value={model.options ?? ""}
                               aria-label={`Model ${index() + 1} options`}
@@ -512,7 +514,7 @@ export function ProviderDialog(props: Props) {
                             />
                           </label>
                           <label class="flex flex-col gap-1">
-                            <span class="text-caption text-text-faint">Variants (JSON)</span>
+                            <span class="text-caption text-text-faint">{tr("providerVariants")}</span>
                             <Textarea
                               value={model.variants ?? ""}
                               aria-label={`Model ${index() + 1} variants`}
@@ -563,11 +565,11 @@ export function ProviderDialog(props: Props) {
               }
             >
               <Show when={props.busy}>
-                <span class="mr-auto text-caption text-state-fg-warning">Stop running sessions before saving.</span>
+                <span class="mr-auto text-caption text-state-fg-warning">{tr("providerStopBeforeSave")}</span>
               </Show>
               <Show when={!connect()}>
                 <Button type="button" variant="outline" size="default" onClick={() => props.onOpenChange(false)}>
-                  Cancel
+                  {tr("cancel")}
                 </Button>
               </Show>
               <Button
@@ -576,7 +578,7 @@ export function ProviderDialog(props: Props) {
                 onClick={submit}
                 disabled={props.busy || fetchingModels()}
               >
-                {editing() ? "Save" : "Connect"}
+                {editing() ? tr("save") : tr("connectAction")}
               </Button>
             </div>
           </DialogContent>

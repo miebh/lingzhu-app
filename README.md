@@ -115,6 +115,16 @@ frontend/apps/desktop/bindings  Generated from Go; not committed, run `wails3 ge
 - Solid helpers follow the reference stack: `@solid-primitives/media` owns the mobile breakpoint,
   `resize-observer` and `event-listener` own panel/tab observers and global listeners,
   `@tanstack/solid-virtual` drives the transcript and `fuzzysort` ranks palette and settings searches.
+- The Worktrees settings page lists only checkouts created by the app, one row per repository,
+  with linked session titles and last-active times. It loads lazily and refreshes after app-side
+  create/remove events. Deleting one checkout checks git status, linked sessions and the active
+  workspace, offers Retry when the check fails, and force-removes after confirmation; bulk removal
+  skips dirty, linked or active checkouts.
+- Project settings edit the worktree startup command in a multiline field and report a failed save
+  with Retry.
+- User-facing copy comes from the shared i18n catalog in `packages/ui/src/i18n`; English and Chinese
+  cover settings, dialogs, permission/question cards and the command palette. Paths, branches, model
+  IDs and commands stay verbatim.
 - Frontend state lives in vanilla stores under `packages/app/src/store` (notify, preferences, catalog,
   view, workspaces, chat). Stores are module singletons, so the tree has no provider chain; a Solid
   binding (`store/create.ts`) turns each selector into an accessor that follows store updates. One

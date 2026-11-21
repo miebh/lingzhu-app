@@ -364,7 +364,7 @@ export function Sidebar(props: Props) {
         if (!"new session".includes(needle)) continue;
         hits.push({
           workspace,
-          session: { id: chat.id, title: "New Session", updated: "" },
+          session: { id: chat.id, title: tr("newSession"), updated: "" },
           chat,
           draft: true,
         });
@@ -550,7 +550,7 @@ export function Sidebar(props: Props) {
           }
         >
           <span class="sr-only" aria-live="polite">
-            {selected().size} selected
+            {tr("selectedCount", { count: selected().size })}
           </span>
           <span class="flex-1 truncate text-body leading-4 font-medium text-text-muted">
             {embedded() ? tr("projects") : tr("workspaces")}
@@ -691,7 +691,7 @@ export function Sidebar(props: Props) {
                               <For each={draftRows()}>
                                 {(chat) => (
                                   <SessionRow
-                                    session={{ id: chat.id, title: "New Session", updated: "" }}
+                                    session={{ id: chat.id, title: tr("newSession"), updated: "" }}
                                     active={isActive() && chat.id === props.activeId}
                                     chat={chat}
                                     draft

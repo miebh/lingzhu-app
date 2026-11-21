@@ -8,6 +8,7 @@ import { messageOf } from "../../lib/errors";
 import type { RevertState } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
+import { useT } from "@lingzhu/ui/i18n";
 
 interface Props {
   open: boolean;
@@ -22,6 +23,7 @@ interface Props {
 
 /** Stages a revert to one user turn, or reapplies a staged revert. */
 export function RevertDialog(props: Props) {
+  const tr = useT();
   const [state, setState] = createSignal<RevertState>();
   const [selected, setSelected] = createSignal<number>();
   const [loading, setLoading] = createSignal(false);
@@ -118,11 +120,13 @@ export function RevertDialog(props: Props) {
           <div class="min-w-0">
             <DialogTitle class="flex items-center gap-2">
               <History class="size-4 text-text-faint" />
-              Revert
+              {tr("revertTitle")}
             </DialogTitle>
             <DialogDescription class="truncate">
               {props.title ? `${props.title} · ` : ""}
-              {state()?.active ? `staged at turn ${state()!.turnSeq}` : `${state()?.turns.length ?? 0} turns`}
+              {state()?.active
+                ? tr("stagedAtTurn", { seq: state()!.turnSeq ?? 0 })
+                : tr("turnCount", { count: state()?.turns.length ?? 0 })}
             </DialogDescription>
           </div>
           <RefreshButton loading={loading()} onRefresh={() => void load()} />
@@ -140,7 +144,7 @@ export function RevertDialog(props: Props) {
                   when={state() && state()!.turns.length > 0}
                   fallback={
                     <p class="p-3 text-meta text-text-faint">
-                      {loading() ? "Loading…" : "No user turns to revert."}
+                      {loading() ? tr("loading") : tr("noUserTurnsRevert")}
                     </p>
                   }
                 >
@@ -159,7 +163,7 @@ export function RevertDialog(props: Props) {
                           {turn.text || "(no text)"}
                         </span>
                         <span class="shrink-0 text-caption text-text-faint">
-                          {turn.hasSnapshot ? "snapshot" : "no snapshot"}
+                          {turn.hasSnapshot ? tr("hasSnapshot") : tr("noSnapshot")}
                         </span>
                       </button>
                     )}
@@ -179,7 +183,7 @@ export function RevertDialog(props: Props) {
                   onClick={() => void revert()}
                 >
                   <History />
-                  {busy() ? "Reverting…" : chosen() ? `Revert to #${chosen()!.seq}` : "Revert"}
+                  {busy() ? tr("reverting") : chosen() ? tr("revertTo", { seq: chosen()!.seq }) : tr("revertAction")}
                 </Button>
               </div>
             </>
@@ -199,7 +203,7 @@ export function RevertDialog(props: Props) {
             </Show>
             <Button type="button" size="sm" class="mt-2" disabled={busy()} onClick={() => void reapply()}>
               <Undo2 />
-              {busy() ? "Reapplying…" : "Reapply"}
+              {busy() ? tr("reapplying") : tr("reapply")}
             </Button>
           </div>
         </Show>

@@ -102,19 +102,19 @@ export function UsageOverviewDialog(props: Props) {
             when={usage() && usage()!.sessions.length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No usage recorded yet."}
+                {loading() ? tr("loading") : tr("usageNoRecorded")}
               </p>
             }
           >
             <table class="w-full text-meta">
               <thead class="sticky top-0 bg-bg-layer-01 text-caption text-text-faint">
                 <tr>
-                  <th class="px-3 py-1.5 text-left font-normal">Session</th>
-                  <th class="px-2 py-1.5 text-right font-normal">Calls</th>
-                  <th class="px-2 py-1.5 text-right font-normal">Input</th>
-                  <th class="px-2 py-1.5 text-right font-normal">Output</th>
-                  <th class="px-2 py-1.5 text-right font-normal">Cache</th>
-                  <th class="px-3 py-1.5 text-right font-normal">Total</th>
+                  <th class="px-3 py-1.5 text-left font-normal">{tr("usageSession")}</th>
+                  <th class="px-2 py-1.5 text-right font-normal">{tr("usageCalls")}</th>
+                  <th class="px-2 py-1.5 text-right font-normal">{tr("usageInput")}</th>
+                  <th class="px-2 py-1.5 text-right font-normal">{tr("usageOutput")}</th>
+                  <th class="px-2 py-1.5 text-right font-normal">{tr("usageCache")}</th>
+                  <th class="px-3 py-1.5 text-right font-normal">{tr("usageTotal")}</th>
                 </tr>
               </thead>
               <tbody>

@@ -101,7 +101,7 @@ export function JobsOverviewDialog(props: Props) {
             when={jobs().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No background jobs in this workspace."}
+                {loading() ? tr("loading") : tr("noWorkspaceJobs")}
               </p>
             }
           >
@@ -155,7 +155,7 @@ export function JobsOverviewDialog(props: Props) {
                       onClick={() => void cancelJob(job)}
                     >
                       <Ban />
-                      {cancelling() === job.id ? "Cancelling…" : "Cancel"}
+                      {cancelling() === job.id ? tr("cancelling") : tr("cancel")}
                     </Button>
                   </Show>
                 </div>

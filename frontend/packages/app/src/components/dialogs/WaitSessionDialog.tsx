@@ -84,7 +84,7 @@ export function WaitSessionDialog(props: Props) {
             </DialogTitle>
             <DialogDescription class="truncate">
               {props.title ? `${props.title} · ` : ""}
-              {running() === undefined ? "state unknown" : running() ? "running now" : "idle now"}
+              {running() === undefined ? tr("stateUnknown") : running() ? tr("runningNow") : tr("idleNow")}
             </DialogDescription>
           </div>
           <Button
@@ -120,10 +120,10 @@ export function WaitSessionDialog(props: Props) {
 
         <div class="mt-2 flex items-center justify-between gap-2">
           <p class="text-caption text-text-faint">
-            0 waits for the server default (30s); the maximum is 120s. Timeout returns an error.
+            {tr("waitHint")}
           </p>
           <Button type="button" size="sm" disabled={waiting()} onClick={() => void wait()}>
-            {waiting() ? "Waiting…" : "Wait"}
+            {waiting() ? tr("waiting") : tr("wait")}
           </Button>
         </div>
       </DialogContent>

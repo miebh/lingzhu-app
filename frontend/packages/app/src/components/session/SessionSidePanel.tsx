@@ -1128,7 +1128,7 @@ function ReviewPane(props: {
                     <div class="flex min-w-0 items-center gap-0">
                       <button
                         type="button"
-                        aria-label={treeOpen() ? "Hide file tree" : "Show file tree"}
+                        aria-label={treeOpen() ? tr("hideFileTree") : tr("showFileTree")}
                         aria-expanded={treeOpen()}
                         onClick={() => setTreeOpen(!treeOpen())}
                         class={`interactive grid h-7 w-9 shrink-0 place-items-center rounded-md hover:bg-[linear-gradient(var(--overlay-hover),var(--overlay-hover))] ${
@@ -1208,7 +1208,7 @@ function ReviewPane(props: {
                       </Show>
                       <SegmentedControl
                         compact
-                        label="Expand mode"
+                        label={tr("expandMode")}
                         value={expandMode()}
                         onChange={setExpandMode}
                         options={[
@@ -1216,19 +1216,19 @@ function ReviewPane(props: {
                             value: "expand",
                             label: "",
                             icon: <ReviewModeIcon name="expand" />,
-                            ariaLabel: "Show all lines",
+                            ariaLabel: tr("showAllLines"),
                           },
                           {
                             value: "collapse",
                             label: "",
                             icon: <ReviewModeIcon name="collapse" />,
-                            ariaLabel: "Hide non-diff lines",
+                            ariaLabel: tr("hideNonDiffLines"),
                           },
                         ]}
                       />
                       <SegmentedControl
                         compact
-                        label="Diff layout"
+                        label={tr("diffLayout")}
                         value={diffMode()}
                         onChange={setDiffMode}
                         options={[
@@ -1236,13 +1236,13 @@ function ReviewPane(props: {
                             value: "unified",
                             label: "",
                             icon: <ReviewModeIcon name="unified" />,
-                            ariaLabel: "Unified diff",
+                            ariaLabel: tr("unifiedDiff"),
                           },
                           {
                             value: "split",
                             label: "",
                             icon: <ReviewModeIcon name="split" />,
-                            ariaLabel: "Split diff",
+                            ariaLabel: tr("splitDiff"),
                           },
                         ]}
                       />
@@ -1560,7 +1560,7 @@ function FileViewer(props: { workspace: string; path: string }) {
         <span class="min-w-0 flex-1 truncate font-mono text-meta text-text-base" title={title()}>
           {title()}
         </span>
-        <CopyButton text={configFile() ? content()?.path ?? props.path : props.path} label="Copy path" />
+        <CopyButton text={configFile() ? content()?.path ?? props.path : props.path} label={tr("copyPath")} />
         <button
           type="button"
           aria-label={tr("reloadFile")}

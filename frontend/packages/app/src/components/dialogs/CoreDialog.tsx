@@ -11,7 +11,7 @@ import { messageOf } from "../../lib/errors";
 import type { AgentCatalog, AppInfo, CoreConfig, CoreHealth, SlashCommand } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner, DetailRow } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
-import { useT } from "@lingzhu/ui/i18n";
+import { t, useT } from "@lingzhu/ui/i18n";
 
 interface Props {
   open: boolean;
@@ -43,8 +43,8 @@ function PathRow(props: { label: string; value?: string }) {
           type="button"
           variant="outline"
           size="icon-xs"
-          aria-label={copied() ? `${props.label} copied` : `Copy ${props.label}`}
-          title={copied() ? "Copied" : undefined}
+          aria-label={copied() ? t("copiedLabel", { name: props.label }) : t("copyLabel", { name: props.label })}
+          title={copied() ? t("copied") : undefined}
           onClick={() => void copy()}
         >
           <Copy />
@@ -233,7 +233,7 @@ export function CoreDialog(props: Props) {
                 onClick={() => void saveSummary()}
               >
                 <Save />
-                {exporting() ? "Saving…" : "Save file"}
+                {exporting() ? tr("saving") : tr("dialogSaveFile")}
               </Button>
               <Button
                 type="button"
@@ -243,7 +243,7 @@ export function CoreDialog(props: Props) {
                 onClick={() => setConfirmRestart(true)}
               >
                 <RotateCw class={restarting() ? "motion-safe:animate-spin" : undefined} />
-                {restarting() ? "Restarting…" : "Restart core"}
+                {restarting() ? tr("restarting") : tr("coreRestartCore")}
               </Button>
               <RefreshButton loading={loading()} onRefresh={() => void load()} />
             </div>
@@ -256,7 +256,7 @@ export function CoreDialog(props: Props) {
             <div class="flex min-w-0 flex-col gap-3">
               <Section icon={<Server class="size-4" />} title={tr("coreApplication")}>
                 <div class="flex items-center justify-between gap-4 border-b border-border-base px-3 py-1.5 text-meta">
-                  <span class="shrink-0 text-text-faint">Health</span>
+                  <span class="shrink-0 text-text-faint">{tr("coreHealth")}</span>
                   <span
                     class={`font-mono text-right ${
                       health()
@@ -267,37 +267,41 @@ export function CoreDialog(props: Props) {
                     }`}
                     title={healthError() || undefined}
                   >
-                    {health() ? `reachable · ${health()!.status}` : healthError() ? "unreachable" : "checking…"}
+                    {health()
+                      ? `${tr("reachable")} · ${health()!.status}`
+                      : healthError()
+                        ? tr("unreachable")
+                        : tr("checking")}
                   </span>
                 </div>
-                <DetailRow dense label="Version" value={info()?.version} />
-                <DetailRow dense label="Built" value={info()?.built || "Unknown"} />
-                <PathRow label="Core config" value={info()?.configPath} />
-                <PathRow label="App database" value={info()?.databasePath} />
-                <PathRow label="Data directory" value={info()?.dataDir} />
-                <PathRow label="App data" value={info()?.appDataDir} />
-                <PathRow label="Core log" value={info()?.logPath} />
+                <DetailRow dense label={tr("version")} value={info()?.version} />
+                <DetailRow dense label={tr("built")} value={info()?.built || tr("unknown")} />
+                <PathRow label={tr("coreConfig")} value={info()?.configPath} />
+                <PathRow label={tr("appDatabase")} value={info()?.databasePath} />
+                <PathRow label={tr("dataDirectory")} value={info()?.dataDir} />
+                <PathRow label={tr("appData")} value={info()?.appDataDir} />
+                <PathRow label={tr("coreLog")} value={info()?.logPath} />
               </Section>
 
               <Section icon={<Terminal class="size-4" />} title={tr("coreEffectiveCoreConfig")}>
-                <PathRow label="Config path" value={config()?.path} />
-                <DetailRow dense label="Workdir" value={config()?.workdir} />
-                <DetailRow dense label="Provider" value={config()?.provider} />
-                <DetailRow dense label="Model" value={config()?.model} />
-                <DetailRow dense label="Default agent" value={config()?.defaultAgent} />
-                <DetailRow dense label="Shell" value={config()?.shell?.join(" ")} />
+                <PathRow label={tr("configPath")} value={config()?.path} />
+                <DetailRow dense label={tr("workdir")} value={config()?.workdir} />
+                <DetailRow dense label={tr("providerLabel")} value={config()?.provider} />
+                <DetailRow dense label={tr("modelLabel")} value={config()?.model} />
+                <DetailRow dense label={tr("defaultAgent")} value={config()?.defaultAgent} />
+                <DetailRow dense label={tr("shellLabel")} value={config()?.shell?.join(" ")} />
                 <DetailRow
                   dense
-                  label="Context window"
+                  label={tr("contextWindow")}
                   value={config()?.contextWindow ? String(config()!.contextWindow) : ""}
                 />
                 <DetailRow
                   dense
-                  label="Compact keep"
+                  label={tr("compactKeep")}
                   value={config()?.compactKeep ? String(config()!.compactKeep) : ""}
                 />
                 <div class="flex items-center gap-2 border-b border-border-base px-3 py-1.5 text-meta">
-                  <span class="shrink-0 text-text-faint">Max steps (0 = no limit)</span>
+                  <span class="shrink-0 text-text-faint">{tr("coreMaxSteps")}</span>
                   <Input
                     value={maxSteps()}
                     aria-label={tr("coreMaxSteps")}
@@ -305,14 +309,14 @@ export function CoreDialog(props: Props) {
                     class="ml-auto h-control-xs w-24 select-text text-right font-mono"
                   />
                   <Button type="button" size="xs" disabled={saving()} onClick={() => void saveSteps()}>
-                    {saving() ? "Saving…" : "Save"}
+                    {saving() ? tr("saving") : tr("save")}
                   </Button>
                 </div>
                 <div class="px-3 py-2">
-                  <p class="text-caption text-text-faint">Permissions</p>
+                  <p class="text-caption text-text-faint">{tr("permissions")}</p>
                   <Show
                     when={config()?.permission && config()!.permission!.length > 0}
-                    fallback={<p class="mt-1 text-caption text-text-faint">No explicit rules.</p>}
+                    fallback={<p class="mt-1 text-caption text-text-faint">{tr("coreNoExplicitRules")}</p>}
                   >
                     <ul class="mt-1 flex flex-col gap-1">
                       <For each={config()?.permission ?? []}>
@@ -336,7 +340,7 @@ export function CoreDialog(props: Props) {
               >
                 <Show
                   when={agents() && agents()!.agents.length > 0}
-                  fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No agents."}</p>}
+                  fallback={<p class="p-3 text-meta text-text-faint">{loading() ? tr("loading") : tr("noAgents")}</p>}
                 >
                   <For each={agents()?.agents ?? []}>
                     {(agent) => (
@@ -370,7 +374,7 @@ export function CoreDialog(props: Props) {
               >
                 <Show
                   when={commands().length > 0}
-                  fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No commands."}</p>}
+                  fallback={<p class="p-3 text-meta text-text-faint">{loading() ? tr("loading") : tr("noCommands")}</p>}
                 >
                   <For each={commands()}>
                     {(command) => (

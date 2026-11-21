@@ -41,7 +41,7 @@ export function VariantPicker(props: {
               <ChevronDown class="-ms-0.5 -me-1 size-4 shrink-0" />
             </DropdownMenuTrigger>
           </TooltipPrimitive.Trigger>
-          <TooltipContent side="top">Reasoning level</TooltipContent>
+          <TooltipContent side="top">{tr("providerReasoning")}</TooltipContent>
         </Tooltip>
         <DropdownMenuContent side="top" align="start" class="min-w-0">
           <DropdownMenuRadioGroup

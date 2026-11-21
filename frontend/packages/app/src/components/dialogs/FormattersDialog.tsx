@@ -8,6 +8,7 @@ import { formattersExportName, serializeFormatters } from "../../lib/formattersE
 import type { FormatterInfo } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
+import { useT } from "@lingzhu/ui/i18n";
 
 interface Props {
   open: boolean;
@@ -18,6 +19,7 @@ interface Props {
 
 /** Read-only list of formatters resolved for one workspace. */
 export function FormattersDialog(props: Props) {
+  const tr = useT();
   const [items, setItems] = createSignal<FormatterInfo[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal("");
@@ -76,7 +78,7 @@ export function FormattersDialog(props: Props) {
           <div class="min-w-0">
             <DialogTitle class="flex items-center gap-2">
               <Wand2 class="size-4 text-text-faint" />
-              Formatters
+              {tr("formattersTitle")}
             </DialogTitle>
             <DialogDescription class="truncate">{props.name || props.workspace}</DialogDescription>
           </div>
@@ -89,7 +91,7 @@ export function FormattersDialog(props: Props) {
               onClick={() => void saveList()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? tr("saving") : tr("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -103,7 +105,7 @@ export function FormattersDialog(props: Props) {
             when={items().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Loading…" : "No formatters configured."}
+                {loading() ? tr("loading") : tr("noFormatters")}
               </p>
             }
           >

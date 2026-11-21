@@ -8,6 +8,7 @@ import { messageOf } from "../../lib/errors";
 import type { SessionEnvironment } from "@lingzhu/ui/types";
 import { RefreshButton, ErrorBanner, DetailRow } from "@lingzhu/ui/detail";
 import { NoticeBanner } from "@lingzhu/ui/detail";
+import { t } from "@lingzhu/ui/i18n";
 
 interface Props {
   open: boolean;
@@ -93,7 +94,7 @@ export function EnvironmentDialog(props: Props) {
           <div class="min-w-0">
             <DialogTitle class="flex items-center gap-2">
               <Cpu class="size-4 text-text-faint" />
-              Environment
+              {t("environmentTitle")}
             </DialogTitle>
             <DialogDescription class="truncate">{props.title || props.sessionID}</DialogDescription>
           </div>
@@ -106,7 +107,7 @@ export function EnvironmentDialog(props: Props) {
               onClick={() => void saveEnvironment()}
             >
               <Save />
-              {saving() ? "Saving…" : "Save file"}
+              {saving() ? t("saving") : t("dialogSaveFile")}
             </Button>
             <RefreshButton loading={loading()} onRefresh={() => void load()} />
           </div>
@@ -118,20 +119,20 @@ export function EnvironmentDialog(props: Props) {
         <Show
           when={env()}
           fallback={
-            <p class="mt-4 text-meta text-text-faint">{loading() ? "Loading…" : "No environment data."}</p>
+            <p class="mt-4 text-meta text-text-faint">{loading() ? t("loading") : t("noEnvironmentData")}</p>
           }
         >
           {(current) => (
             <>
               <div class="mt-4 rounded-md border border-border-base">
-                <DetailRow label="Session" value={current().id} />
-                <DetailRow label="Workdir" value={current().workdir || "(process directory)"} />
-                <DetailRow label="Shell" value={current().shell.join(" ")} />
-                <DetailRow label="Running" value={current().running ? "yes" : "no"} />
-                <DetailRow label="Provider" value={current().provider} />
-                <DetailRow label="Model" value={current().model} />
-                <DetailRow label="Agent" value={current().agent || "default"} />
-                <DetailRow label="Platform" value={`${current().os}/${current().arch}`} />
+                <DetailRow label={t("sessionLabel")} value={current().id} />
+                <DetailRow label={t("workdir")} value={current().workdir || t("processDirectory")} />
+                <DetailRow label={t("shellLabel")} value={current().shell.join(" ")} />
+                <DetailRow label={t("runningLabel")} value={current().running ? t("yes") : t("no")} />
+                <DetailRow label={t("providerLabel")} value={current().provider} />
+                <DetailRow label={t("modelLabel")} value={current().model} />
+                <DetailRow label={t("agent")} value={current().agent || t("defaultValue")} />
+                <DetailRow label={t("platform")} value={`${current().os}/${current().arch}`} />
               </div>
               <div class="mt-3 flex flex-wrap gap-2">
                 <Show when={current().workdir}>
@@ -142,7 +143,7 @@ export function EnvironmentDialog(props: Props) {
                     onClick={() => void copy(current().workdir)}
                   >
                     <Copy />
-                    {copied() === current().workdir ? "Copied" : "Copy workdir"}
+                    {copied() === current().workdir ? t("copied") : t("copyWorkdir")}
                   </Button>
                 </Show>
                 <Button
@@ -152,7 +153,7 @@ export function EnvironmentDialog(props: Props) {
                   onClick={() => void copy(current().shell.join(" "))}
                 >
                   <Copy />
-                  {copied() === current().shell.join(" ") ? "Copied" : "Copy shell"}
+                  {copied() === current().shell.join(" ") ? t("copied") : t("copyShell")}
                 </Button>
               </div>
             </>

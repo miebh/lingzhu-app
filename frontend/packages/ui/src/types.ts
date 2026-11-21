@@ -1412,7 +1412,26 @@ export interface Worktree {
   branch?: string;
   head?: string;
   main: boolean;
+  /** The checkout lives in the app's own worktree storage. */
+  managed?: boolean;
   size: number;
+}
+
+/** One durable session recorded inside a worktree. */
+export interface WorktreeSession {
+  id: string;
+  title: string;
+  updated: string;
+}
+
+/** The deletion preflight for one worktree checkout. */
+export interface WorktreeInspection {
+  active: boolean;
+  dirty: boolean;
+  /** False when git status could not be read; the UI offers Retry. */
+  known: boolean;
+  error?: string;
+  sessions: WorktreeSession[];
 }
 
 export interface WorktreeList {

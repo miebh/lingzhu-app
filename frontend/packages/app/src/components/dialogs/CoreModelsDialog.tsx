@@ -122,7 +122,7 @@ export function CoreModelsDialog(props: Props) {
               when={providers().length > 0}
               fallback={
                 <p class="px-2 py-1 text-meta text-text-faint">
-                  {loading() ? "Loading…" : "No providers configured."}
+                  {loading() ? tr("loading") : tr("noProvidersConfigured")}
                 </p>
               }
             >
@@ -144,7 +144,7 @@ export function CoreModelsDialog(props: Props) {
                           provider.ready ? "text-state-fg-success" : "text-state-fg-warning"
                         }`}
                       >
-                        {provider.ready ? "ready" : "no key"}
+                        {provider.ready ? tr("ready") : tr("noKey")}
                       </span>
                     </span>
                     <span class="w-full truncate text-caption text-text-faint">
@@ -166,7 +166,7 @@ export function CoreModelsDialog(props: Props) {
                 <Show when={detail()}>
                   {(provider) => (
                     <span class={provider().ready ? "text-state-fg-success" : "text-state-fg-warning"}>
-                      {provider().ready ? "ready" : "no key"}
+                      {provider().ready ? tr("ready") : tr("noKey")}
                     </span>
                   )}
                 </Show>
@@ -186,7 +186,7 @@ export function CoreModelsDialog(props: Props) {
             <div class="min-h-0 flex-1 overflow-auto rounded-md border border-border-base">
               <Show
                 when={models().length > 0}
-                fallback={<p class="p-3 text-meta text-text-faint">{loading() ? "Loading…" : "No models."}</p>}
+                fallback={<p class="p-3 text-meta text-text-faint">{loading() ? tr("loading") : tr("noModelsConfigured")}</p>}
               >
                 <For each={models()}>
                   {(model) => (

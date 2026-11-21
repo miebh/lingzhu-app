@@ -80,25 +80,25 @@ export function SessionLocationDialog(props: Props) {
 
     if (props.step === "worktrees") {
       const next: Row[] = [];
-      if (matches("Local repository", props.workspacePath)) {
+      if (matches(tr("localRepository"), props.workspacePath)) {
         next.push({
           id: "local",
           kind: "worktree",
-          title: "Local repository",
+          title: tr("localRepository"),
           detail: props.workspacePath,
           path: props.workspacePath,
           current: true,
         });
       }
-      if (matches("New worktree")) {
-        next.push({ id: "new-worktree", kind: "new-worktree", title: "New worktree" });
+      if (matches(tr("newWorktree"))) {
+        next.push({ id: "new-worktree", kind: "new-worktree", title: tr("newWorktree") });
       }
       for (const worktree of worktrees()) {
         if (!matches(worktree.branch, worktree.path)) continue;
         next.push({
           id: `worktree:${worktree.path}`,
           kind: "worktree",
-          title: worktree.branch || "Detached",
+          title: worktree.branch || tr("detached"),
           detail: worktree.path,
           path: worktree.path,
         });
@@ -117,7 +117,7 @@ export function SessionLocationDialog(props: Props) {
         path: workspace.path,
         current: workspace.path === props.workspacePath,
       }));
-    next.push({ id: "add", kind: "add", title: "Add workspace" });
+    next.push({ id: "add", kind: "add", title: tr("addWorkspace") });
     return next;
   });
 
@@ -152,7 +152,8 @@ export function SessionLocationDialog(props: Props) {
     update(setSelected, selected, (current) => (Math.min(current, length - 1) + delta + length) % length);
   };
 
-  const placeholder = () => (props.step === "worktrees" ? "Search worktrees" : "Search projects");
+  const placeholder = () =>
+    props.step === "worktrees" ? tr("searchWorktrees") : tr("searchProjects");
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -172,12 +173,12 @@ export function SessionLocationDialog(props: Props) {
         }}
       >
         <DialogTitle class="sr-only">
-          {props.step === "worktrees" ? "Run session in" : "Session location"}
+          {props.step === "worktrees" ? tr("dialogRunSessionIn") : tr("sessionLocation")}
         </DialogTitle>
         <DialogDescription class="sr-only">
           {props.step === "worktrees"
-            ? "Search and choose the worktree for this session."
-            : "Search and choose the project for this session."}
+            ? tr("searchAndChooseWorktree")
+            : tr("searchAndChooseProject")}
         </DialogDescription>
 
         <div class="command-palette-search">
@@ -224,7 +225,7 @@ export function SessionLocationDialog(props: Props) {
           <div
             id="session-location-list"
             role="listbox"
-            aria-label={props.step === "worktrees" ? "Worktrees" : "Projects"}
+            aria-label={props.step === "worktrees" ? tr("worktrees") : tr("projects")}
             class="command-palette-results"
           >
             <Show when={props.step === "worktrees"}>
@@ -241,7 +242,7 @@ export function SessionLocationDialog(props: Props) {
             <div class="command-palette-group">
               <Show
                 when={rows().length > 0 || loading()}
-                fallback={<p class="command-palette-state">No results found</p>}
+                fallback={<p class="command-palette-state">{tr("noResults")}</p>}
               >
                 <For each={rows()}>
                   {(row, index) => {
@@ -281,7 +282,7 @@ export function SessionLocationDialog(props: Props) {
                             </Show>
                           </span>
                           <Show when={row.current}>
-                            <span class="shrink-0 text-caption text-text-faint">Current</span>
+                            <span class="shrink-0 text-caption text-text-faint">{tr("current")}</span>
                           </Show>
                         </span>
                       </button>
@@ -290,7 +291,7 @@ export function SessionLocationDialog(props: Props) {
                 </For>
               </Show>
               <Show when={loading()}>
-                <p class="command-palette-state">Loading worktrees…</p>
+                <p class="command-palette-state">{tr("worktreesLoading")}</p>
               </Show>
             </div>
           </div>

@@ -81,7 +81,11 @@ export function SyntheticDialog(props: Props) {
           </DialogTitle>
           <DialogDescription class="truncate">
             {props.title ? `${props.title} · ` : ""}
-            {running() === undefined ? "session state unknown" : running() ? "session is running" : "session is idle"}
+            {running() === undefined
+              ? tr("sessionStateUnknown")
+              : running()
+                ? tr("sessionRunning")
+                : tr("sessionIdle")}
           </DialogDescription>
         </div>
 
@@ -109,7 +113,7 @@ export function SyntheticDialog(props: Props) {
           </p>
           <Button type="button" size="sm" disabled={busy()} onClick={() => void send()}>
             <Send />
-            {busy() ? "Sending…" : "Send"}
+            {busy() ? tr("sending") : tr("send")}
           </Button>
         </div>
       </DialogContent>

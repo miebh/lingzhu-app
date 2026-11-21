@@ -112,7 +112,7 @@ export function SearchDialog(props: Props) {
           />
           <Button type="button" size="sm" disabled={loading()} onClick={() => void search()}>
             <Search />
-            {loading() ? "Searching…" : "Search"}
+            {loading() ? tr("searching") : tr("search")}
           </Button>
           <Button
             type="button"
@@ -122,7 +122,7 @@ export function SearchDialog(props: Props) {
             onClick={() => void saveHits()}
           >
             <Save />
-            {saving() ? "Saving…" : "Save file"}
+            {saving() ? tr("saving") : tr("dialogSaveFile")}
           </Button>
         </div>
 
@@ -134,7 +134,7 @@ export function SearchDialog(props: Props) {
             when={hits().length > 0}
             fallback={
               <p class="p-3 text-meta text-text-faint">
-                {loading() ? "Searching…" : searched() ? "No matching events." : "Enter a term to search."}
+                {loading() ? tr("searching") : searched() ? tr("noMatchingEvents") : tr("enterSearchTerm")}
               </p>
             }
           >
@@ -165,7 +165,7 @@ export function SearchDialog(props: Props) {
 
         <Show when={hits().length > 0}>
           <p class="mt-2 shrink-0 text-caption text-text-faint">
-            {hits().length} match{hits().length === 1 ? "" : "es"} · click a result to open its session
+            {tr("searchMatches", { count: hits().length })}
           </p>
         </Show>
       </DialogContent>
