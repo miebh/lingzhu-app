@@ -66,7 +66,6 @@ function ShellBridges() {
   });
   useShortcuts({
     preferences: () => shell.preferences,
-    savePreferences: shell.savePreferences,
     activeAgent,
     hasActive,
     activeWorkspacePath: () => shell.activeWorkspace?.path,

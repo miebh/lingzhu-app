@@ -30,7 +30,6 @@ const (
 // Appearance controls the client look without changing core configuration.
 type Appearance struct {
 	Density         string         `json:"density"`
-	Zoom            int            `json:"zoom"`
 	TimelineWidth   string         `json:"timelineWidth"`
 	Theme           string         `json:"theme"`
 	Language        string         `json:"language"`
@@ -64,7 +63,6 @@ type Preferences struct {
 	FoldUserMessages       bool                            `json:"foldUserMessages"`
 	ShowTurnDiffs          bool                            `json:"showTurnDiffs"`
 	BackgroundActivity     string                          `json:"backgroundActivity"`
-	PinchZoom              bool                            `json:"pinchZoom"`
 	NewIcons               bool                            `json:"newIcons"`
 	NewQuestionUI          bool                            `json:"newQuestionUI"`
 	Sounds                 Sounds                          `json:"sounds"`
@@ -114,7 +112,6 @@ func Default() Preferences {
 		FoldUserMessages:     true,
 		ShowTurnDiffs:        true,
 		BackgroundActivity:   "left",
-		PinchZoom:            true,
 		NewIcons:             false,
 		NewQuestionUI:        false,
 		Sounds: Sounds{
@@ -127,7 +124,6 @@ func Default() Preferences {
 		},
 		Appearance: Appearance{
 			Density:         densityComfortable,
-			Zoom:            100,
 			TimelineWidth:   timelineComfortable,
 			Theme:           themeSystem,
 			Language:        languageEnglish,
@@ -247,9 +243,6 @@ func Normalize(prefs Preferences) Preferences {
 	case "off", "center", "right":
 	default:
 		prefs.BackgroundActivity = defaults.BackgroundActivity
-	}
-	if prefs.Appearance.Zoom < 80 || prefs.Appearance.Zoom > 150 {
-		prefs.Appearance.Zoom = defaults.Appearance.Zoom
 	}
 	switch prefs.Appearance.Density {
 	case densityCompact, densityComfortable:

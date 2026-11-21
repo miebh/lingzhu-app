@@ -155,7 +155,6 @@ type AppPreferences struct {
 	FoldUserMessages       bool                            `json:"foldUserMessages"`
 	ShowTurnDiffs          bool                            `json:"showTurnDiffs"`
 	BackgroundActivity     string                          `json:"backgroundActivity"`
-	PinchZoom              bool                            `json:"pinchZoom"`
 	NewIcons               bool                            `json:"newIcons"`
 	NewQuestionUI          bool                            `json:"newQuestionUI"`
 	Sounds                 SoundPreferences                `json:"sounds"`
@@ -210,7 +209,6 @@ type ModelSelection struct {
 // AppearancePreferences controls the client look without touching core config.
 type AppearancePreferences struct {
 	Density         string                     `json:"density"`
-	Zoom            int                        `json:"zoom"`
 	TimelineWidth   string                     `json:"timelineWidth"`
 	Theme           string                     `json:"theme"`
 	Language        string                     `json:"language"`

@@ -336,8 +336,6 @@ export interface AppPreferences {
   showTurnDiffs: boolean;
   /** Position of the running background sessions indicator. */
   backgroundActivity: "off" | "left" | "center" | "right";
-  /** Allow trackpad pinch and Ctrl-scroll to change the UI zoom. */
-  pinchZoom: boolean;
   /** Preview the updated icon set. */
   newIcons: boolean;
   /** Preview the keyboard-first question dock. */
@@ -422,8 +420,6 @@ export type TimelineDetailInput = TimelineDetail | TimelineDetailPreset;
 
 export interface AppearancePreferences {
   density: "comfortable" | "compact";
-  /** UI zoom percentage, 80–150. */
-  zoom: number;
   timelineWidth: "focused" | "comfortable" | "wide";
   /** Follow the OS, or pin the color scheme. */
   theme: "system" | "dark" | "light";

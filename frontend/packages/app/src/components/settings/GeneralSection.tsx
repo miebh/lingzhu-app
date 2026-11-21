@@ -97,13 +97,6 @@ export function GeneralSection(props: Props) {
             }
           />
         </SettingsRow>
-        <SettingsRow title={t("pinchZoom")} description={t("pinchZoomDesc")}>
-          <Switch
-            aria-label={t("pinchZoom")}
-            checked={prefs().pinchZoom}
-            onCheckedChange={(checked) => props.preferences.save({ ...prefs(), pinchZoom: checked })}
-          />
-        </SettingsRow>
         <SettingsRow title={t("spellcheck")} description={t("spellcheckDesc")}>
           <Switch
             aria-label={t("spellcheck")}

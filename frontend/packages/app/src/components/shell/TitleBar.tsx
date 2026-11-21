@@ -98,22 +98,6 @@ export function TitleBar(props: Props) {
     }
   };
 
-  const applyZoom = async (direction: "in" | "out" | "reset") => {
-    const levels = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
-    try {
-      const current = await Window.GetZoom();
-      const next =
-        direction === "reset"
-          ? 1
-          : direction === "in"
-            ? (levels.find((level) => level > current + 0.01) ?? levels[levels.length - 1])
-            : ([...levels].reverse().find((level) => level < current - 0.01) ?? levels[0]);
-      await Window.SetZoom(next);
-    } catch {
-      // Zoom lives in the host window; a browser preview ignores it.
-    }
-  };
-
   const toggleFullscreen = async () => {
     try {
       if (await Window.IsFullscreen()) await Window.UnFullscreen();
@@ -231,19 +215,6 @@ export function TitleBar(props: Props) {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => window.location.reload()}>{tr("reloadAction")}</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => void applyZoom("reset")} class="justify-between pe-3">
-                    {tr("actualSize")}
-                    <MenuShortcut label="Ctrl+0" />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void applyZoom("in")} class="justify-between pe-3">
-                    {tr("zoomIn")}
-                    <MenuShortcut label="Ctrl++" />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void applyZoom("out")} class="justify-between pe-3">
-                    {tr("zoomOut")}
-                    <MenuShortcut label="Ctrl+-" />
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => void toggleFullscreen()}>{tr("toggleFullscreen")}</DropdownMenuItem>
                 </DropdownMenuSubContent>

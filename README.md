@@ -110,6 +110,8 @@ frontend/apps/desktop/bindings  Generated from Go; not committed, run `wails3 ge
 - The last durable tab is stored under `lingzhu.sessionTabsRecent`. On launch, Home replaces itself
   with that session once the workspace list is ready, falling back to the last persisted tab; drafts
   stay ephemeral. Closing the last tab or deleting the session clears the record.
+- UI zoom is fixed at 100%. The View menu has no zoom entries, trackpad pinch and Ctrl-scroll are not
+  handled, the stored zoom and pinch preferences are gone, and WebView2's zoom control stays off.
 - Solid helpers follow the reference stack: `@solid-primitives/media` owns the mobile breakpoint,
   `resize-observer` and `event-listener` own panel/tab observers and global listeners,
   `@tanstack/solid-virtual` drives the transcript and `fuzzysort` ranks palette and settings searches.

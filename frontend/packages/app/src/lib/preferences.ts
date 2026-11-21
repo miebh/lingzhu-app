@@ -14,7 +14,6 @@ export const defaultPreferences: AppPreferences = {
   foldUserMessages: true,
   showTurnDiffs: true,
   backgroundActivity: "left",
-  pinchZoom: true,
   newIcons: false,
   newQuestionUI: false,
   sounds: {
@@ -39,7 +38,6 @@ export const defaultPreferences: AppPreferences = {
   pinnedSessions: [],
   appearance: {
     density: "comfortable",
-    zoom: 100,
     timelineWidth: "comfortable",
     theme: "system",
     language: "en",
@@ -119,7 +117,6 @@ export function normalizePreferences(value: Partial<AppPreferences> | null | und
       input.backgroundActivity === "right"
         ? input.backgroundActivity
         : "left",
-    pinchZoom: input.pinchZoom !== false,
     newIcons: input.newIcons === true,
     newQuestionUI: input.newQuestionUI === true,
     sounds: {
@@ -132,10 +129,6 @@ export function normalizePreferences(value: Partial<AppPreferences> | null | und
     },
     appearance: {
       density: appearance.density === "compact" ? "compact" : "comfortable",
-      zoom:
-        typeof appearance.zoom === "number" && appearance.zoom >= 80 && appearance.zoom <= 150
-          ? Math.round(appearance.zoom)
-          : 100,
       timelineWidth:
         appearance.timelineWidth === "focused" || appearance.timelineWidth === "wide"
           ? appearance.timelineWidth
@@ -215,9 +208,6 @@ export function applyPreferences(preferences: AppPreferences) {
   else delete root.dataset.newIcons;
   if (preferences.newQuestionUI) root.dataset.questionUi = "dock";
   else delete root.dataset.questionUi;
-  const zoom = preferences.appearance.zoom;
-  if (zoom && zoom !== 100) root.style.zoom = `${zoom}%`;
-  else root.style.removeProperty("zoom");
   applyTheme(preferences.appearance.theme);
   setLanguage(preferences.appearance.language);
 }

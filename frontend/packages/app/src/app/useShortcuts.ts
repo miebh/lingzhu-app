@@ -6,12 +6,10 @@ import { cycleAgentID } from "../lib/slash";
 import type { AgentProfile, AppPreferences } from "@lingzhu/ui/types";
 import { useChatStore } from "../store/chat";
 import { focusComposer, navigateMessage, toggleAutoApprove } from "../lib/shellActions";
-import { usePreferencesStore } from "../store/preferences";
 import { useViewStore } from "../store/view";
 
 interface Options {
   preferences: Accessor<AppPreferences>;
-  savePreferences: (next: AppPreferences) => void | Promise<void>;
   /** The active session's agent, or empty when there is no session. */
   activeAgent: Accessor<string | undefined>;
   /** Whether a session is open; only its presence matters to the bindings. */
@@ -37,8 +35,8 @@ interface Options {
 }
 
 /**
- * App-level keybinds, pointer zoom and the small actions they share. Both
- * listeners live here so the shell only wires the values they need.
+ * App-level keybinds and the small actions they share. Both listeners live
+ * here so the shell only wires the values they need.
  *
  * The listeners are registered once and read the options accessors on each
  * event, so a streamed token never re-registers them.
@@ -110,19 +108,6 @@ export function useShortcuts(options: Options) {
       }
     };
     makeEventListener(window, "keydown", onKeyDown);
-
-    // Trackpad pinch and Ctrl-scroll change the UI zoom when the setting allows it.
-    const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
-      if (!options.preferences().pinchZoom) return;
-      event.preventDefault();
-      const current = usePreferencesStore.getState().preferences;
-      const zoom = current.appearance.zoom;
-      const next = Math.max(80, Math.min(150, zoom + (event.deltaY < 0 ? 10 : -10)));
-      if (next === zoom) return;
-      void options.savePreferences({ ...current, appearance: { ...current.appearance, zoom: next } });
-    };
-    makeEventListener(window, "wheel", onWheel, { passive: false });
 
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;

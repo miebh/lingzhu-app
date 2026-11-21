@@ -152,7 +152,6 @@ func (s *CoreService) Preferences() AppPreferences {
 		FoldUserMessages:     prefs.FoldUserMessages,
 		ShowTurnDiffs:        prefs.ShowTurnDiffs,
 		BackgroundActivity:   prefs.BackgroundActivity,
-		PinchZoom:            prefs.PinchZoom,
 		NewIcons:             prefs.NewIcons,
 		NewQuestionUI:        prefs.NewQuestionUI,
 		Sounds: SoundPreferences{
@@ -177,7 +176,6 @@ func (s *CoreService) Preferences() AppPreferences {
 		PinnedSessions:         append([]string{}, prefs.Pinned...),
 		Appearance: AppearancePreferences{
 			Density:         prefs.Appearance.Density,
-			Zoom:            prefs.Appearance.Zoom,
 			TimelineWidth:   prefs.Appearance.TimelineWidth,
 			Theme:           prefs.Appearance.Theme,
 			Language:        prefs.Appearance.Language,
@@ -211,7 +209,6 @@ func (s *CoreService) SavePreferences(input AppPreferences) error {
 		FoldUserMessages:     input.FoldUserMessages,
 		ShowTurnDiffs:        input.ShowTurnDiffs,
 		BackgroundActivity:   input.BackgroundActivity,
-		PinchZoom:            input.PinchZoom,
 		NewIcons:             input.NewIcons,
 		NewQuestionUI:        input.NewQuestionUI,
 		Sounds: preferences.Sounds{
@@ -239,7 +236,6 @@ func (s *CoreService) SavePreferences(input AppPreferences) error {
 		Pinned:                 append([]string{}, input.PinnedSessions...),
 		Appearance: preferences.Appearance{
 			Density:         input.Appearance.Density,
-			Zoom:            input.Appearance.Zoom,
 			TimelineWidth:   input.Appearance.TimelineWidth,
 			Theme:           input.Appearance.Theme,
 			Language:        input.Appearance.Language,

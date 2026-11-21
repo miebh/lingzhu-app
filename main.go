@@ -55,10 +55,12 @@ func main() {
 		Frameless: runtime.GOOS != "darwin",
 		// The floor only has to hold the narrow layout: below 768px the shell
 		// folds the rail into a drawer and the transcript takes the whole row.
-		MinWidth:         640,
-		MinHeight:        600,
-		BackgroundColour: application.NewRGB(8, 8, 8),
-		URL:              "/",
+		MinWidth:  640,
+		MinHeight: 600,
+		// The client has no zoom control; keep WebView2 from adding its own.
+		ZoomControlEnabled: false,
+		BackgroundColour:   application.NewRGB(8, 8, 8),
+		URL:                "/",
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 40,
 			Backdrop:                application.MacBackdropTranslucent,
