@@ -1,4 +1,5 @@
-import { onCleanup, onMount, type Accessor } from "solid-js";
+import { onMount, type Accessor } from "solid-js";
+import { makeEventListener } from "@solid-primitives/event-listener";
 import type { SideTab } from "../lib/sessionTabs";
 import { effectiveKeybinds, matchesKeybind, SESSION_SUMMARY_EVENT } from "../lib/keybinds";
 import { cycleAgentID } from "../lib/slash";
@@ -108,7 +109,7 @@ export function useShortcuts(options: Options) {
         }
       }
     };
-    window.addEventListener("keydown", onKeyDown);
+    makeEventListener(window, "keydown", onKeyDown);
 
     // Trackpad pinch and Ctrl-scroll change the UI zoom when the setting allows it.
     const onWheel = (event: WheelEvent) => {
@@ -121,7 +122,7 @@ export function useShortcuts(options: Options) {
       if (next === zoom) return;
       void options.savePreferences({ ...current, appearance: { ...current.appearance, zoom: next } });
     };
-    window.addEventListener("wheel", onWheel, { passive: false });
+    makeEventListener(window, "wheel", onWheel, { passive: false });
 
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
@@ -185,12 +186,6 @@ export function useShortcuts(options: Options) {
         options.selectSideTab(tab);
       }
     };
-    window.addEventListener("keydown", onKey);
-
-    onCleanup(() => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("wheel", onWheel);
-      window.removeEventListener("keydown", onKey);
-    });
+    makeEventListener(window, "keydown", onKey);
   });
 }

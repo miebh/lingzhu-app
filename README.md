@@ -103,10 +103,21 @@ frontend/apps/desktop/bindings  Generated from Go; not committed, run `wails3 ge
   switch have thin wrappers so call sites do not depend on Kobalte directly.
 - Transient outcomes surface as a top-center `Toast`; surface-bound failures stay in place. Rename,
   delete and workspace removal use `Dialog` instead of `window.prompt` / `window.confirm`.
+- Navigation uses `@solidjs/router`: `/` is Home, `/workspace/:workspaceKey/session/:sessionID` is a
+  session (the workspace path is a base64url segment), `/new-session?draftId=…` is a draft and
+  `/settings/:section?` is settings. `AppShell` is the layout route and keeps the chrome mounted;
+  `app/routes.tsx` owns the table and projects the pathname onto the view store.
+- The last durable tab is stored under `lingzhu.sessionTabsRecent`. On launch, Home replaces itself
+  with that session once the workspace list is ready, falling back to the last persisted tab; drafts
+  stay ephemeral. Closing the last tab or deleting the session clears the record.
+- Solid helpers follow the reference stack: `@solid-primitives/media` owns the mobile breakpoint,
+  `resize-observer` and `event-listener` own panel/tab observers and global listeners,
+  `@tanstack/solid-virtual` drives the transcript and `fuzzysort` ranks palette and settings searches.
 - Frontend state lives in vanilla stores under `packages/app/src/store` (notify, preferences, catalog,
   view, workspaces, chat). Stores are module singletons, so the tree has no provider chain; a Solid
   binding (`store/create.ts`) turns each selector into an accessor that follows store updates. One
-  store reads another through `getState()`.
+  store reads another through `getState()`. The URL remains the source of truth for the active page;
+  `view` is a projection the shell surfaces read.
 - Chrome (sidebar, header, tool triggers, permission dock, dialogs) is not selectable; message bodies,
   tool output, permission resources and inputs stay selectable.
 - `LINGZHU_DEBUG=1` starts WebView2 with the DevTools endpoint on port 9222, so any CDP client

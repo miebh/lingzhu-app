@@ -6,6 +6,8 @@ import { isSessionNotFound, messageOf } from "../lib/errors";
 import { splitModelID } from "../lib/models";
 import { blankChat, chatKey, entriesFromMessages } from "@lingzhu/ui/domain/chat";
 import { type ChatState, type CoreEvent, type ModelSelection, type PromptAttachment, type PromptComment, type PromptReference, type QuestionResponse, type WorkspaceInfo } from "@lingzhu/ui/types";
+import { currentHref, navigateTo } from "../lib/navigation";
+import { newSessionHref, sessionHref } from "../lib/routes";
 import { createStore } from "./create";
 import { useCatalogStore, type Catalog } from "./catalog";
 import { notify } from "./notify";
@@ -412,6 +414,7 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
     useTabsStore.setState((state) => ({
       tabs: state.tabs.filter((tab) => !(tab.path === workspace && tab.sessionID === sessionID)),
     }));
+    if (useTabsStore.getState().recent?.key === key) useTabsStore.getState().clearRecent();
     turnEndedAt.delete(key);
     set((state) => {
       const chats = { ...state.chats };
@@ -510,10 +513,14 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
     activeByWorkspace: {},
 
     open: async (workspace, sessionID) => {
-      activate(workspace, sessionID);
       const key = chatKey(workspace, sessionID);
+      const draft = Boolean(get().chats[key]?.draft);
+      activate(workspace, sessionID);
+      const target = draft ? newSessionHref(sessionID) : sessionHref(workspace, sessionID);
+      if (!draft) useTabsStore.getState().markRecent(workspace, sessionID);
+      if (currentHref() !== target) navigateTo(target);
       // A draft has no durable session yet; selecting it must not fetch history.
-      if (get().chats[key]?.draft) return;
+      if (draft) return;
       if (!get().chats[key]) {
         const info = useWorkspaceStore
           .getState()
@@ -563,6 +570,7 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
           },
         }));
         activate(workspace, id);
+        navigateTo(newSessionHref(id));
       } catch (error) {
         notify(messageOf(error));
       }
@@ -689,6 +697,8 @@ export const useChatStore = createStore<ChatStore>((set, get) => {
         const chat = blankChat(id, "New session", providerID, modelID, agentID);
         set((state) => ({ chats: { ...state.chats, [chatKey(path, id)]: chat } }));
         activate(path, id);
+        useTabsStore.getState().markRecent(path, id);
+        navigateTo(sessionHref(path, id));
         await sendTo(path, id, text, chat, providerID, modelID, agentID, "steer", attachments, meta);
       } catch (error) {
         notify(messageOf(error));

@@ -27,7 +27,7 @@ import { timelineRows, type TimelineRow, type TurnTotals } from "@lingzhu/sessio
 import { timelineStatus, type TimelineStatus } from "@lingzhu/session-ui/status";
 import { instructionSourceLabels, noticeLabel } from "@lingzhu/session-ui/notice";
 import { MessageNav, messageNavItems } from "@lingzhu/session-ui/MessageNav";
-import { createTimelineVirtualizer, timelineVirtualDefaults } from "@lingzhu/session-ui/timeline-virtual";
+import { createTimelineVirtualizer } from "@lingzhu/session-ui/timeline-virtual";
 import {
   GRACE_ELAPSED_EVENT,
   createCompactionEntranceState,
@@ -202,15 +202,6 @@ export function Messages(props: {
   const [occurrences, setOccurrences] = createSignal(0);
   let input: HTMLInputElement | undefined;
   const [measureTick, bumpMeasure] = createReducer<number, void>((value) => value + 1, 0);
-  let virtualizer: ReturnType<typeof createTimelineVirtualizer> | null = null;
-  if (!virtualizer) {
-    virtualizer = createTimelineVirtualizer({
-      count: 0,
-      getScrollElement: () => container ?? null,
-      getItemKey: (index) => rowKeys()[index] ?? String(index),
-      onChange: () => bumpMeasure(),
-    });
-  }
 
   // Reads that only change with the transcript itself are funnelled through
   // memos, so a burst of streamed updates does not re-run the scroll effects.
@@ -630,34 +621,11 @@ export function Messages(props: {
   // the DOM, and mounting a handful costs less than the engine's bookkeeping.
   const virtual = createMemo(() => rows().length > 60);
   const rowKeys = createMemo(() => rows().map((row) => row.key));
-  const engine = virtualizer!;
-  let configuredCount = -1;
-
-  // Options only change with the row count, so the virtualizer is reconfigured
-  // when that changes instead of on every scroll frame it triggers.
-  createEffect(() => {
-    measureTick();
-    const rowCount = rows().length;
-    if (configuredCount !== rowCount) {
-      configuredCount = rowCount;
-      engine.setOptions({
-        ...timelineVirtualDefaults,
-        count: rowCount,
-        getScrollElement: () => container ?? null,
-        getItemKey: (index) => rowKeys()[index] ?? String(index),
-        estimateSize: () => 84,
-        overscan: 8,
-        onChange: () => bumpMeasure(),
-        initialRect: { width: 0, height: 0 },
-        scrollMargin: 0,
-        gap: 0,
-      });
-    }
-    engine._willUpdate();
-  });
-
-  onMount(() => {
-    onCleanup(engine._didMount());
+  const engine = createTimelineVirtualizer({
+    count: () => rows().length,
+    getScrollElement: () => container ?? null,
+    getItemKey: (index) => rowKeys()[index] ?? String(index),
+    onChange: () => bumpMeasure(),
   });
 
   createEffect(() => {

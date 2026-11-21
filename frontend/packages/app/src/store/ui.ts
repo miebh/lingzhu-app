@@ -1,3 +1,5 @@
+import { createComputed, createRoot } from "solid-js";
+import { createMediaQuery } from "@solid-primitives/media";
 import { createStore } from "./create";
 import { addPanelTab, closePanelTabState } from "../lib/panelTabs";
 import { DEFAULT_SIDE_PANEL_TAB, isSidePanelTabID, type SidePanelTabID } from "../lib/sidePanel";
@@ -178,10 +180,15 @@ export const useUiStore = createStore<UiStore>((set, get) => ({
   restoreText: (text) => set({ restorePrompt: { text, nonce: Date.now() } }),
 }));
 
-/** Applies the stored window size to the mobile breakpoint. */
+/**
+ * Keeps the mobile flag in step with the breakpoint. `createRoot` lets the
+ * primitive own its media-query listener even when the caller (the shell root)
+ * has no owner to clean up against.
+ */
 export function watchViewport() {
-  const apply = () => useUiStore.getState().setMobile(window.innerWidth < 768);
-  apply();
-  window.addEventListener("resize", apply);
-  return () => window.removeEventListener("resize", apply);
+  return createRoot((dispose) => {
+    const mobile = createMediaQuery("(max-width: 767px)");
+    createComputed(() => useUiStore.getState().setMobile(mobile()));
+    return dispose;
+  });
 }

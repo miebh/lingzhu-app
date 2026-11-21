@@ -15,28 +15,61 @@ export interface TabEntry {
   sessionID: string;
 }
 
+const TABS_KEY = "lingzhu.sessionTabs";
+const RECENT_KEY = "lingzhu.sessionTabsRecent";
+
+function isTab(value: unknown): value is TabEntry {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "key" in value &&
+      "path" in value &&
+      "sessionID" in value &&
+      typeof value.key === "string" &&
+      typeof value.path === "string" &&
+      typeof value.sessionID === "string",
+  );
+}
+
 function readTabs(): TabEntry[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem("lingzhu.sessionTabs") ?? "[]");
-    return Array.isArray(parsed)
-      ? parsed.filter(
-          (tab): tab is TabEntry =>
-            tab && typeof tab.key === "string" && typeof tab.path === "string" && typeof tab.sessionID === "string",
-        )
-      : [];
+    const parsed = JSON.parse(localStorage.getItem(TABS_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter(isTab) : [];
   } catch {
     return [];
+  }
+}
+
+function readRecent(): TabEntry | undefined {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "null");
+    return isTab(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeRecent(entry: TabEntry | undefined): void {
+  try {
+    if (entry) localStorage.setItem(RECENT_KEY, JSON.stringify(entry));
+    else localStorage.removeItem(RECENT_KEY);
+  } catch {
+    // Storage may be unavailable; restoring is a convenience, not a requirement.
   }
 }
 
 interface TabsStore {
   tabs: TabEntry[];
   closed: TabEntry[];
+  /** The tab the app should reopen on the next launch. */
+  recent: TabEntry | undefined;
   /** Last update timestamp each session was seen at. */
   seen: Record<string, string>;
   hydrate: () => void;
 
   addActiveTab: (path: string, sessionID: string) => void;
+  markRecent: (path: string, sessionID: string) => void;
+  clearRecent: () => void;
   removeTabs: (entries: Array<{ path: string; id: string }>) => void;
   select: (tab: SideTab) => void;
   close: (tab: SideTab) => void;
@@ -55,9 +88,10 @@ interface TabsStore {
 export const useTabsStore = createStore<TabsStore>((set, get) => ({
   tabs: readTabs(),
   closed: [],
+  recent: readRecent(),
   seen: {},
 
-  hydrate: () => set({ tabs: readTabs(), closed: [] }),
+  hydrate: () => set({ tabs: readTabs(), closed: [], recent: readRecent() }),
 
   addActiveTab: (path, sessionID) => {
     const key = chatKey(path, sessionID);
@@ -66,6 +100,20 @@ export const useTabsStore = createStore<TabsStore>((set, get) => ({
         ? state
         : { tabs: [...state.tabs, { key, path, sessionID }] },
     );
+  },
+
+  markRecent: (path, sessionID) => {
+    const key = chatKey(path, sessionID);
+    if (get().recent?.key === key) return;
+    const recent = { key, path, sessionID };
+    set({ recent });
+    writeRecent(recent);
+  },
+
+  clearRecent: () => {
+    if (!get().recent) return;
+    set({ recent: undefined });
+    writeRecent(undefined);
   },
 
   removeTabs: (entries) => {
@@ -82,6 +130,7 @@ export const useTabsStore = createStore<TabsStore>((set, get) => ({
     const { next, target, removedActive } = removeTabsForSessions(get().tabs, entries, activeKey);
     set({ tabs: next });
     if (next.length === 0) {
+      get().clearRecent();
       view.showHome();
       return;
     }
@@ -125,6 +174,7 @@ export const useTabsStore = createStore<TabsStore>((set, get) => ({
     const next = tabs.filter((item) => item.key !== tab.key);
     set({ tabs: next });
     if (next.length === 0) {
+      get().clearRecent();
       view.showHome();
       return;
     }
@@ -228,18 +278,21 @@ export const useTabsStore = createStore<TabsStore>((set, get) => ({
       };
     }),
 
-  pruneRestored: (known, restored) =>
-    set((state) => {
-      const next = state.tabs.filter((tab) => {
-        if (!restored.has(tab.key)) return true;
-        const ids = known.get(tab.path);
-        return ids ? ids.has(tab.sessionID) : true;
-      });
-      return next.length === state.tabs.length ? state : { tabs: next };
-    }),
+  pruneRestored: (known, restored) => {
+    const tabs = get().tabs;
+    const next = tabs.filter((tab) => {
+      if (!restored.has(tab.key)) return true;
+      const ids = known.get(tab.path);
+      return ids ? ids.has(tab.sessionID) : true;
+    });
+    if (next.length === tabs.length) return;
+    set({ tabs: next });
+    const recent = get().recent;
+    if (recent && !next.some((tab) => tab.key === recent.key)) get().clearRecent();
+  },
 
   persist: (drafts) => {
-    localStorage.setItem("lingzhu.sessionTabs", JSON.stringify(get().tabs.filter((tab) => !drafts.has(tab.key))));
+    localStorage.setItem(TABS_KEY, JSON.stringify(get().tabs.filter((tab) => !drafts.has(tab.key))));
   },
 
   markSeen: (seen) => set({ seen }),

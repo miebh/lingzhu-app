@@ -9,6 +9,8 @@ import {
   onMount,
   type JSX,
 } from "solid-js";
+import { makeEventListener } from "@solid-primitives/event-listener";
+import { makeResizeObserver } from "@solid-primitives/resize-observer";
 import {
   ArrowLeft,
   ArrowRight,
@@ -298,13 +300,8 @@ export function SessionSidePanel(props: Props) {
     if (!row) return;
     // The row's own observer covers layout changes; the window listener covers
     // hosts whose observer never fires, and both funnel into one measurement.
-    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measureRow);
-    observer?.observe(row);
-    window.addEventListener("resize", measureRow);
-    onCleanup(() => {
-      observer?.disconnect();
-      window.removeEventListener("resize", measureRow);
-    });
+    makeResizeObserver<Element>(() => measureRow()).observe(row);
+    makeEventListener(window, "resize", measureRow);
   });
 
   onMount(() => {
@@ -319,12 +316,8 @@ export function SessionSidePanel(props: Props) {
       const value = storedWidth();
       localStorage.setItem("lingzhu.sidePanelWidth", String(value));
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    onCleanup(() => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    });
+    makeEventListener(window, "pointermove", move);
+    makeEventListener(window, "pointerup", up);
   });
 
   // Below the row width that holds both minimums the panel stops taking space

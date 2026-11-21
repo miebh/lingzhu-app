@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "./solid-testing";
+import { cleanup, fireEvent, screen, waitFor, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -16,8 +16,9 @@ vi.mock("@/lib/api", () => {
   };
 });
 
-import { AppShell } from "@/app/AppShell";
+import { renderApp } from "./render-app";
 import { api } from "@/lib/api";
+import { newSessionHref } from "@/lib/routes";
 import { setLanguage } from "@lingzhu/ui/i18n";
 import { defaultPreferences } from "@/lib/preferences";
 import { useChatStore } from "@/store/chat";
@@ -92,7 +93,7 @@ describe("the full session delete sequence", () => {
       .mockResolvedValueOnce("draft-b");
 
     const user = userEvent.setup();
-    render(() => <AppShell />);
+    renderApp("/");
     const rail = screen.getByRole("complementary", { name: "Side tabs" });
 
     const newSession = () => within(rail).getByRole("button", { name: /New session/, expanded: false });
@@ -118,7 +119,7 @@ describe("the full session delete sequence", () => {
     useViewStore.setState({ tab: "chat", homeOpen: false, settingsOpen: false });
 
     const user = userEvent.setup();
-    render(() => <AppShell />);
+    renderApp(newSessionHref("draft-1"));
     const homeState = () => screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("false");
 
@@ -135,7 +136,7 @@ describe("the full session delete sequence", () => {
     useChatStore.setState({ chats: {}, activeByWorkspace: {} });
     useViewStore.setState({ tab: "chat", homeOpen: false, settingsOpen: false });
 
-    render(() => <AppShell />);
+    renderApp("/new-session");
     const homeState = () => screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("false");
 
@@ -149,7 +150,7 @@ describe("the full session delete sequence", () => {
 
   test("delete the only session, create one, delete it again", async () => {
     const user = userEvent.setup();
-    render(() => <AppShell />);
+    renderApp("/");
     const homeState = () =>
       screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("true");
@@ -188,7 +189,7 @@ describe("the full session delete sequence", () => {
     useChatStore.setState({ chats: {}, activeByWorkspace: {} });
     useViewStore.setState({ tab: "chat", homeOpen: true, settingsOpen: false });
 
-    render(() => <AppShell />);
+    renderApp("/");
 
     await waitFor(() =>
       expect(JSON.parse(localStorage.getItem("lingzhu.sessionTabs") ?? "[]")).toEqual([

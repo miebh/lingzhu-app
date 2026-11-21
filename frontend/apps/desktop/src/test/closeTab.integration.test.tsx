@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "./solid-testing";
+import { cleanup, screen, waitFor, within } from "./solid-testing";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -18,7 +18,8 @@ vi.mock("@/lib/api", () => {
   };
 });
 
-import { AppShell } from "@/app/AppShell";
+import { renderApp } from "./render-app";
+import { sessionHref } from "@/lib/routes";
 import { setLanguage } from "@lingzhu/ui/i18n";
 import { defaultPreferences } from "@/lib/preferences";
 import { useChatStore } from "@/store/chat";
@@ -76,7 +77,7 @@ describe("closing the last session tab", () => {
 
   test("a durable last tab closes on the first click and stays closed", async () => {
     const user = userEvent.setup();
-    render(() => <AppShell />);
+    renderApp(sessionHref("/w", "s1"));
     const homeState = () => screen.getByRole("button", { name: /Home/ }).getAttribute("aria-pressed");
     expect(homeState()).toBe("false");
 
@@ -89,5 +90,7 @@ describe("closing the last session tab", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.queryByRole("tablist", { name: "Open tabs" })).toBeNull();
     expect(JSON.parse(localStorage.getItem("lingzhu.sessionTabs") ?? "[]")).toEqual([]);
+    // With no tabs left there is nothing to reopen on the next launch.
+    expect(localStorage.getItem("lingzhu.sessionTabsRecent")).toBeNull();
   });
 });

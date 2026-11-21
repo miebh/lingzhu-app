@@ -1,4 +1,5 @@
 ﻿import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
+import fuzzysort from "fuzzysort";
 import { update } from "@lingzhu/ui/solid";
 import { ArrowLeft, Search, X } from "@lingzhu/ui/icons";
 import { t } from "@lingzhu/ui/i18n";
@@ -39,18 +40,29 @@ function rank(index: SettingsSearchEntry[], query: string): SettingsSearchEntry[
   const value = query.trim().toLowerCase();
   if (!value) return [];
   const terms = value.split(/\s+/);
-  return index
-    .map((entry) => {
-      const title = entry.title.toLowerCase();
-      const haystack = `${title} ${entry.sectionLabel.toLowerCase()} ${entry.keywords.toLowerCase()}`;
-      if (!terms.every((term) => haystack.includes(term))) return undefined;
-      const score = title.startsWith(value) ? 0 : title.includes(value) ? 1 : 2;
-      return { entry, score };
-    })
-    .filter((item): item is { entry: SettingsSearchEntry; score: number } => item !== undefined)
-    .sort((left, right) => left.score - right.score)
-    .slice(0, RESULT_LIMIT)
-    .map((item) => item.entry);
+  const scores = new Map<SettingsSearchEntry, number>();
+  const order = new Map(index.map((entry, position) => [entry, position]));
+
+  for (const term of terms) {
+    const results = fuzzysort.go(term, index, {
+      keys: ["title", "sectionLabel", "keywords"],
+      threshold: -10000,
+      scoreFn: (result) => result.score + (result[0]?.score ?? 0) * 2,
+    });
+    const matched = new Set<SettingsSearchEntry>();
+    for (const result of results) {
+      matched.add(result.obj);
+      scores.set(result.obj, (scores.get(result.obj) ?? 0) + result.score);
+    }
+    for (const entry of index) if (!matched.has(entry)) scores.delete(entry);
+  }
+
+  return [...scores.keys()]
+    .sort(
+      (left, right) =>
+        (scores.get(right) ?? 0) - (scores.get(left) ?? 0) || (order.get(left) ?? 0) - (order.get(right) ?? 0),
+    )
+    .slice(0, RESULT_LIMIT);
 }
 
 /**

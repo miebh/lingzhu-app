@@ -9,6 +9,8 @@ import {
   type Accessor,
   type JSX,
 } from "solid-js";
+import { makeEventListener } from "@solid-primitives/event-listener";
+import { makeResizeObserver } from "@solid-primitives/resize-observer";
 import { update } from "@lingzhu/ui/solid";
 import { ActivityRing } from "@lingzhu/ui/ActivityRing";
 import { Copy, Grid2x2Plus, Pencil, Search, X } from "@lingzhu/ui/icons";
@@ -73,13 +75,13 @@ function dismissOnOutside(isOpen: Accessor<boolean>, close: () => void) {
   createEffect(() => {
     if (!isOpen()) return;
     const dismiss = () => close();
-    window.addEventListener("pointerdown", dismiss);
-    window.addEventListener("blur", dismiss);
-    window.addEventListener("resize", dismiss);
+    const clear = [
+      makeEventListener(window, "pointerdown", dismiss),
+      makeEventListener(window, "blur", dismiss),
+      makeEventListener(window, "resize", dismiss),
+    ];
     onCleanup(() => {
-      window.removeEventListener("pointerdown", dismiss);
-      window.removeEventListener("blur", dismiss);
-      window.removeEventListener("resize", dismiss);
+      for (const remove of clear) remove();
     });
   });
 }
@@ -214,13 +216,15 @@ export function SideTabs(props: Props) {
     hasChildren();
     const element = listElement;
     if (!element) return;
-    const observer = new ResizeObserver(() => {
+    const { observe, unobserve } = makeResizeObserver<Element>(() => {
       measureThumb();
       measureFade();
     });
-    observer.observe(element);
-    for (const child of Array.from(element.children)) observer.observe(child);
-    onCleanup(() => observer.disconnect());
+    const targets = [element, ...Array.from(element.children)];
+    for (const target of targets) observe(target);
+    onCleanup(() => {
+      for (const target of targets) unobserve(target);
+    });
   });
 
   onMount(() => {
@@ -307,15 +311,14 @@ export function SideTabs(props: Props) {
     };
 
     measure();
-    const observer = new ResizeObserver(measure);
-    if (listElement) observer.observe(listElement);
-    for (const element of Object.values(titleRefs)) {
-      if (element) observer.observe(element);
-    }
-    window.addEventListener("resize", measure);
+    const { observe, unobserve } = makeResizeObserver<Element>(() => measure());
+    const targets = [listElement, ...Object.values(titleRefs)].filter((element): element is HTMLElement =>
+      Boolean(element),
+    );
+    for (const target of targets) observe(target);
+    makeEventListener(window, "resize", measure);
     onCleanup(() => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
+      for (const target of targets) unobserve(target);
     });
   });
 
@@ -327,11 +330,8 @@ export function SideTabs(props: Props) {
       window.clearTimeout(previewTimer);
       setPreview(undefined);
     };
-    window.addEventListener("scroll", clear, true);
-    onCleanup(() => {
-      window.clearTimeout(previewTimer);
-      window.removeEventListener("scroll", clear, true);
-    });
+    makeEventListener(window, "scroll", clear, true);
+    onCleanup(() => window.clearTimeout(previewTimer));
   });
 
   // The context menu opens over the row, so the pointer never leaves it to
@@ -368,12 +368,8 @@ export function SideTabs(props: Props) {
         localStorage.setItem("lingzhu.sideTabsWidth", String(innerWidth()));
       }
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    onCleanup(() => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    });
+    makeEventListener(window, "pointermove", move);
+    makeEventListener(window, "pointerup", up);
   });
 
   const moveFocus = (current: string, direction: 1 | -1) => {

@@ -1,4 +1,4 @@
-import { createMemo, createRoot, onMount, type Accessor, type JSX } from "solid-js";
+import { createMemo, createRoot, type Accessor, type JSX } from "solid-js";
 import { useDialogBindings } from "./useDialogBindings";
 import { useSessionActions } from "./useSessionActions";
 import { useSessionTabs } from "./useSessionTabs";
@@ -155,7 +155,7 @@ function getterObject<T extends object>(build: () => T): T {
 }
 
 function buildShell(): Shell {
-  onMount(() => watchViewport());
+  watchViewport();
   const preferences = usePreferences();
   const savePreferences = usePreferencesStore.getState().save;
   const catalog = useCatalog();
@@ -352,8 +352,7 @@ function buildShell(): Shell {
 
   const openProjectSettings = (path: string) => {
     ui().setSettingsProject(path);
-    view.selectSettingsSection("projects");
-    view.openSettings();
+    view.openSettings("projects");
   };
 
   return getterObject<Shell>(() => ({

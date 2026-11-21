@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
-import { render, waitFor } from "./solid-testing";
-import { AppShell } from "@lingzhu/app/app/AppShell";
+import { waitFor } from "./solid-testing";
+import { renderApp } from "./render-app";
 import { useWorkspaceStore } from "@lingzhu/app/store/workspaces";
 import { useChatStore } from "@lingzhu/app/store/chat";
 import { useViewStore } from "@lingzhu/app/store/view";
@@ -24,7 +24,7 @@ describe("app startup", () => {
       errors.push(args.map((arg) => String(arg)).join(" "));
     });
 
-    render(() => <AppShell />);
+    renderApp("/");
 
     await waitFor(() => expect(document.body.textContent).not.toBe(""));
     spy.mockRestore();

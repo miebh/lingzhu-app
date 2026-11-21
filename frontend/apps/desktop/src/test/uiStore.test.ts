@@ -58,7 +58,7 @@ describe("ui store breakpoint", () => {
     expect(useUiStore.getState().mobile).toBe(true);
   });
 
-  test("watchViewport only commits a real breakpoint change", () => {
+  test("watchViewport only commits a real breakpoint change", async () => {
     const width = window.innerWidth;
     useUiStore.setState({ mobile: false });
     const stop = watchViewport();
@@ -68,6 +68,7 @@ describe("ui store breakpoint", () => {
 
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 500 });
     window.dispatchEvent(new Event("resize"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(useUiStore.getState().mobile).toBe(true);
 
     stop();

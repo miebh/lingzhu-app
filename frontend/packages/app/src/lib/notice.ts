@@ -9,10 +9,9 @@ import { useWorkspaceStore } from "../store/workspaces";
  * both the card and the desktop toast take.
  */
 export function openNoticeTarget(target: NoticeTarget) {
-  const view = useViewStore.getState();
-  // Settings is an overlay, so it has to close before the session is visible.
-  if (view.settingsOpen) view.closeSettings();
-  view.showChat();
+  // The projection closes first so no settings/Home frame survives while the
+  // session route loads; opening the session then updates the URL.
+  useViewStore.setState({ tab: "chat", homeOpen: false, settingsOpen: false });
   useWorkspaceStore.getState().select(target.workspace);
   void useChatStore.getState().open(target.workspace, target.sessionID);
 }

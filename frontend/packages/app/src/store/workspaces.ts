@@ -9,6 +9,8 @@ import { t } from "@lingzhu/ui/i18n";
 
 interface WorkspaceStore {
   workspaces: WorkspaceInfo[];
+  /** True once the first workspace read has completed. */
+  ready: boolean;
   activePath?: string;
   /** Session history cached per workspace, so switching back does not refetch. */
   sessionsByWorkspace: Record<string, SessionInfo[]>;
@@ -62,6 +64,7 @@ async function removeSession(workspace: string, sessionID: string) {
 /** The workspace list, the active one, and the session history per workspace. */
 export const useWorkspaceStore = createStore<WorkspaceStore>((set, get) => ({
   workspaces: [],
+  ready: false,
   activePath: undefined,
   sessionsByWorkspace: {},
   loadingSessions: {},
@@ -88,6 +91,8 @@ export const useWorkspaceStore = createStore<WorkspaceStore>((set, get) => ({
       });
     } catch (error) {
       notify(messageOf(error));
+    } finally {
+      set({ ready: true });
     }
   },
 

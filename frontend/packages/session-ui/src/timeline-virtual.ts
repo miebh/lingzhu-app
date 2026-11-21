@@ -1,15 +1,17 @@
 import {
-  Virtualizer,
+  createVirtualizer,
   elementScroll,
   observeElementOffset,
   observeElementRect,
+  type Rect,
   type VirtualItem,
-} from "@tanstack/virtual-core";
+  type Virtualizer,
+} from "@tanstack/solid-virtual";
 
 export type { VirtualItem };
 
 /** jsdom reports a zero viewport; keep a usable window for range math. */
-const observeRect = (instance: Virtualizer<HTMLElement, HTMLElement>, callback: (rect: { width: number; height: number }) => void) =>
+const observeRect = (instance: Virtualizer<HTMLElement, Element>, callback: (rect: Rect) => void) =>
   observeElementRect(instance, (rect) => {
     if (import.meta.env.MODE === "test" && rect.height === 0) {
       callback({ width: rect.width || 800, height: 600 });
@@ -32,19 +34,22 @@ export const timelineVirtualDefaults = {
 };
 
 /**
- * Transcript rows use the same TanStack virtual core as the reference timeline:
- * absolute rows, measured heights and scroll anchoring handled by the engine.
+ * Transcript rows use the official Solid adapter: the row count and key lookup
+ * are reactive getters, so streamed rows reconfigure the engine without a
+ * manual setOptions effect.
  */
 export function createTimelineVirtualizer(input: {
-  count: number;
+  count: () => number;
   getScrollElement: () => HTMLElement | null;
   getItemKey: (index: number) => string;
   onChange: () => void;
   estimate?: number;
 }) {
-  return new Virtualizer({
+  return createVirtualizer({
     ...timelineVirtualDefaults,
-    count: input.count,
+    get count() {
+      return input.count();
+    },
     getScrollElement: input.getScrollElement,
     getItemKey: input.getItemKey,
     estimateSize: () => input.estimate ?? 84,

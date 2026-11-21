@@ -1,3 +1,5 @@
+import fuzzysort from "fuzzysort";
+
 const PALETTE_AVATAR_VARIANTS = [
   "orange",
   "yellow",
@@ -93,27 +95,25 @@ export function filterPalette<T extends PaletteMatchable>(commands: T[], query: 
   const needle = query.trim().toLowerCase();
   if (!needle) return commands;
   const tokens = needle.split(/\s+/);
-  const ranked: { command: T; score: number; index: number }[] = [];
+  const scores = new Map<T, number>();
 
-  commands.forEach((command, index) => {
-    const title = command.title.toLowerCase();
-    const group = command.group.toLowerCase();
-    const hint = [command.hint, command.description].filter(Boolean).join(" ").toLowerCase();
-    const keywords = (command.keywords ?? []).map((word) => word.toLowerCase()).join(" ");
-    const haystack = `${title} ${group} ${hint} ${keywords}`;
-    if (!tokens.every((token) => haystack.includes(token))) return;
-
-    let score = 0;
-    if (title.startsWith(needle)) score += 30;
-    else if (title.includes(needle)) score += 20;
-    for (const token of tokens) {
-      if (title.startsWith(token)) score += 6;
-      else if (title.includes(token)) score += 3;
-      else if (keywords.includes(token)) score += 1;
+  for (const token of tokens) {
+    const results = fuzzysort.go(token, commands, {
+      keys: ["title", "group", "hint", "description", (command) => (command.keywords ?? []).join(" ")],
+      threshold: -10000,
+      // The first key is the title, so a title match outranks body text.
+      scoreFn: (result) => result.score + (result[0]?.score ?? 0) * 2,
+    });
+    const matched = new Set<T>();
+    for (const result of results) {
+      matched.add(result.obj);
+      scores.set(result.obj, (scores.get(result.obj) ?? 0) + result.score);
     }
-    ranked.push({ command, score, index });
-  });
+    for (const command of commands) if (!matched.has(command)) scores.delete(command);
+  }
 
-  ranked.sort((left, right) => right.score - left.score || left.index - right.index);
-  return ranked.map((entry) => entry.command);
+  const order = new Map(commands.map((command, index) => [command, index]));
+  return [...scores.keys()].sort(
+    (left, right) => (scores.get(right) ?? 0) - (scores.get(left) ?? 0) || (order.get(left) ?? 0) - (order.get(right) ?? 0),
+  );
 }

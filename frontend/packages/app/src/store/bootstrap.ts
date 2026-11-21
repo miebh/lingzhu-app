@@ -1,6 +1,7 @@
 import { api } from "../lib/api";
 import { notify } from "./notify";
 import { openNoticeTarget } from "../lib/notice";
+import { armStartupRestore } from "../lib/startupRestore";
 import { useCatalogStore } from "./catalog";
 import { useChatStore } from "./chat";
 import { usePreferencesStore } from "./preferences";
@@ -28,6 +29,10 @@ async function reloadAfterCore() {
 export function startApp() {
   if (started) return;
   started = true;
+
+  // Home consumes this once; a pending notice below still wins by opening its
+  // own session after the restore navigation.
+  armStartupRestore();
 
   api.onEvent((event) => useChatStore.getState().handleEvent(event));
 

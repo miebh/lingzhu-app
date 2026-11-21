@@ -58,10 +58,7 @@ export function useProjectTreeProps(): ProjectTreeProps {
 
   const props: ProjectTreeProps = {
     embedded: true,
-    onSelectWorkspace: (path) => {
-      shell.view.showChat();
-      workspaceActions.select(path);
-    },
+    onSelectWorkspace: (path) => workspaceActions.select(path),
     onLoadSessions: workspaceActions.loadSessions,
     onAddWorkspace: () => void workspaceActions.connect(),
     onRemoveWorkspace: dialogs.setRemoveWorkspaceTarget,

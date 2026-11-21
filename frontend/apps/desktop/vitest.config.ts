@@ -18,7 +18,7 @@ export default defineConfig({
     environment: "jsdom",
     server: {
       deps: {
-        inline: [/solid-js/, /@solidjs/, /@kobalte/, /solid-markdown/],
+        inline: [/solid-js/, /@solidjs/, /@kobalte/, /@solid-primitives/, /@tanstack\/solid-virtual/, /solid-markdown/],
       },
     },
     setupFiles: ["./src/test/setup.ts"],
